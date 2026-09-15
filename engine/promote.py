@@ -3,8 +3,19 @@
 
   python3 engine/promote.py <repos>
 
-憲法 §4 の昇格条件を、宣言された capabilities.toml だけを根拠に判定する。
+宣言された capabilities.toml だけを根拠に判定する。
 人間が決めるのは「上げるかどうか」だけで、「上げてよいか」は判定しない。
+
+**憲法 §4 のうち、ここで見られるのは宣言から読める条件だけである。** 見ているのは
+「登録されているか」「distinct な適用先が何件あるか」「status がリポジトリ間で
+食い違っていないか」の3つ。§4 が要求する残り——`proposed → stable` の
+「インターフェースが2週間変わっていない」、`stable → kernel` の「壊れると他ドメインが
+壊れることが説明できる」「テストがある」「所有権が自社にある」——は宣言に現れないので
+**判定していない**。だから上の2段は候補として出さず、据え置きに落ちる。
+
+範囲を書いておくのは、「憲法 §4 を機械が判定する」とだけ書くと、判定していない条件まで
+確かめたことになるからである。沈黙を検査済みの証拠として出さない（engine/catalog.py の
+「カタログの沈黙は不在の証拠ではない」と同じ）。
 """
 
 from __future__ import annotations
@@ -75,7 +86,13 @@ def main() -> int:
 
         if top == "experimental" and (ok or n >= RULE_OF_THREE):
             promote.append(f"{cid}: {why} → proposed へ上げられる")
-        elif top == "local" and n >= 2:
+        elif top == "local" and n >= 1:
+            # 憲法 §4 は local → experimental を「1つのリポジトリで実際に動き、
+            # capabilities.toml に登録されている」と定めている。ここは 2 を要求して
+            # おり、憲法より厳しかった（2026-09-15 の通読で発見）。厳しい側のズレは
+            # 事故を起こさないので気づかれないが、実装が憲法と違うこと自体が問題で、
+            # 憲法は kernel 層＝ここが正である。1 に合わせる。
+            # 「実際に動く」は宣言に現れないので判定していない（docstring の範囲）。
             promote.append(f"{cid}: {why} → experimental へ上げられる")
         elif nxt:
             hold.append(f"{cid}: {top} のまま（{why}）。次は {nxt}")
