@@ -1,0 +1,19 @@
+# 新しい仕事（ドメイン）を1つ足すときの雛形。
+# cp -r templates/domain ~/Documents/GitHub/<name>-core してから直す。
+
+[repo]
+name        = "CHANGEME-core"
+domain      = "CHANGEME"      # marketing / sales / finance / governance / ...
+role        = "domain"        # このドメインの中央リポジトリ
+status      = "active"
+enforcement = "warn"
+
+[extends]
+domain_repo    = ""
+kernel_version = "0.1.0"
+
+[layers]
+kernel      = []              # 最初は空でよい。3リポで必要になってから足す
+golden_path = ["CLAUDE.md", "templates"]
+config      = ["config"]
+extension   = []

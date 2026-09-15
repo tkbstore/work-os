@@ -1,0 +1,372 @@
+# work-os が提供する capability。憲法 §6-2: 登録されていない成果物は存在しない。
+
+[[capability]]
+id        = "constitution"
+path      = "CONSTITUTION.md"
+layer     = "kernel"
+status    = "kernel"
+summary   = "10工程・5層・昇格レーン・4ゲート条件の定義"
+used_by   = ["work-os", "marketing", "governance"]
+invariant = ["5層の名前", "昇格レーンの順序", "3社ルールの閾値"]
+configurable = []
+
+[[capability]]
+id        = "workos-lib"
+path      = "engine/workos.py"
+layer     = "kernel"
+status    = "kernel"
+summary   = "work.toml / capabilities.toml の読み込みと層判定"
+used_by   = ["validate", "scan", "adopt", "promote", "render"]
+invariant = ["work.toml のスキーマ", "layer_of() の解決規則"]
+configurable = []
+
+[[capability]]
+id        = "validate"
+path      = "engine/validate.py"
+layer     = "golden_path"
+status    = "stable"
+summary   = "憲法への適合を検証する。pre-commit / CI から呼ぶ"
+used_by   = ["work-os", "marketing", "governance"]
+invariant = ["終了コードの意味", "enforcement の解釈"]
+configurable = ["enforcement"]
+
+[[capability]]
+id        = "scan"
+path      = "engine/scan.py"
+layer     = "golden_path"
+status    = "stable"
+summary   = "複数リポジトリを実測し共通性・変動点・複製世代を出す（読み取り専用）"
+used_by   = ["work-os", "marketing", "governance"]
+invariant = ["読み取り専用であること"]
+configurable = ["PROBE", "IGNORE"]
+
+[[capability]]
+id        = "adopt"
+path      = "engine/adopt.py"
+layer     = "golden_path"
+status    = "proposed"
+summary   = "既存リポジトリに work.toml を1枚生成する。既存ファイルは変更しない"
+used_by   = ["*"]   # work-os 自身の capability は全ドメインが使う
+invariant = []
+configurable = ["DOMAIN_RULES", "LAYER_GUESS"]
+
+[[capability]]
+id        = "promote"
+path      = "engine/promote.py"
+layer     = "golden_path"
+status    = "proposed"
+summary   = "昇格してよい capability を証拠から機械判定する"
+used_by   = ["*"]   # work-os 自身の capability は全ドメインが使う
+invariant = []
+configurable = []
+
+[[capability]]
+id        = "render"
+path      = "engine/render.py"
+layer     = "golden_path"
+status    = "experimental"
+summary   = "capabilities.toml から CAPABILITIES.md を生成する"
+used_by   = ["marketing"]
+invariant = []
+configurable = []
+
+[[capability]]
+id        = "claude-guard"
+path      = "hooks/claude_guard.py"
+layer     = "golden_path"
+status    = "proposed"
+summary   = "Claude Code の PreToolUse hook。kernel/golden_path への書き込みを止める"
+used_by   = ["work-os", "marketing", "governance"]
+invariant = ["PreToolUse の入出力形式"]
+configurable = ["enforcement"]
+
+[[capability]]
+id        = "kernel-watch"
+path      = "hooks/kernel_watch.py"
+layer     = "golden_path"
+status    = "proposed"
+summary   = "PostToolUse hook。守護対象が HEAD と違えば、どのツールで書いたかに関わらず報告する"
+used_by   = ["work-os", "marketing", "governance"]
+invariant = ["PostToolUse の入出力形式", "手段ではなく結果で見ること"]
+configurable = []
+note      = "claude_guard はツール名の列挙で守るので Bash が抜ける。止めるのが向こう、黙って通らないようにするのがこちら"
+
+[[capability]]
+id        = "templates"
+path      = "templates"
+layer     = "golden_path"
+status    = "proposed"
+summary   = "新しいドメイン／クライアントの雛形"
+used_by   = ["*"]   # work-os 自身の capability は全ドメインが使う
+invariant = []
+configurable = []
+
+[[capability]]
+id        = "fleet"
+path      = "engine/fleet.py"
+layer     = "golden_path"
+status    = "experimental"
+summary   = "リポジトリ群の状態を観測する。未push・未コミット・放置・一斉変更・統治クラス"
+used_by   = ["*"]
+invariant = ["読み取り専用であること", "進行中の作業に commit を促さないこと"]
+configurable = ["RISK", "ACTIVE_MINUTES", "SWEEP_HOURS", "SWEEP_REPOS", "EXEMPT"]
+
+[[capability]]
+id        = "intent"
+path      = "engine/intent.py"
+layer     = "golden_path"
+status    = "experimental"
+summary   = "各リポジトリが何をやろうとしているかを session front-matter から集める"
+used_by   = ["*"]
+invariant = ["読み取り専用であること", "新しい規約を足さず、既にあるものだけを読むこと"]
+configurable = ["FRONT_KEYS", "ATTENTION", "NOISE_PREFIXES"]
+
+[[capability]]
+id        = "knowhow"
+path      = "engine/knowhow.py"
+layer     = "golden_path"
+status    = "local"
+summary   = "意思決定ログ(ADR)の front-matter から繰り返されたノウハウを収穫し、rule of three を満たした昇格候補を出す"
+used_by   = ["*"]
+# used_by は表示用ではなく validate.py の3社ルール判定に効く（"*" は全称扱いで免除）。
+# ここが "*" なのは「全ドメインが使う」と主張したからではなく、実際の適用先が
+# 組織固有の事実で公開層に書けないため。正は ADR front-matter の sources 側。
+# status=local の間は3社ルールの検査が走らないので無害だが、proposed に上げるときは
+# 全称主張が実態と合うかを必ず見ること。記憶ではなくここに残す。
+note      = "実際の適用先は各リポの ADR front-matter が正。proposed 昇格時に要再検討"
+invariant = ["読み取り専用であること", "数える単位は distinct な適用先(sources)であること", "RULE_OF_THREE を workos から共有し二重定義しないこと"]
+configurable = ["LIST_KEYS", "SCALAR_KEYS", "DECISIONS_DIR"]
+
+[[capability]]
+id        = "abstraction_gate"
+path      = "engine/abstraction_gate.py"
+layer     = "golden_path"
+status    = "experimental"
+summary   = "公開層に固有名詞が漏れていないかを検査する。抽象度と公開可能性を同時に守る"
+used_by   = ["*"]
+invariant = ["読み取り専用であること"]
+configurable = ["PRIVATE_PREFIXES"]
+
+[[capability]]
+id        = "fleet_watch"
+path      = "hooks/fleet_watch.sh"
+layer     = "golden_path"
+status    = "experimental"
+summary   = "リポジトリ群の観測。悪化があったときだけ通知し、無ければ黙る"
+used_by   = ["*"]
+invariant = ["改善は報告しないこと（読むものは行動が要るものだけにする）"]
+configurable = ["通知手段"]
+
+[[capability]]
+id        = "branch_guard"
+path      = "hooks/branch_guard.py"
+layer     = "golden_path"
+status    = "experimental"
+summary   = "main を直接編集しようとしたときに警告する。憲法 §6-5 に従い warn から始める"
+used_by   = ["*"]
+invariant = ["何も止めないこと（warn の間）", "sessions/ .claude/ registry/ は素通りさせること"]
+configurable = ["PROTECTED", "ALWAYS_FREE"]
+
+[[capability]]
+id        = "inbox"
+path      = "engine/inbox.py"
+layer     = "golden_path"
+status    = "experimental"
+summary   = "投げ先を決めずに受け取る緩衝地帯。21日残ったら捨てる"
+used_by   = ["*"]
+invariant = ["投げる時点で投げ先を要求しないこと"]
+configurable = ["DROP_DAYS"]
+
+[[capability]]
+id        = "catalog"
+path      = "engine/catalog.py"
+layer     = "golden_path"
+status    = "experimental"
+summary   = "「それ、もう作ってあるか？」に能力語で答える。コードから機械生成し、手で書かない"
+used_by   = ["*"]
+invariant = [
+  "手で書かないこと（書いたカタログは腐る）",
+  "沈黙を不在の証拠として提示しないこと",
+  "--find / --why と0件時のフォールバック出力は互換を保つこと（外部スキルが依存を宣言済み）",
+]
+configurable = ["SKIP_DIRS", "STOP", "MAX_DEPTH", "--limit"]
+
+[[capability]]
+id        = "sweep_guard"
+path      = "hooks/sweep_guard.py"
+layer     = "golden_path"
+status    = "experimental"
+summary   = "複数リポジトリを書き換える操作だけを実行前に一度止める。ゲートはここ1点に集約する"
+used_by   = ["*"]
+invariant = [
+  "読み取りは何個リポを跨いでも止めないこと",
+  "単一リポの作業は止めないこと",
+  "止めたら必ず対象一覧を出すこと（それが dry-run になる）",
+  "承認の逃げ道を必ず残すこと（憲法 §6-4）",
+]
+configurable = ["THRESHOLD", "MUTATING", "ACK_ENV"]
+
+[[capability]]
+id        = "generators"
+path      = "engine/generators.py"
+layer     = "golden_path"
+status    = "experimental"
+summary   = "宣言されていない生成器を見つける。同じ内容のファイルが3リポ以上にあれば機械が書いている"
+used_by   = ["*"]
+invariant = [
+  "読み取り専用であること",
+  "宣言済みのものを出力に混ぜないこと（出力は常に未宣言の一覧であること）",
+]
+configurable = ["SKIP_DIRS", "MIN_BYTES", "MAX_BYTES", "--min"]
+
+[[capability]]
+id        = "guard_tests"
+path      = "tests/test_guards.py"
+layer     = "golden_path"
+status    = "experimental"
+summary   = "ガードが止めるべきものを止め、通すべきものを通すことを検査する"
+used_by   = ["*"]
+invariant = ["過去に破られた形と誤爆した形を必ず含むこと",
+             "検査の材料を手元のディスクから借りないこと（借りると新規 clone と CI で黙って空回りする）"]
+configurable = ["FIXTURE_REPOS", "sweep_cases() / branch_cases() の一覧"]
+
+[[capability]]
+id        = "release_gate"
+path      = "engine/release_gate.py"
+layer     = "golden_path"
+status    = "experimental"
+summary   = "公開を宣言したリポジトリが他人の手に渡せる状態かをレーン単位で観測する。主張ではなく実行で確かめる"
+used_by   = ["*"]
+invariant = ["--execute を付けない限り読み取り専用であること",
+             "判定基準を engine に直書きしないこと（work-os-registry/release_lanes.toml に置く）",
+             "1レーンでも欠けたら公開可としないこと"]
+configurable = ["work-os-registry/release_lanes.toml", "work-os-registry/secret_patterns.toml",
+                "work.toml の [publish]"]
+
+[[capability]]
+id        = "release_gate_tests"
+path      = "tests/test_release_gate.py"
+layer     = "golden_path"
+status    = "experimental"
+summary   = "公開ゲートが落とすべきものを落とし、通すべきものを通すかを固定する"
+used_by   = ["*"]
+invariant = ["欠陥の見本を本文に直接書かないこと（ゲート自身がこのファイルを読むため）"]
+configurable = ["MUST_FAIL / MUST_PASS の一覧"]
+
+[[capability]]
+id        = "promotion_rule"
+path      = "engine/promotion.py"
+layer     = "golden_path"
+status    = "experimental"
+summary   = "昇格の証拠をどう数えるかのただ一つの定義。validate.py と promote.py が同じ規則を使う"
+used_by   = ["*"]
+invariant = ["3社ルールの数え方をここ以外に実装しないこと",
+             'used_by の "*" を件数に数えないこと（全称の印であって名前ではない）']
+configurable = []
+
+[[capability]]
+id        = "claude_guard_wiring"
+path      = "hooks/install.sh"
+layer     = "golden_path"
+status    = "experimental"
+summary   = "claude_guard を中央に1回だけ配線する。各リポには何も置かない"
+used_by   = ["*"]
+# 以前は各リポの .claude/settings.json に配る形で、不変条件は
+# 「絶対パスを書かないこと（CLAUDE_PROJECT_DIR を使う）」だった。これが逆だった。
+# CLAUDE_PROJECT_DIR は「そのリポを開いているとき」にしか解決しないので、配線は
+# リポの数だけ必要になり、実際に kernel を宣言する7リポ中1本にしか無かった。
+# 中央から絶対パスで指せば配線は1本で済み、リポが増えても増えない。
+invariant = ["各リポの .claude/settings.json に配線を配らないこと",
+             "中央（~/.claude/settings.json）から絶対パスで1回だけ登録すること",
+             "どのリポを対象にするかは hook 側が work.toml を辿って決めること"]
+configurable = ["matcher"]
+
+[[capability]]
+id        = "test_runner"
+path      = "tests/run_all.py"
+layer     = "golden_path"
+status    = "experimental"
+summary   = "tests/test_*.py を発見して全部走らせる。宣言にファイル名を並べない唯一の入口"
+used_by   = ["*"]
+invariant = ["対象をファイル名の列挙ではなく発見で決めること",
+             "work.toml の [publish.commands] test がここを指すこと"]
+configurable = []
+
+[[capability]]
+id        = "fleet_tests"
+path      = "tests/test_fleet.py"
+layer     = "golden_path"
+status    = "experimental"
+summary   = "観測できなかったことが、観測できたことに化けないかを固定する"
+used_by   = ["*"]
+invariant = ["不明を表す値が、放置判定にも当日コミットにも化けないこと"]
+configurable = []
+
+[[capability]]
+id        = "doc_tests"
+path      = "tests/test_docs.py"
+layer     = "golden_path"
+status    = "experimental"
+summary   = "ドキュメントが案内するスクリプトとリンクが実在するかを固定する"
+used_by   = ["*"]
+invariant = ["案内されたコマンドをここで実行しないこと（公開ゲート経由で自分を再帰的に呼ぶ）"]
+configurable = ["DOCS", "FORM_TYPES"]
+
+[[capability]]
+id        = "contributing"
+path      = "CONTRIBUTING.md"
+layer     = "golden_path"
+status    = "experimental"
+summary   = "層ごとに何がかかるかと、出す前に走らせるものを外から来た人に示す"
+used_by   = ["*"]
+invariant = ["手順を憲法と別の言葉で言い換えないこと（乖離したら憲法が正）"]
+configurable = []
+
+[[capability]]
+id        = "issue_templates"
+path      = ".github/ISSUE_TEMPLATE"
+layer     = "config"
+status    = "experimental"
+summary   = "再現手順と昇格の証拠を、報告の様式そのものに埋め込む"
+used_by   = ["*"]
+invariant = ["昇格の申請に Rule of Three の記入欄を必ず残すこと"]
+configurable = ["各テンプレートの項目"]
+
+[[capability]]
+id        = "calibrate"
+path      = "engine/calibrate.py"
+layer     = "golden_path"
+status    = "experimental"
+summary   = "レーンの閾値が本当に群を分けているかを外のリポジトリで測り直す。物差し自体を疑う側"
+used_by   = ["*"]
+invariant = ["観測を書き直さず release_gate.evaluate() を呼ぶこと（校正と本番が別物になる）",
+             "他所のリポジトリのコマンドを実行しないこと",
+             "除外したものを理由付きで出すこと（黙って削ると全部測ったように読める）"]
+configurable = ["calibration/corpus.toml"]
+
+[[capability]]
+id        = "calibration_corpus"
+path      = "calibration"
+layer     = "config"
+status    = "experimental"
+summary   = "閾値の根拠。測った対象・選び方・結果を残し、後から誰でも反証できるようにする"
+used_by   = ["*"]
+invariant = ["群の選び方(rule)を必ず書くこと（答えられない選択は証拠ではなく作為）",
+             "結果を上書きせず日付ごとに残すこと",
+             "対照群に個人アカウントのリポジトリを入れないこと"]
+configurable = ["groups", "filters", "separation"]
+
+[[capability]]
+id        = "root_cause_guard"
+path      = "hooks/root_cause_guard.py"
+layer     = "golden_path"
+status    = "experimental"
+summary   = "症状だけを消す変更（抑制・テスト停止・閾値の緩和・列挙の追加）に理由を要求する"
+used_by   = ["*"]
+invariant = ["PreToolUse の入出力形式",
+             "痕跡の一覧は work-os-registry/patch_smells.toml が持つ（別リポ）"]
+configurable = ["WORKOS_ROOT_CAUSE（block / warn / off）",
+                "work-os-registry/patch_smells.toml"]
+
+# patch_smells（痕跡の宣言そのもの）は config 層なので work-os-registry 側にある。
+# 宣言を持つリポジトリと、宣言を読む仕組みを分けたのが 2026-08-31 の切り出し。

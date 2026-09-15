@@ -1,0 +1,20 @@
+# ドメイン配下の個別案件（クライアント）用の雛形。
+
+[repo]
+name        = "CHANGEME"
+domain      = "CHANGEME"
+role        = "client"
+status      = "active"
+enforcement = "warn"
+
+[extends]
+domain_repo    = "CHANGEME-core"
+kernel_version = "0.1.0"
+
+[layers]
+# kernel と golden_path はドメインリポジトリから配布されるもの。ここでは編集しない。
+kernel      = []
+golden_path = []
+# この案件で変えてよいのはここだけ。
+config      = ["config"]
+extension   = []

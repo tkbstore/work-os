@@ -1,0 +1,1943 @@
+{
+  "frozen_on": "2026-08-26",
+  "members": {
+    "adopted": [
+      "psf/requests",
+      "fastapi/fastapi",
+      "django/django",
+      "astral-sh/ruff",
+      "yt-dlp/yt-dlp",
+      "openai/whisper",
+      "3b1b/manim",
+      "nvbn/thefuck",
+      "sherlock-project/sherlock",
+      "home-assistant/core"
+    ],
+    "not_adopted": [
+      "astroai/torchfits",
+      "bbvch-ai/aihub-core",
+      "ProcessMining-uOttawa/pm4py-ucm",
+      "pyvista/sphinx-autocodelink",
+      "Geological-Survey-of-Western-Australia/skippy",
+      "powerset-co/powerpacks"
+    ],
+    "not_adopted_as_service": [
+      "astroai/torchfits (service とみなす)",
+      "bbvch-ai/aihub-core (service とみなす)",
+      "ProcessMining-uOttawa/pm4py-ucm (service とみなす)",
+      "pyvista/sphinx-autocodelink (service とみなす)",
+      "Geological-Survey-of-Western-Australia/skippy (service とみなす)",
+      "powerset-co/powerpacks (service とみなす)"
+    ],
+    "agent_native": [
+      "superfly/flyctl",
+      "stripe/stripe-cli",
+      "cli/cli",
+      "railwayapp/cli",
+      "supabase/cli",
+      "vercel/vercel"
+    ],
+    "landmark": [
+      "NousResearch/hermes-agent",
+      "anthropics/claude-code"
+    ]
+  },
+  "excluded": [
+    {
+      "slug": "Metta-AI/coworld-builder",
+      "group": "not_adopted",
+      "why": "マニフェストが無い（動かすものではない）"
+    },
+    {
+      "slug": "breathe-OSS/api",
+      "group": "not_adopted",
+      "why": "マニフェストが無い（動かすものではない）"
+    }
+  ],
+  "per_repo": {
+    "psf/requests": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "pass",
+      "entry.usage_section": "fail",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "pass",
+      "entry.issue_template": "pass",
+      "usability.command_appears_early": "pass",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "fail",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "pass"
+    },
+    "fastapi/fastapi": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "fail",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "pass",
+      "entry.usage_section": "pass",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "fail",
+      "entry.issue_template": "pass",
+      "usability.command_appears_early": "pass",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "fail",
+      "robustness.no_empty_catch_js": "fail",
+      "robustness.no_debug_print_left": "fail"
+    },
+    "django/django": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "fail",
+      "entry.usage_section": "fail",
+      "entry.runnable_example": "fail",
+      "entry.contributing": "fail",
+      "entry.issue_template": "fail",
+      "usability.command_appears_early": "fail",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "fail",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "pass"
+    },
+    "astral-sh/ruff": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "pass",
+      "entry.usage_section": "pass",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "pass",
+      "entry.issue_template": "pass",
+      "usability.command_appears_early": "pass",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "fail",
+      "robustness.no_silent_pass": "fail",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "pass"
+    },
+    "yt-dlp/yt-dlp": {
+      "safety.no_secrets": "fail",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "pass",
+      "entry.usage_section": "pass",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "pass",
+      "entry.issue_template": "pass",
+      "usability.command_appears_early": "pass",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "fail",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "pass"
+    },
+    "openai/whisper": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "pass",
+      "entry.usage_section": "pass",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "fail",
+      "entry.issue_template": "fail",
+      "usability.command_appears_early": "fail",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "pass",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "pass"
+    },
+    "3b1b/manim": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "pass",
+      "entry.usage_section": "fail",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "fail",
+      "entry.issue_template": "pass",
+      "usability.command_appears_early": "pass",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "fail",
+      "robustness.no_silent_pass": "fail",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "pass"
+    },
+    "nvbn/thefuck": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "pass",
+      "entry.usage_section": "fail",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "pass",
+      "entry.issue_template": "pass",
+      "usability.command_appears_early": "pass",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "fail",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "pass"
+    },
+    "sherlock-project/sherlock": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "fail",
+      "entry.license_exists": "pass",
+      "entry.install_section": "fail",
+      "entry.usage_section": "fail",
+      "entry.runnable_example": "fail",
+      "entry.contributing": "fail",
+      "entry.issue_template": "pass",
+      "usability.command_appears_early": "fail",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "fail",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "pass"
+    },
+    "home-assistant/core": {
+      "safety.no_secrets": "fail",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "fail",
+      "entry.usage_section": "fail",
+      "entry.runnable_example": "fail",
+      "entry.contributing": "pass",
+      "entry.issue_template": "pass",
+      "usability.command_appears_early": "fail",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "fail",
+      "robustness.no_silent_pass": "fail",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "pass"
+    },
+    "astroai/torchfits": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "pass",
+      "entry.usage_section": "pass",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "pass",
+      "entry.issue_template": "fail",
+      "usability.command_appears_early": "pass",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "fail",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "pass"
+    },
+    "astroai/torchfits (service とみなす)": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "pass",
+      "entry.usage_section": "pass",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "pass",
+      "entry.issue_template": "fail",
+      "usability.command_appears_early": "pass",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "agent_ready.cli_entry_point": "fail",
+      "agent_ready.no_form_auth": "fail",
+      "agent_ready.headless_escape": "fail",
+      "agent_ready.machine_readable_output": "pass",
+      "agent_ready.install_free_start": "fail",
+      "agent_ready.agent_surface": "pass",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "fail",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "pass"
+    },
+    "bbvch-ai/aihub-core": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "fail",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "fail",
+      "entry.usage_section": "pass",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "pass",
+      "entry.issue_template": "fail",
+      "usability.command_appears_early": "pass",
+      "usability.zero_config_start": "fail",
+      "usability.help_available": "skip",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "fail",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "fail"
+    },
+    "bbvch-ai/aihub-core (service とみなす)": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "fail",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "fail",
+      "entry.usage_section": "pass",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "pass",
+      "entry.issue_template": "fail",
+      "usability.command_appears_early": "pass",
+      "usability.zero_config_start": "fail",
+      "usability.help_available": "skip",
+      "agent_ready.cli_entry_point": "fail",
+      "agent_ready.no_form_auth": "fail",
+      "agent_ready.headless_escape": "fail",
+      "agent_ready.machine_readable_output": "pass",
+      "agent_ready.install_free_start": "pass",
+      "agent_ready.agent_surface": "pass",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "fail",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "fail"
+    },
+    "ProcessMining-uOttawa/pm4py-ucm": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "pass",
+      "entry.usage_section": "fail",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "fail",
+      "entry.issue_template": "fail",
+      "usability.command_appears_early": "pass",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "fail",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "pass"
+    },
+    "ProcessMining-uOttawa/pm4py-ucm (service とみなす)": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "pass",
+      "entry.usage_section": "fail",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "fail",
+      "entry.issue_template": "fail",
+      "usability.command_appears_early": "pass",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "agent_ready.cli_entry_point": "fail",
+      "agent_ready.no_form_auth": "fail",
+      "agent_ready.headless_escape": "fail",
+      "agent_ready.machine_readable_output": "fail",
+      "agent_ready.install_free_start": "pass",
+      "agent_ready.agent_surface": "fail",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "fail",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "pass"
+    },
+    "pyvista/sphinx-autocodelink": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "pass",
+      "entry.usage_section": "pass",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "fail",
+      "entry.issue_template": "fail",
+      "usability.command_appears_early": "pass",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "pass",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "pass"
+    },
+    "pyvista/sphinx-autocodelink (service とみなす)": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "pass",
+      "entry.usage_section": "pass",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "fail",
+      "entry.issue_template": "fail",
+      "usability.command_appears_early": "pass",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "agent_ready.cli_entry_point": "fail",
+      "agent_ready.no_form_auth": "fail",
+      "agent_ready.headless_escape": "fail",
+      "agent_ready.machine_readable_output": "fail",
+      "agent_ready.install_free_start": "fail",
+      "agent_ready.agent_surface": "fail",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "pass",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "pass"
+    },
+    "Geological-Survey-of-Western-Australia/skippy": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "fail",
+      "entry.usage_section": "fail",
+      "entry.runnable_example": "fail",
+      "entry.contributing": "pass",
+      "entry.issue_template": "fail",
+      "usability.command_appears_early": "fail",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "fail",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "fail",
+      "robustness.no_silent_pass": "pass",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "pass"
+    },
+    "Geological-Survey-of-Western-Australia/skippy (service とみなす)": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "fail",
+      "entry.usage_section": "fail",
+      "entry.runnable_example": "fail",
+      "entry.contributing": "pass",
+      "entry.issue_template": "fail",
+      "usability.command_appears_early": "fail",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "agent_ready.cli_entry_point": "fail",
+      "agent_ready.no_form_auth": "fail",
+      "agent_ready.headless_escape": "fail",
+      "agent_ready.machine_readable_output": "fail",
+      "agent_ready.install_free_start": "fail",
+      "agent_ready.agent_surface": "fail",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "fail",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "fail",
+      "robustness.no_silent_pass": "pass",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "pass"
+    },
+    "powerset-co/powerpacks": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "pass",
+      "entry.usage_section": "pass",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "pass",
+      "entry.issue_template": "pass",
+      "usability.command_appears_early": "pass",
+      "usability.zero_config_start": "fail",
+      "usability.help_available": "skip",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "fail",
+      "robustness.no_empty_catch_js": "fail",
+      "robustness.no_debug_print_left": "fail"
+    },
+    "powerset-co/powerpacks (service とみなす)": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "pass",
+      "entry.usage_section": "pass",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "pass",
+      "entry.issue_template": "pass",
+      "usability.command_appears_early": "pass",
+      "usability.zero_config_start": "fail",
+      "usability.help_available": "skip",
+      "agent_ready.cli_entry_point": "pass",
+      "agent_ready.no_form_auth": "pass",
+      "agent_ready.headless_escape": "pass",
+      "agent_ready.machine_readable_output": "pass",
+      "agent_ready.install_free_start": "pass",
+      "agent_ready.agent_surface": "pass",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "fail",
+      "robustness.no_empty_catch_js": "fail",
+      "robustness.no_debug_print_left": "fail"
+    },
+    "superfly/flyctl": {
+      "safety.no_secrets": "fail",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "pass",
+      "entry.usage_section": "pass",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "pass",
+      "entry.issue_template": "pass",
+      "usability.command_appears_early": "pass",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "agent_ready.cli_entry_point": "pass",
+      "agent_ready.no_form_auth": "pass",
+      "agent_ready.headless_escape": "pass",
+      "agent_ready.machine_readable_output": "pass",
+      "agent_ready.install_free_start": "pass",
+      "agent_ready.agent_surface": "fail",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "pass",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "pass"
+    },
+    "stripe/stripe-cli": {
+      "safety.no_secrets": "fail",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "pass",
+      "entry.usage_section": "pass",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "pass",
+      "entry.issue_template": "pass",
+      "usability.command_appears_early": "pass",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "agent_ready.cli_entry_point": "pass",
+      "agent_ready.no_form_auth": "pass",
+      "agent_ready.headless_escape": "pass",
+      "agent_ready.machine_readable_output": "pass",
+      "agent_ready.install_free_start": "pass",
+      "agent_ready.agent_surface": "fail",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "pass",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "fail"
+    },
+    "cli/cli": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "pass",
+      "entry.usage_section": "fail",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "pass",
+      "entry.issue_template": "pass",
+      "usability.command_appears_early": "pass",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "agent_ready.cli_entry_point": "pass",
+      "agent_ready.no_form_auth": "pass",
+      "agent_ready.headless_escape": "pass",
+      "agent_ready.machine_readable_output": "pass",
+      "agent_ready.install_free_start": "fail",
+      "agent_ready.agent_surface": "pass",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "pass",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "pass"
+    },
+    "railwayapp/cli": {
+      "safety.no_secrets": "fail",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "pass",
+      "entry.usage_section": "fail",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "pass",
+      "entry.issue_template": "fail",
+      "usability.command_appears_early": "pass",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "agent_ready.cli_entry_point": "pass",
+      "agent_ready.no_form_auth": "pass",
+      "agent_ready.headless_escape": "fail",
+      "agent_ready.machine_readable_output": "pass",
+      "agent_ready.install_free_start": "fail",
+      "agent_ready.agent_surface": "fail",
+      "correctness.tests_exist": "fail",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "pass",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "fail"
+    },
+    "supabase/cli": {
+      "safety.no_secrets": "fail",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "fail",
+      "entry.install_section": "pass",
+      "entry.usage_section": "fail",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "pass",
+      "entry.issue_template": "pass",
+      "usability.command_appears_early": "pass",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "agent_ready.cli_entry_point": "pass",
+      "agent_ready.no_form_auth": "pass",
+      "agent_ready.headless_escape": "pass",
+      "agent_ready.machine_readable_output": "pass",
+      "agent_ready.install_free_start": "pass",
+      "agent_ready.agent_surface": "pass",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "pass",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "fail"
+    },
+    "vercel/vercel": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "fail",
+      "entry.usage_section": "fail",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "pass",
+      "entry.issue_template": "pass",
+      "usability.command_appears_early": "pass",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "agent_ready.cli_entry_point": "pass",
+      "agent_ready.no_form_auth": "pass",
+      "agent_ready.headless_escape": "pass",
+      "agent_ready.machine_readable_output": "pass",
+      "agent_ready.install_free_start": "fail",
+      "agent_ready.agent_surface": "pass",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "fail",
+      "robustness.no_silent_pass": "fail",
+      "robustness.no_empty_catch_js": "fail",
+      "robustness.no_debug_print_left": "fail"
+    },
+    "NousResearch/hermes-agent": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "fail",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "pass",
+      "entry.usage_section": "pass",
+      "entry.runnable_example": "pass",
+      "entry.contributing": "pass",
+      "entry.issue_template": "pass",
+      "usability.command_appears_early": "pass",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "correctness.tests_exist": "pass",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "fail",
+      "robustness.no_empty_catch_js": "fail",
+      "robustness.no_debug_print_left": "fail"
+    },
+    "anthropics/claude-code": {
+      "safety.no_secrets": "pass",
+      "safety.no_secrets_in_docs": "pass",
+      "safety.env_example_not_real": "pass",
+      "safety.gitignore_exists": "pass",
+      "portability.no_absolute_home_paths": "skip",
+      "provenance.no_private_terms": "skip",
+      "entry.readme_exists": "pass",
+      "entry.license_exists": "pass",
+      "entry.install_section": "fail",
+      "entry.usage_section": "pass",
+      "entry.runnable_example": "fail",
+      "entry.contributing": "fail",
+      "entry.issue_template": "pass",
+      "usability.command_appears_early": "fail",
+      "usability.zero_config_start": "pass",
+      "usability.help_available": "skip",
+      "correctness.tests_exist": "fail",
+      "correctness.test_command_declared": "skip",
+      "correctness.ci_defined": "pass",
+      "correctness.test_passes": "skip",
+      "correctness.tutorial_runs": "skip",
+      "robustness.no_bare_except": "pass",
+      "robustness.no_silent_pass": "fail",
+      "robustness.no_empty_catch_js": "pass",
+      "robustness.no_debug_print_left": "fail"
+    }
+  },
+  "adopted_vs_not_adopted": [
+    {
+      "check": "correctness.test_command_declared",
+      "left": {
+        "group": "adopted",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "gap": null,
+      "verdict": "測れない"
+    },
+    {
+      "check": "correctness.test_passes",
+      "left": {
+        "group": "adopted",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "gap": null,
+      "verdict": "測れない"
+    },
+    {
+      "check": "correctness.tutorial_runs",
+      "left": {
+        "group": "adopted",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "gap": null,
+      "verdict": "測れない"
+    },
+    {
+      "check": "portability.no_absolute_home_paths",
+      "left": {
+        "group": "adopted",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "gap": null,
+      "verdict": "測れない"
+    },
+    {
+      "check": "provenance.no_private_terms",
+      "left": {
+        "group": "adopted",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "gap": null,
+      "verdict": "測れない"
+    },
+    {
+      "check": "usability.help_available",
+      "left": {
+        "group": "adopted",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "gap": null,
+      "verdict": "測れない"
+    },
+    {
+      "check": "entry.issue_template",
+      "left": {
+        "group": "adopted",
+        "pass": 8,
+        "n": 10,
+        "rate": 0.8
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 1,
+        "n": 6,
+        "rate": 0.167
+      },
+      "gap": 0.633,
+      "verdict": "分けている"
+    },
+    {
+      "check": "usability.zero_config_start",
+      "left": {
+        "group": "adopted",
+        "pass": 10,
+        "n": 10,
+        "rate": 1.0
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 4,
+        "n": 6,
+        "rate": 0.667
+      },
+      "gap": 0.333,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "robustness.no_debug_print_left",
+      "left": {
+        "group": "adopted",
+        "pass": 9,
+        "n": 10,
+        "rate": 0.9
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 4,
+        "n": 6,
+        "rate": 0.667
+      },
+      "gap": 0.233,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "correctness.ci_defined",
+      "left": {
+        "group": "adopted",
+        "pass": 10,
+        "n": 10,
+        "rate": 1.0
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 5,
+        "n": 6,
+        "rate": 0.833
+      },
+      "gap": 0.167,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "robustness.no_empty_catch_js",
+      "left": {
+        "group": "adopted",
+        "pass": 9,
+        "n": 10,
+        "rate": 0.9
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 5,
+        "n": 6,
+        "rate": 0.833
+      },
+      "gap": 0.067,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "safety.no_secrets_in_docs",
+      "left": {
+        "group": "adopted",
+        "pass": 9,
+        "n": 10,
+        "rate": 0.9
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 5,
+        "n": 6,
+        "rate": 0.833
+      },
+      "gap": 0.067,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "entry.install_section",
+      "left": {
+        "group": "adopted",
+        "pass": 7,
+        "n": 10,
+        "rate": 0.7
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 4,
+        "n": 6,
+        "rate": 0.667
+      },
+      "gap": 0.033,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "correctness.tests_exist",
+      "left": {
+        "group": "adopted",
+        "pass": 10,
+        "n": 10,
+        "rate": 1.0
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "gap": 0.0,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "entry.license_exists",
+      "left": {
+        "group": "adopted",
+        "pass": 10,
+        "n": 10,
+        "rate": 1.0
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "gap": 0.0,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "safety.env_example_not_real",
+      "left": {
+        "group": "adopted",
+        "pass": 10,
+        "n": 10,
+        "rate": 1.0
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "gap": 0.0,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "safety.gitignore_exists",
+      "left": {
+        "group": "adopted",
+        "pass": 10,
+        "n": 10,
+        "rate": 1.0
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "gap": 0.0,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "entry.readme_exists",
+      "left": {
+        "group": "adopted",
+        "pass": 9,
+        "n": 10,
+        "rate": 0.9
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "gap": -0.1,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "entry.runnable_example",
+      "left": {
+        "group": "adopted",
+        "pass": 7,
+        "n": 10,
+        "rate": 0.7
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 5,
+        "n": 6,
+        "rate": 0.833
+      },
+      "gap": -0.133,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "robustness.no_bare_except",
+      "left": {
+        "group": "adopted",
+        "pass": 7,
+        "n": 10,
+        "rate": 0.7
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 5,
+        "n": 6,
+        "rate": 0.833
+      },
+      "gap": -0.133,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "entry.contributing",
+      "left": {
+        "group": "adopted",
+        "pass": 5,
+        "n": 10,
+        "rate": 0.5
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 4,
+        "n": 6,
+        "rate": 0.667
+      },
+      "gap": -0.167,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "safety.no_secrets",
+      "left": {
+        "group": "adopted",
+        "pass": 8,
+        "n": 10,
+        "rate": 0.8
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "gap": -0.2,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "robustness.no_silent_pass",
+      "left": {
+        "group": "adopted",
+        "pass": 1,
+        "n": 10,
+        "rate": 0.1
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 2,
+        "n": 6,
+        "rate": 0.333
+      },
+      "gap": -0.233,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "usability.command_appears_early",
+      "left": {
+        "group": "adopted",
+        "pass": 6,
+        "n": 10,
+        "rate": 0.6
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 5,
+        "n": 6,
+        "rate": 0.833
+      },
+      "gap": -0.233,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "entry.usage_section",
+      "left": {
+        "group": "adopted",
+        "pass": 4,
+        "n": 10,
+        "rate": 0.4
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 4,
+        "n": 6,
+        "rate": 0.667
+      },
+      "gap": -0.267,
+      "verdict": "分けていない"
+    }
+  ],
+  "agent_native_vs_not_adopted": [
+    {
+      "check": "correctness.test_command_declared",
+      "left": {
+        "group": "agent_native",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "gap": null,
+      "verdict": "測れない"
+    },
+    {
+      "check": "correctness.test_passes",
+      "left": {
+        "group": "agent_native",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "gap": null,
+      "verdict": "測れない"
+    },
+    {
+      "check": "correctness.tutorial_runs",
+      "left": {
+        "group": "agent_native",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "gap": null,
+      "verdict": "測れない"
+    },
+    {
+      "check": "portability.no_absolute_home_paths",
+      "left": {
+        "group": "agent_native",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "gap": null,
+      "verdict": "測れない"
+    },
+    {
+      "check": "provenance.no_private_terms",
+      "left": {
+        "group": "agent_native",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "gap": null,
+      "verdict": "測れない"
+    },
+    {
+      "check": "usability.help_available",
+      "left": {
+        "group": "agent_native",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 0,
+        "n": 0,
+        "rate": null
+      },
+      "gap": null,
+      "verdict": "測れない"
+    },
+    {
+      "check": "agent_ready.cli_entry_point",
+      "left": {
+        "group": "agent_native",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 1,
+        "n": 6,
+        "rate": 0.167
+      },
+      "gap": 0.833,
+      "verdict": "分けている"
+    },
+    {
+      "check": "agent_ready.no_form_auth",
+      "left": {
+        "group": "agent_native",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 1,
+        "n": 6,
+        "rate": 0.167
+      },
+      "gap": 0.833,
+      "verdict": "分けている"
+    },
+    {
+      "check": "agent_ready.headless_escape",
+      "left": {
+        "group": "agent_native",
+        "pass": 5,
+        "n": 6,
+        "rate": 0.833
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 1,
+        "n": 6,
+        "rate": 0.167
+      },
+      "gap": 0.667,
+      "verdict": "分けている"
+    },
+    {
+      "check": "entry.issue_template",
+      "left": {
+        "group": "agent_native",
+        "pass": 5,
+        "n": 6,
+        "rate": 0.833
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 1,
+        "n": 6,
+        "rate": 0.167
+      },
+      "gap": 0.667,
+      "verdict": "分けている"
+    },
+    {
+      "check": "agent_ready.machine_readable_output",
+      "left": {
+        "group": "agent_native",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 3,
+        "n": 6,
+        "rate": 0.5
+      },
+      "gap": 0.5,
+      "verdict": "分けている"
+    },
+    {
+      "check": "robustness.no_silent_pass",
+      "left": {
+        "group": "agent_native",
+        "pass": 5,
+        "n": 6,
+        "rate": 0.833
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 2,
+        "n": 6,
+        "rate": 0.333
+      },
+      "gap": 0.5,
+      "verdict": "分けている"
+    },
+    {
+      "check": "entry.contributing",
+      "left": {
+        "group": "agent_native",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 4,
+        "n": 6,
+        "rate": 0.667
+      },
+      "gap": 0.333,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "usability.zero_config_start",
+      "left": {
+        "group": "agent_native",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 4,
+        "n": 6,
+        "rate": 0.667
+      },
+      "gap": 0.333,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "correctness.ci_defined",
+      "left": {
+        "group": "agent_native",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 5,
+        "n": 6,
+        "rate": 0.833
+      },
+      "gap": 0.167,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "entry.install_section",
+      "left": {
+        "group": "agent_native",
+        "pass": 5,
+        "n": 6,
+        "rate": 0.833
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 4,
+        "n": 6,
+        "rate": 0.667
+      },
+      "gap": 0.167,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "entry.runnable_example",
+      "left": {
+        "group": "agent_native",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 5,
+        "n": 6,
+        "rate": 0.833
+      },
+      "gap": 0.167,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "safety.no_secrets_in_docs",
+      "left": {
+        "group": "agent_native",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 5,
+        "n": 6,
+        "rate": 0.833
+      },
+      "gap": 0.167,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "usability.command_appears_early",
+      "left": {
+        "group": "agent_native",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 5,
+        "n": 6,
+        "rate": 0.833
+      },
+      "gap": 0.167,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "agent_ready.agent_surface",
+      "left": {
+        "group": "agent_native",
+        "pass": 3,
+        "n": 6,
+        "rate": 0.5
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 3,
+        "n": 6,
+        "rate": 0.5
+      },
+      "gap": 0.0,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "agent_ready.install_free_start",
+      "left": {
+        "group": "agent_native",
+        "pass": 3,
+        "n": 6,
+        "rate": 0.5
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 3,
+        "n": 6,
+        "rate": 0.5
+      },
+      "gap": 0.0,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "entry.readme_exists",
+      "left": {
+        "group": "agent_native",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "gap": 0.0,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "robustness.no_bare_except",
+      "left": {
+        "group": "agent_native",
+        "pass": 5,
+        "n": 6,
+        "rate": 0.833
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 5,
+        "n": 6,
+        "rate": 0.833
+      },
+      "gap": 0.0,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "robustness.no_empty_catch_js",
+      "left": {
+        "group": "agent_native",
+        "pass": 5,
+        "n": 6,
+        "rate": 0.833
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 5,
+        "n": 6,
+        "rate": 0.833
+      },
+      "gap": 0.0,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "safety.env_example_not_real",
+      "left": {
+        "group": "agent_native",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "gap": 0.0,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "safety.gitignore_exists",
+      "left": {
+        "group": "agent_native",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "gap": 0.0,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "correctness.tests_exist",
+      "left": {
+        "group": "agent_native",
+        "pass": 5,
+        "n": 6,
+        "rate": 0.833
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "gap": -0.167,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "entry.license_exists",
+      "left": {
+        "group": "agent_native",
+        "pass": 5,
+        "n": 6,
+        "rate": 0.833
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "gap": -0.167,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "entry.usage_section",
+      "left": {
+        "group": "agent_native",
+        "pass": 2,
+        "n": 6,
+        "rate": 0.333
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 4,
+        "n": 6,
+        "rate": 0.667
+      },
+      "gap": -0.333,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "robustness.no_debug_print_left",
+      "left": {
+        "group": "agent_native",
+        "pass": 2,
+        "n": 6,
+        "rate": 0.333
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 4,
+        "n": 6,
+        "rate": 0.667
+      },
+      "gap": -0.333,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "safety.no_secrets",
+      "left": {
+        "group": "agent_native",
+        "pass": 2,
+        "n": 6,
+        "rate": 0.333
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "gap": -0.667,
+      "verdict": "分けていない"
+    }
+  ],
+  "verdicts": {
+    "psf/requests": true,
+    "fastapi/fastapi": true,
+    "django/django": false,
+    "astral-sh/ruff": false,
+    "yt-dlp/yt-dlp": false,
+    "openai/whisper": false,
+    "3b1b/manim": false,
+    "nvbn/thefuck": true,
+    "sherlock-project/sherlock": false,
+    "home-assistant/core": false,
+    "astroai/torchfits": true,
+    "bbvch-ai/aihub-core": false,
+    "ProcessMining-uOttawa/pm4py-ucm": true,
+    "pyvista/sphinx-autocodelink": true,
+    "Geological-Survey-of-Western-Australia/skippy": false,
+    "powerset-co/powerpacks": true,
+    "superfly/flyctl": false,
+    "stripe/stripe-cli": false,
+    "cli/cli": true,
+    "railwayapp/cli": false,
+    "supabase/cli": false,
+    "vercel/vercel": false,
+    "NousResearch/hermes-agent": true,
+    "anthropics/claude-code": false
+  },
+  "gate_rates": {
+    "adopted": {
+      "pass": 3,
+      "n": 10
+    },
+    "not_adopted": {
+      "pass": 4,
+      "n": 6
+    },
+    "agent_native": {
+      "pass": 1,
+      "n": 6
+    },
+    "landmark": {
+      "pass": 1,
+      "n": 2
+    }
+  },
+  "min_gap": 0.4,
+  "agent_lane_min_gap": 0.5
+}

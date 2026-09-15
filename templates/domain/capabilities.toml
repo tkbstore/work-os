@@ -1,0 +1,15 @@
+# このドメインが持つ capability の登録簿。
+# 憲法 §6-2: ここに無いものは、次のリポジトリに引き継がれない。
+#
+# status は必ず1段ずつ上げる:
+#   local → experimental → proposed → stable → kernel
+#
+# [[capability]]
+# id        = "collect-report"
+# path      = "scripts/shared/collect_report_data.py"
+# layer     = "golden_path"
+# status    = "experimental"
+# summary   = "外部APIのデータを取得してレポートにする"
+# used_by   = ["client-a"]
+# invariant = []          # stable 以上なら必須
+# configurable = []

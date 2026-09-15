@@ -1,0 +1,86 @@
+# work-os 自身の宣言。このフレームワークはこのフレームワークに従う。
+
+[repo]
+name        = "work-os"
+domain      = "meta"
+role        = "kernel"
+status      = "active"
+enforcement = "warn"
+
+[extends]
+domain_repo    = ""
+kernel_version = "0.2.0"
+
+[layers]
+kernel      = [
+  "CONSTITUTION.md",
+  "engine/workos.py",
+]
+golden_path = [
+  "engine/validate.py",
+  "engine/scan.py",
+  "engine/fleet.py",
+  "engine/intent.py",
+  "engine/inbox.py",
+  "engine/catalog.py",
+  "engine/generators.py",
+  "engine/abstraction_gate.py",
+  "engine/release_gate.py",
+  "engine/adopt.py",
+  "engine/promote.py",
+  "engine/promotion.py",
+  "engine/render.py",
+  "hooks/claude_guard.py",
+  "hooks/kernel_watch.py",
+  "hooks/branch_guard.py",
+  "hooks/sweep_guard.py",
+  "hooks/fleet_watch.sh",
+  "templates",
+  "tests/test_guards.py",
+  "tests/test_release_gate.py",
+]
+# config 層は別リポジトリ（work-os-registry）にある。組織固有の事実を
+# 本体の履歴に残さないため 2026-08-31 に切り出した。所在は engine/workos.py の
+# registry_root() が決める（WORKOS_REGISTRY → ../work-os-registry → 同居時の位置）。
+config      = []
+extension   = []
+
+# 公開意図。統治クラス（owned/team/...）とは直交する軸なので別に宣言する。
+# ここを書いたリポジトリだけが engine/release_gate.py の対象になる。
+[publish]
+# intent は **目標** を書く欄であって、現在地を書く欄ではない。累積ラダーが
+# 「今どこまで到達しているか」を出すので、目標を下げると到達点の表示が消える。
+#
+# work-os の目標は public。第2段を止めていた顧客名 276件（12社）は、初回コミット
+# から履歴に入っていたため削除では届かず、2026-08-31 に registry/ を別リポへ
+# 切り出したうえで履歴からも消した（filter-repo）。現在地は release_gate が出す。
+#
+# 2026-08-27 に一度 internal へ下げたが誤りだった（47bf754 → 戻した）。第2段が
+# 誤って OK と出ていたのは intent のせいではなく、顧客名の検査が第1段の warn しか
+# 無く、かつ exclude で registry/ が観測から外れていたためである。宣言を下げても
+# その2つは直らない。症状を消して機構を放置していた。
+#
+# 2026-09-02（TK）: public は仮定ではなく**予定**である。時期は未定だが、
+# 一般公開する前提で進める。
+#
+# そのときの想定は「今のリポジトリを public に切り替える」ではなく、
+# **新しいリポジトリとして切り出す**こと。今の private リポジトリは archive
+# として残し、開発の経緯をそこに置く。切り出した先は1コミットから
+# 始まるので history_erased が通り、squash（force-push）は要らない。切り出した
+# root の sha を [publish] released_at に宣言すれば、以後は普通に積める。
+#
+# 履歴に出せないものは既に無い（上記の filter-repo 済みで
+# no_private_terms_in_history は pass）。それでも切り出すのは、77 コミットの
+# 経緯を捨てずに「起点より前が無い」を形で示せるからである。
+# まだ実行していない。第2段で残るレーンは history だけで、中身の観測は実走を
+# 含めて全部通っている（2026-09-02 実測: test / smoke / help とも pass）。
+intent   = "public"
+# 形。service（登録のある製品）/ tool / library。agent_ready は service にだけ当たる。
+shape    = "tool"
+audience = "他社のエンジニアが、自分の組織の git 群に同じ観測層を張るために読む"
+exclude  = []   # config 層はこのリポジトリに無い（work-os-registry へ切り出した）
+
+[publish.commands]
+test  = "python3 tests/run_all.py"
+smoke = "python3 engine/validate.py . && python3 engine/abstraction_gate.py"
+help  = "python3 engine/release_gate.py --help"

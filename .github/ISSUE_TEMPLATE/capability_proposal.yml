@@ -1,0 +1,81 @@
+name: 共通化してほしい
+description: 複数のリポジトリで同じものを書いている。上の層に上げたい
+labels: ["capability"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        昇格は **要求された回数ではなく証拠で決まります**（憲法 §4）。
+        「便利だから」「何度も欲しくなったから」は理由になりません。
+        下のうち埋まらない欄がある場合、まだ昇格の時期ではない可能性が高いです。
+        その場合は `local` 層で動かし続けてください。それは正しい状態です。
+
+  - type: textarea
+    id: what
+    attributes:
+      label: 何を共通化したいか
+      description: 1〜2行で。実装ではなく、解いている問題を
+    validations:
+      required: true
+
+  - type: textarea
+    id: rule_of_three
+    attributes:
+      label: 同じものが必要になったリポジトリ
+      description: |
+        `experimental → proposed` には **3つ以上** が要ります（Rule of Three, 憲法 §6-3）。
+        リポジトリ名ではなく、そこで何をしていたかを書いてください。
+        3つに満たないなら、そう書いてください。飛ばす例外を作る場合は
+        `capabilities.toml` に理由を残すことになります。
+      placeholder: |
+        1. （用途）で（このコード）を書いた
+        2. （用途）で（ほぼ同じもの）を書いた
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: invariant
+    attributes:
+      label: 変えたら利用者が壊れるもの
+      description: |
+        `capabilities.toml` の `invariant` になります。インターフェース・終了コードの
+        意味・ファイル形式など。ここが挙げられないものは、まだ形が決まっていません。
+    validations:
+      required: true
+
+  - type: textarea
+    id: configurable
+    attributes:
+      label: 現場が変えてよいもの
+      description: |
+        `configurable` になります。ここが空だと、全員が同じ使い方を強制されます。
+        本当に空でよいか一度疑ってください。
+    validations:
+      required: false
+
+  - type: dropdown
+    id: target_layer
+    attributes:
+      label: 置きたい層
+      description: 憲法 §3。迷ったら下を選んでください。降格より昇格のほうが安全です
+      options:
+        - extension（現場・第三者がコードで足す）
+        - golden_path（中央が配る。強制はしない）
+        - kernel（壊れると他リポジトリが壊れる）
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: kernel_check
+    attributes:
+      label: kernel を選んだ場合のみ
+      description: |
+        憲法 §3 の定義は「壊れると他のリポジトリが壊れるもの。それ以外は Kernel ではない」。
+        便利さは理由になりません。ここに入れたものは永久保証になります。
+      options:
+        - label: 壊れたときに他のドメインが壊れる理由を、上に書いた
+        - label: テストがある
+        - label: 所有権（IP）が自社にある
+    validations:
+      required: false

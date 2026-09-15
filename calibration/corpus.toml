@@ -1,0 +1,146 @@
+# corpus.toml — レーンの閾値を裏づける観測対象。config 層。
+#
+# なぜ在るか
+#   work-os-registry/release_lanes.toml の閾値（within_ratio = 0.30 など）は「高star と
+#   低star を実測して分けた」という主張の上に立っている。その主張を再現できなければ、
+#   閾値はただの好みになる。憲法 §1 は証拠で上げると決めているので、証拠の側を固定する。
+#
+# どう使うか
+#   python3 engine/calibrate.py            観測して結果を書き出す
+#   python3 engine/calibrate.py --dry-run  clone せず、宣言だけを検査する
+#
+# 何を測らないか
+#   command_exit_zero 系（test_passes / tutorial_runs / help_available）は測らない。
+#   他所のリポのコマンドを実行することになるので、校正では必ず skip 扱いになる。
+#   ここで分かるのは「静的に観測できるチェックが群を分けているか」だけである。
+#
+# 選び方を宣言する理由
+#   後から「なぜこの12本なのか」と聞かれて答えられない選択は、証拠ではなく作為になる。
+#   下の rule は、同じ手順で別の人が別の母集団を引ける粒度で書くこと。
+
+[corpus]
+frozen_on = "2026-08-26"
+# star 数は凍結時点の値。変動するので、判定には使わず記録だけする。
+note = "star 数は frozen_on 時点。再測定するときは slug を差し替えず、まず同じ集合で測る"
+
+
+# --------------------------------------------------------------------------- #
+# adopted — 広く採られたソフトウェア
+# --------------------------------------------------------------------------- #
+[groups.adopted]
+title = "採られた"
+rule = """
+GitHub の star 降順（language:python, stars:>30000）から上位を取り、
+「動かすもの」だけを残す。リンク集・書籍・チュートリアル集は、install も test も
+存在しないのが正しい形なので対象外（この物差しが測れる対象ではない）。
+機械的な条件は manifest_required の通り。
+"""
+shape = "tool"
+slugs = [
+  "psf/requests",
+  "fastapi/fastapi",
+  "django/django",
+  "astral-sh/ruff",
+  "yt-dlp/yt-dlp",
+  "openai/whisper",
+  "3b1b/manim",
+  "nvbn/thefuck",
+  "sherlock-project/sherlock",
+  "home-assistant/core",
+]
+
+# --------------------------------------------------------------------------- #
+# not_adopted — 同じくソフトウェアだが、採られていない
+# --------------------------------------------------------------------------- #
+# 個人アカウントのリポジトリは入れない。趣味の作品を「悪い例」として名指しで
+# 公開層に載せないため。組織所有だけに絞ると母集団は小さくなるが、それは正しい制約。
+[groups.not_adopted]
+title = "採られていない"
+rule = """
+language:python, stars:1..50, sort:updated から Organization 所有のみを残し、
+adopted と同じ manifest_required を課す。個人アカウントは除外する
+（趣味の作品を悪い例として名指ししないため）。
+"""
+shape = "tool"
+slugs = [
+  "astroai/torchfits",
+  "bbvch-ai/aihub-core",
+  "Metta-AI/coworld-builder",
+  "ProcessMining-uOttawa/pm4py-ucm",
+  "pyvista/sphinx-autocodelink",
+  "Geological-Survey-of-Western-Australia/skippy",
+  "powerset-co/powerpacks",
+  "breathe-OSS/api",
+]
+
+# --------------------------------------------------------------------------- #
+# agent_native — 人が画面を触らずに登録まで到達できると分かっているサービスの CLI
+# --------------------------------------------------------------------------- #
+# 機械抽出できない（母集団が小さく、star では選べない。cli/cli は 46k、
+# railwayapp/cli は 594 で、star とは無関係にどちらも登録動線を CLI に持つ）。
+# 手で選んでいることを隠さない。選定の根拠は各 CLI の実装を読んで確かめた事実。
+[groups.agent_native]
+title = "エージェントが完走できる"
+rule = """
+登録・認証が CLI のサブコマンドにあり、デバイスコードか PKCE でフォームを介さず、
+ブラウザを開けない環境の逃げ道を持つことを実装で確認したもの。手で選んでいる。
+star とは相関しない（46000 のものと 594 のものが同じ性質を持つ）。
+"""
+shape = "service"
+slugs = [
+  "superfly/flyctl",
+  "stripe/stripe-cli",
+  "cli/cli",
+  "railwayapp/cli",
+  "supabase/cli",
+  "vercel/vercel",
+]
+
+
+# --------------------------------------------------------------------------- #
+# landmark — 落としたら、間違っているのはゲートの側
+# --------------------------------------------------------------------------- #
+# 統計ではなくカナリア。数が少ないので通過率を比較には使わない。
+# 「誰が見ても他人の手に渡っているもの」を落とすなら、その物差しは壊れている、
+# という背理のために置く。各群の通過率より、こちらのほうが早く異常に気づける。
+[groups.landmark]
+title = "落としてはいけないもの"
+rule = """
+規模と採用が疑いようのないリポジトリ。star の閾値ではなく「これを公開不可と
+言い切れるか」で選ぶ。ここが落ちたら、まず落とした検査のほうを疑うこと。
+manifest_required は課さない（配布物がリポジトリの外にある形も含めるため）。
+"""
+shape = "tool"
+skip_filters = true
+# 通過率の比較に使わない群。件数の下限を課さない（背理のための例示なので）。
+canary = true
+slugs = [
+  "NousResearch/hermes-agent",
+  "anthropics/claude-code",
+]
+
+
+# --------------------------------------------------------------------------- #
+# 対象から外す条件
+# --------------------------------------------------------------------------- #
+[filters]
+# 「動かすもの」であることの機械的な条件。1つでも在れば通す。
+# これを持たないリポは install も test も無くて当然なので、測っても何も分からない。
+manifest_required = [
+  "pyproject.toml", "setup.py", "setup.cfg", "package.json",
+  "go.mod", "Cargo.toml", "pom.xml", "build.gradle", "Gemfile", "composer.json",
+]
+# clone の上限。超えるものは測らずに除外し、結果に理由付きで残す（黙って落とさない）。
+max_clone_mb = 400
+
+
+# --------------------------------------------------------------------------- #
+# 閾値が「分けている」と言える条件
+# --------------------------------------------------------------------------- #
+# 差が小さいチェックは、落とす根拠にしてはいけない（warn に留めるか、消す）。
+# ここも宣言にしておく。数字を後から動かしたくなったら、動かした事実が diff に残る。
+[separation]
+# adopted の通過率 - not_adopted の通過率。これ以上あれば「分けている」と呼ぶ。
+min_gap = 0.40
+# agent_ready レーンは agent_native と not_adopted を比べる。
+agent_lane_min_gap = 0.50

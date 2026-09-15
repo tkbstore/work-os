@@ -1,0 +1,69 @@
+name: 壊れている
+description: 動かない・止まるべきものが止まらない・止まってはいけないものが止まる
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        再現手順の無い報告は、こちらで再現できないので進みません。
+        コマンド1行と、その出力を貼ってください。それだけで足ります。
+
+  - type: textarea
+    id: command
+    attributes:
+      label: 打ったコマンド
+      description: そのまま貼り付けられる形で
+      render: shell
+      placeholder: python3 engine/validate.py .
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 出た結果
+      description: 出力の全文。長ければ関係する部分の前後も含めて
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待した結果
+      description: |
+        ガードの話なら「止まるべきだったのに通った」「通すべきだったのに止まった」
+        のどちらかを書いてください。この2つは別の壊れ方です。
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python のバージョン
+      description: "`python3 --version` の出力"
+      placeholder: Python 3.11.9
+    validations:
+      required: true
+
+  - type: dropdown
+    id: where
+    attributes:
+      label: どこで起きたか
+      options:
+        - 手元
+        - CI
+        - 両方
+        - わからない
+    validations:
+      required: true
+
+  - type: textarea
+    id: layer
+    attributes:
+      label: 触っていた層（わかれば）
+      description: |
+        `work.toml` の `[layers]` のどれか。`python3 engine/validate.py .` の出力に
+        手がかりがあります。わからなければ空のままで構いません。
+    validations:
+      required: false

@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.DS_Store
+.venv/
+__pycache__/
+*.pyc
+registry/fleet_alerts.log
+registry/fleet_watch.out
+registry/fleet_watch.err
+.mcp.json
+.claude/settings.local.json
+sessions/
+registry/sweep_events.jsonl
