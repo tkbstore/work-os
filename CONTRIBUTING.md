@@ -22,8 +22,10 @@ python3 engine/validate.py .          # 宣言の検証（層・昇格レーン�
 python3 engine/release_gate.py . --execute   # 公開ゲート（2段ラダー）
 ```
 
-同じ3つを CI（`.github/workflows/validate.yml`）が毎回走らせます。
-手元で通らないものは CI でも通りません。
+**CI はありません。** GitHub Actions は使わない方針です（private リポでは従量課金で、
+中身と無関係に赤くなり、落ちてもステップもログも残らないことがあるため）。
+代わりにセッション終了時の Stop hook が `scripts/*-qa.py` を拾って同じものを走らせます。
+つまり手元で通らないものは、どこでも通りません。
 
 ## 層ごとに要るもの
 

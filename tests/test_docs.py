@@ -15,6 +15,7 @@ README と CONTRIBUTING は「これを打て」「ここを読め」と書い�
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -49,6 +50,54 @@ def link_refs(text: str) -> set[str]:
     return {t for t in out if t}
 
 
+
+def tracked_top_level() -> set[str]:
+    """このリポジトリのトップレベル項目（git 追跡下）。
+
+    「このリポの中を指しているか」を、自分で並べた一覧ではなくリポジトリ自身から
+    決める。列挙で書くと、列挙し忘れたディレクトリの参照が黙って素通りする。
+    """
+    out = subprocess.run(["git", "-C", str(ROOT), "ls-files"],
+                         capture_output=True, text=True, timeout=30)
+    return {ln.split("/", 1)[0] for ln in out.stdout.splitlines() if ln}
+
+
+def prose(text: str) -> str:
+    """柵で囲われたコード塊を落とし、地の文だけにする。
+
+    コード塊の中は見本であって案内ではない（`path/to/new_file.py` のような
+    穴埋めが正しく置かれている）。案内なのは地の文のほうである。
+    """
+    out, fenced = [], False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            continue
+        if not fenced:
+            out.append(line)
+    return "\n".join(out)
+
+
+def inline_path_refs(text: str, top: set[str]) -> set[str]:
+    """地の文のバッククォートの中で、このリポジトリ内のパスを指しているもの。
+
+    `python3 <path>` でもリンクでもない形で案内されるパスがある。実際
+    CONTRIBUTING.md が `.github/workflows/validate.yml` を「CI が毎回走らせます」と
+    案内していたが、そのファイルは存在せず、README は逆に「CI は使いません」と
+    書いていた（2026-09-15 の通読で発見）。抽出が `python3 *.py` と markdown リンクの
+    **列挙**だったため、この形だけが機械の視野の外にあった。
+    """
+    out = set()
+    for token in re.findall(r"`([^`\n]+)`", prose(text)):
+        ref = token.strip().rstrip("/")
+        if "/" not in ref or any(c in ref for c in " *?<>|") or "://" in ref:
+            continue
+        if ref.split("/", 1)[0] not in top:
+            continue          # 別リポや ~ 配下。ここからは実在を確かめられない
+        out.add(ref)
+    return out
+
+
 def main() -> int:
     print("案内されているスクリプトが実在するか")
     for doc in DOCS:
@@ -58,6 +107,15 @@ def main() -> int:
             continue
         text = path.read_text(encoding="utf-8")
         for ref in sorted(script_refs(text)):
+            check(f"{doc} → {ref}", (ROOT / ref).exists())
+
+    print("\n地の文が名指ししたリポジトリ内のパスが実在するか")
+    top = tracked_top_level()
+    for doc in DOCS:
+        path = ROOT / doc
+        if not path.exists():
+            continue
+        for ref in sorted(inline_path_refs(path.read_text(encoding="utf-8"), top)):
             check(f"{doc} → {ref}", (ROOT / ref).exists())
 
     print("\nリンク先が実在するか")

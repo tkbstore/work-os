@@ -75,5 +75,6 @@ if [ -f "$TARGET/.claude/settings.json" ] \
 fi
 
 echo
-echo "完了。何も止まりません（enforcement = warn）。"
+echo "完了。enforcement = warn なので golden_path は警告だけです。"
+echo "（kernel と宣言したパスへの AI の書き込みだけは warn でも止まります＝憲法 §6-1）"
 echo "確認: python3 $WORKOS/engine/validate.py $TARGET"

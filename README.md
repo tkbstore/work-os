@@ -61,7 +61,9 @@ python3 engine/release_gate.py --scan <repos>
 「clone した他人が誰にも聞かずに動かせるか」を見ます。落ちた段より上は測りません。
 
 導入手順は [docs/ADOPTION.md](./docs/ADOPTION.md)。
-すべて additive で、`enforcement = "warn"` から始まるので、既存の作業は止まりません。
+すべて additive で、`enforcement = "warn"` から始まります。warn の間に止まるのは
+**`kernel` と宣言したパスへの AI の書き込みだけ**です（憲法 §6-1 が enforcement に
+条件を付けずに禁じているため）。`kernel` を空で始めれば、文字どおり何も止まりません。
 
 ---
 
@@ -80,7 +82,7 @@ work-os は、この 3 つを「宣言」で解ける問題に変えます。
 [repo]
 domain      = "marketing"
 role        = "client"
-enforcement = "warn"      # 最初は何も止めない
+enforcement = "warn"      # golden_path は警告だけ（kernel は warn でも止まる）
 
 [layers]
 kernel      = ["packages/core", "packages/shared"]   # 誰も変えない
