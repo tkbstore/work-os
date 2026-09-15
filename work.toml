@@ -64,11 +64,23 @@ extension   = []
 # **新しいリポジトリとして切り出した**。private だった側は work-os-archive へ
 # 改名して開発の経緯 78 コミットをそこに残し、作業ツリーだけを 1コミットの
 # 新しい履歴として public 側に置いた。切り出した木は archive の HEAD と同じ
-# tree（8c54128）で、squash も force-push もしていない。
+# tree（8c54128）である。
 #
 # 履歴に出せないものは切り出す前から無かった（2026-08-31 の filter-repo 済みで
 # no_private_terms_in_history は pass）。それでも切り出したのは、78 コミットの
 # 経緯を捨てずに「起点より前が無い」を git の形で示せるからである。
+#
+# 2026-09-16: 公開後の通読で、**ファイルの中ではなくコミットのメタデータに**
+# 法人ドメインのメールアドレスが載っていることが分かり、全コミットの
+# author / committer を GitHub の noreply へ書き換えて force-push した。
+# したがって「force-push していない」はもう成り立たない（起点の sha も変わり、
+# 下の released_at を宣言し直した）。公開から1日で誰も clone していない時点
+# だったので選べた手段であり、時間が経つほど選べなくなる種類のものである。
+#
+# 見つからなかった理由は、走査の範囲が `git log --format=%H%n%B`＝コミット
+# メッセージ本文だけで、`%an` `%ae` が入っていなかったこと。
+# no_private_terms_in_history が pass と出していたとき、author は一度も
+# 見ていなかった。木と本文だけを見て「履歴も pass」と読むのは誤りである。
 intent   = "public"
 # 形。service（登録のある製品）/ tool / library。agent_ready は service にだけ当たる。
 shape    = "tool"
@@ -82,7 +94,7 @@ exclude  = []   # config 層はこのリポジトリに無い（work-os-registry
 # **これは観測ではなく宣言である。** 手元から「本当に公開したのか」は確かめられない
 # （private と public の remote は区別できない）。宣言すれば squash を迂回できる
 # 代わりに、嘘なら履歴に残る。obs_history_erased の docstring がその分担を書いている。
-released_at = "aa9a36adfb80a4a3b9a26322caa7280f4263f431"
+released_at = "4fa391cb0a5be30833a9ae0f6c6589993d1f6711"
 
 [publish.commands]
 test  = "python3 tests/run_all.py"
