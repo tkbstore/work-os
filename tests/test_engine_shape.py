@@ -96,7 +96,7 @@ def main() -> int:
 
         # 絞り方は列挙とは別に置く。定義（何を数えるか）と選択（そのうちどれを
         # 見るか）を1つの関数に混ぜると、次に別の絞り方が要る目的が来たときに
-        # パラメータを足すか列挙を書き直すかの二択になる（TK の指摘 2026-09-01）。
+        # パラメータを足すか列挙を書き直すかの二択になる（2026-09-01 のレビュー指摘）。
         check("列挙は絞り方を知らない",
               "group" not in inspect.signature(iter_repo_dirs).parameters)
         picked = [p.name for p in iter_repo_dirs(tmp) if in_group(p.name, "alpha")]
@@ -107,7 +107,7 @@ def main() -> int:
               all(in_group(n, None) for n in ("alpha", "beta", "zzz")))
 
         # .git がファイルのもの（worktree）。shell の [ -d ] はここを落とすが、
-        # リポジトリではある。実際 ai-search-engine-resolve がこの形（2026-09-01）。
+        # リポジトリではある。2026-09-01 に手元の木で実際にこの形が1本あった。
         wt = tmp / "worktree"
         wt.mkdir()
         (wt / ".git").write_text("gitdir: /elsewhere\n")
