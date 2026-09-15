@@ -22,6 +22,10 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _registry import require  # noqa: E402
+
+require("release_lanes.toml", "secret_patterns.toml", "private_terms.toml")
 GATE = ROOT / "engine" / "release_gate.py"
 sys.path.insert(0, str(ROOT / "engine"))
 from release_gate import obs_history_pattern_absent  # noqa: E402

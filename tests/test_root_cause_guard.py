@@ -19,6 +19,10 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _registry import require  # noqa: E402
+
+require("patch_smells.toml")
 HOOK = ROOT / "hooks" / "root_cause_guard.py"
 
 NOQA = "# " + "noqa"
