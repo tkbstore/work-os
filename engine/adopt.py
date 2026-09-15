@@ -23,8 +23,20 @@ NAMING = registry_path("naming.toml")
 
 
 def _load_naming() -> dict:
-    """組織固有の命名規則を読む。無ければ空（＝推測しない）。"""
-    return _load_toml(NAMING) if NAMING.exists() else {}
+    """組織固有の命名規則を読む。無ければ空（＝推測しない）。
+
+    無いことは異常ではない。新規 clone には registry がまだ無く、この道具は
+    「推測しないで置くだけ」でも成立する。異常なのは、無いことに気づかないまま
+    推測したつもりになることのほうである。呼ぶ側が沈黙と区別できるよう、
+    読めなかったことはここで言う（読めなかったのを知っているのはここだけ）。
+    """
+    if NAMING.exists():
+        return _load_toml(NAMING)
+    print(f"[work-os] 命名規則がありません: {NAMING}\n"
+          f"[work-os] domain / role / layers は推測せず空のまま出します。"
+          f"work.toml を開いて実態に合わせてください。",
+          file=sys.stderr)
+    return {}
 
 # 組織固有の事実は engine に置かない。registry/naming.toml から読む。
 # ここにあるのは「読み方」だけであり、「何がどのドメインか」はこのファイルの外にある。
@@ -82,14 +94,19 @@ def build(repo: Path, domain_repo: str, kernel_version: str) -> str:
     domain = guess_domain(repo.name)
     role = guess_role(repo, domain)
 
-    kernel = existing(repo, LAYER_GUESS["kernel"])
+    # 宣言が無い層は推測しない。registry を持たない新規 clone では naming.toml が
+    # 無く、ここが LAYER_GUESS["kernel"] の直接添字だったため KeyError で落ちていた
+    # （2026-09-15 実測。README の手順2と ADOPTION の Day 1 が最初に踏む場所）。
+    # 宣言が無いことは異常ではないので、落とさず「書かない」に倒す。憲法 §3 は
+    # 宣言されていないパスを local とみなすので、空の層は安全な既定である。
+    kernel = existing(repo, LAYER_GUESS.get("kernel", []))
     for hint in sorted(KERNEL_HINTS):
         p = f"mcp_servers/{hint}"
         if (repo / p).exists():
             kernel.append(p)
     kernel = sorted(dict.fromkeys(kernel))
-    golden = existing(repo, LAYER_GUESS["golden_path"])
-    config = existing(repo, LAYER_GUESS["config"])
+    golden = existing(repo, LAYER_GUESS.get("golden_path", []))
+    config = existing(repo, LAYER_GUESS.get("config", []))
     extension = guess_extensions(repo, kernel)
 
     def arr(items: list[str]) -> str:
@@ -109,7 +126,7 @@ name        = "{repo.name}"
 domain      = "{domain}"          # この仕事はどのドメインか
 role        = "{role}"            # kernel | domain | client | tool | site | archive
 status      = "active"
-enforcement = "warn"              # warn = 何も止めない。数字が出てから "block" に上げる
+enforcement = "warn"              # warn = golden_path は警告だけ（kernel は warn でも止まる）
 
 [extends]
 domain_repo    = "{domain_repo}"
