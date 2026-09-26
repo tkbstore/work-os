@@ -33,6 +33,38 @@ TERMS = registry_path("private_terms.toml")
 PRIVATE_PREFIXES = ("registry/",)
 
 
+def self_slug() -> str:
+    """このリポジトリ自身の公開先（org/name）。無ければ空。
+
+    公開を宣言したリポジトリが自分の所在を書くのは、固有名詞の漏れではない。
+    配布の入口（install.sh の取得元）は具体でなければ機能しないし、その具体は
+    リポジトリを見つけた時点で既に相手が知っている。
+
+    ただし **公開を宣言しているときだけ** である。private なリポジトリの所在は
+    知られていない前提なので、そこでは通常どおり漏れとして扱う。
+    """
+    work = ROOT / "work.toml"
+    if not work.is_file():
+        return ""
+    try:
+        intent = str(_load_toml(work).get("publish", {}).get("intent", "")).strip()
+    except Exception:                                  # noqa: BLE001
+        return ""
+    if intent != "public":
+        return ""
+    out = subprocess.run(["git", "-C", str(ROOT), "remote", "get-url", "origin"],
+                         capture_output=True, text=True, timeout=30)
+    if out.returncode != 0:
+        return ""
+    url = out.stdout.strip()
+    if "github.com" not in url:
+        return ""
+    slug = url.split("github.com")[-1].lstrip(":/")
+    if slug.endswith(".git"):
+        slug = slug[:-4]
+    return slug if slug.count("/") == 1 else ""
+
+
 def public_files() -> list[Path]:
     """git 管理下のうち、公開対象になるファイル。"""
     out = subprocess.run(["git", "-C", str(ROOT), "ls-files"],
@@ -80,6 +112,10 @@ def main() -> int:
         return 2
 
     pattern = re.compile("|".join(re.escape(t) for t in terms), re.IGNORECASE)
+    # 自分の所在そのものは漏れではない。当たった語が **この slug の一部として**
+    # 現れたときだけ差し引く。語が単独で現れたら通常どおり漏れである。
+    slug = self_slug()
+    self_ref = re.compile(re.escape(slug), re.IGNORECASE) if slug else None
     leaks: list[tuple[Path, int, str, str]] = []
     for f in files:
         try:
@@ -87,13 +123,17 @@ def main() -> int:
         except (UnicodeDecodeError, OSError):
             continue
         for i, line in enumerate(text.splitlines(), 1):
-            m = pattern.search(line)
-            if m:
+            spans = [] if self_ref is None else [m.span() for m in self_ref.finditer(line)]
+            for m in pattern.finditer(line):
+                if any(a <= m.start() and m.end() <= b for a, b in spans):
+                    continue          # 自分の公開先の内側。所在の記述であって漏れではない
                 leaks.append((f.relative_to(ROOT), i, m.group(0), line.strip()[:80]))
+                break
 
     if not leaks:
+        note = f"、自分の公開先 {slug} は所在として除外" if slug else ""
         print(f"抽象度OK — 公開対象 {len(files)} ファイルに固有名詞の漏れなし"
-              f"（検査語 {len(terms)} 件）")
+              f"（検査語 {len(terms)} 件{note}）")
         return 0
 
     print(f"具体が漏れています: {len(leaks)} 箇所")
