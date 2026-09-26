@@ -44,8 +44,11 @@ def main() -> int:
     by_domain: dict[str, list[tuple[Path, str, str, bool]]] = defaultdict(list)
     for repo in repos:
         declared = load_repo(repo)
-        domain = declared.domain if declared else guess_domain(repo.name)
-        role = declared.role if declared else guess_role(repo, domain)
+        # 宣言が **在る** ときだけ宣言を採る。work.toml は在るが [repo] が無い、
+        # という形が実在するので、`declared is not None` だけで分けると、
+        # 宣言していない欄まで「宣言済み」として扱ってしまう。
+        domain = declared.domain if (declared and declared.domain) else guess_domain(repo.name)
+        role = declared.role if (declared and declared.role) else guess_role(repo, domain)
         by_domain[domain].append((repo, role, last_commit(repo), declared is not None))
 
     print("# engine/registry.py で生成。推測を含むので手で直してよい。")

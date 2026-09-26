@@ -36,11 +36,14 @@ def validate(root: Path) -> int:
     rep = Report(repo.enforcement)
 
     # --- repo セクション ---------------------------------------------------
-    if repo.role not in VALID_ROLES:
+    if not repo.role:
+        rep.warn(f"repo.role が未宣言。{sorted(VALID_ROLES)} のいずれかを書くと、"
+                 "台帳が名前からの推測ではなく宣言を使う")
+    elif repo.role not in VALID_ROLES:
         rep.error(f"repo.role='{repo.role}' は不正。{sorted(VALID_ROLES)} のいずれか")
     if repo.enforcement not in {"warn", "block"}:
         rep.error(f"repo.enforcement='{repo.enforcement}' は不正。'warn' か 'block'")
-    if repo.domain == "unknown":
+    if not repo.domain or repo.domain == "unknown":
         rep.warn("repo.domain が未設定。どの仕事に属するかを書くと scan で集計される")
 
     # --- layers ------------------------------------------------------------

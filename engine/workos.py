@@ -339,10 +339,23 @@ class Capability:
 
 @dataclass
 class Repo:
+    """work.toml が **宣言している** 内容。推測はここには入らない。
+
+    domain / role の既定は空文字である。"unknown" や "client" のような
+    もっともらしい値を入れると、**宣言していないこと**が「そう宣言した」に化ける。
+    そして化けた値は、名前から推測した答えより弱いのに、読む側では区別がつかない。
+
+    実測 2026-09-26: `[publish]` だけを持ち `[repo]` が無い 1 本が、台帳の再生成で
+    名前から正しく引けていたドメインと role="site" を失い、domain="unknown" /
+    role="client" へ落ちた。リポも名前も変わっていない。work.toml を置いたことだけが
+    原因で、**導入するほど台帳の分類が悪くなる**向きになっていた。
+    宣言の不在は不在のまま返し、埋めるかどうかは読む側が決める。
+    """
+
     root: Path
     name: str
-    domain: str = "unknown"
-    role: str = "client"
+    domain: str = ""
+    role: str = ""
     status: str = "active"
     enforcement: str = "warn"
     domain_repo: str = ""
@@ -393,8 +406,8 @@ def load_repo(root: Path) -> Repo | None:
     repo = Repo(
         root=root,
         name=r.get("name") or root.name,
-        domain=r.get("domain", "unknown"),
-        role=r.get("role", "client"),
+        domain=r.get("domain", ""),
+        role=r.get("role", ""),
         status=r.get("status", "active"),
         enforcement=r.get("enforcement", "warn"),
         domain_repo=ext.get("domain_repo", ""),
