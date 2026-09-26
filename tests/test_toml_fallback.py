@@ -77,16 +77,27 @@ def main() -> int:
             continue
         check(f"{rel} が tomllib と同値", mini == real)
 
-    print("\n厳格 — 表せない形は、別の意味にせず落ちる")
+    print("\n厳格 — 不正な TOML は、別の意味にせず落ちる")
+    # 「落ちるはず」を手で書かない。tomllib が実際に落ちることを同じ入力で確かめる。
+    # 手書きだと、tomllib では読める形をここに並べた日に、落としすぎが正解として固定される。
     for desc, text in (
-        ("ドット付きキー", "a.b = 1\n"),
-        ("日付", "d = 2026-09-02\n"),
         ("裸のトークン", "a = nope\n"),
         ("閉じていない配列", "a = [1, 2\n"),
         ("閉じていないインラインテーブル", "a = { b = 1\n"),
         ("k = v でない行", "just a sentence\n"),
         ("未対応のエスケープ", 'a = """x\\qy"""\n'),
+        # 2026-09-26: fleet_policy.toml の [third_party] 重複。3.11+ は落ち、
+        # 3.9 は黙って混ぜて読めていた。同じ宣言に版ごとの別の答えが出ていた。
+        ("表の二重宣言", '[t]\nx = "a"\n[t]\ny = "b"\n'),
+        ("キーの二重宣言", '[t]\nx = "a"\nx = "b"\n'),
+        ("表のあとに同名のキー", "[a.b]\nc = 1\n[a]\nb = 2\n"),
     ):
+        try:
+            got = tomllib.loads(text)
+            check(f"{desc}: tomllib が落ちる（{got!r} を返した。不正な例ではない）", False)
+            continue
+        except tomllib.TOMLDecodeError:
+            pass
         try:
             got = _mini_toml(text)
             check(f"{desc} で落ちる（{got!r} を返した）", False)
@@ -95,13 +106,39 @@ def main() -> int:
         except Exception as exc:                              # noqa: BLE001
             check(f"{desc} で TomlSubsetError になる（{type(exc).__name__}）", False)
 
-    print("\n厳格 — 読めるものまで落としていないこと（誤爆）")
-    for desc, text, want in (
-        ("インラインテーブル", 'a = { b = "x", c = 1 }\n', {"a": {"b": "x", "c": 1}}),
-        ("文字列の中の角括弧", "a = ['x\\[y]']\n", {"a": ["x\\[y]"]}),
-        ("複数行の配列", "a = [\n 1, # c\n 2,\n]\n", {"a": [1, 2]}),
-        ("小数", "a = 0.3\n", {"a": 0.3}),
+    print("\n厳格 — 合法でも、部分集合の外なら推測せず落ちる")
+    # こちらは tomllib が **読める** 形である。読めるものを落とすのは落としすぎだが、
+    # 別の意味にして返すよりましなので意図的にそうしている。意図であることを
+    # tomllib の結果と並べて残す（「落ちる」だけを書くと、次の人には区別がつかない）。
+    for desc, text in (
+        ("ドット付きキー", "a.b = 1\n"),
+        ("日付", "d = 2026-09-02\n"),
     ):
+        try:
+            tomllib.loads(text)
+        except tomllib.TOMLDecodeError:
+            check(f"{desc}: tomllib は読める（落ちた。不正な例に移すこと）", False)
+            continue
+        try:
+            got = _mini_toml(text)
+            check(f"{desc} で落ちる（{got!r} を返した）", False)
+        except TomlSubsetError:
+            check(f"{desc} で落ちる（tomllib は読める。部分集合の外）", True)
+        except Exception as exc:                              # noqa: BLE001
+            check(f"{desc} で TomlSubsetError になる（{type(exc).__name__}）", False)
+
+    print("\n厳格 — 読めるものまで落としていないこと（誤爆）")
+    # ここも期待値を手で書かない。tomllib が返したものと突き合わせる。
+    for desc, text in (
+        ("インラインテーブル", 'a = { b = "x", c = 1 }\n'),
+        ("文字列の中の角括弧", "a = ['x\\[y]']\n"),
+        ("複数行の配列", "a = [\n 1, # c\n 2,\n]\n"),
+        ("小数", "a = 0.3\n"),
+        # 上位表を後から宣言するのは合法。二重宣言の検査で巻き込まないこと。
+        ("上位表を後から宣言", "[a.b]\nc = 1\n[a]\nd = 2\n"),
+        ("配列表の繰り返し", "[[a]]\nx = 1\n[[a]]\nx = 2\n"),
+    ):
+        want = tomllib.loads(text)
         try:
             check(f"{desc} を読める", _mini_toml(text) == want)
         except TomlSubsetError as exc:
