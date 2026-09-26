@@ -32,6 +32,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from workos import _load_toml, iter_repo_dirs, registry_root  # noqa: E402
+# E402 は「import が先頭に無い」の指摘。sys.path を挿した後でしか解決しない。
+import audit  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 REGISTRY = registry_root()
@@ -541,6 +543,36 @@ def _scan_specs(files: list[tuple[str, Path]], specs: list[tuple[str, str]],
     return broken + hit
 
 
+def _apply_audit(root: Path, chk: dict,
+                 hits: list[tuple[str, int, list[Match]]],
+                 ) -> tuple[list[tuple[str, int, list[Match]]], list[str]]:
+    """人が下した判定を当てて、残った当たりと、出すべき注記を返す。
+
+    抑制した件数と記録の健全性は **必ず注記として返す**。黙って引くと、何を通した
+    のかが出力から消える。それが baseline 方式の本来の壊れ方（rubber-stamp）である。
+    """
+    log = audit.load()
+    repo = root.name
+    kept: list[tuple[str, int, list[Match]]] = []
+    dropped: dict[str, int] = {}
+    live: set[tuple[str, str, str]] = set()
+    for shown, _, ms in hits:
+        left, n = log.filter(repo, shown, ms)
+        for m in ms:
+            live.add((repo, shown, audit.line_key(m.body)))
+        if n:
+            _, _, term = shown.partition(":")
+            dropped[term or shown] = n
+        if left:
+            kept.append((shown, len(left), left))
+    notes = []
+    if dropped:
+        notes.append("人の判定で抑制: " + "、".join(
+            f"{t} {n} 件" for t, n in sorted(dropped.items(), key=lambda kv: -kv[1])))
+    notes += audit.health(log, repo, live)
+    return kept, notes
+
+
 def obs_pattern_absent(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list[str]]:
     files = _scoped(ctx["files"], chk.get("globs", ["**/*"]),
                     _except_globs(chk, ctx["lanes_cfg"]))
@@ -555,8 +587,21 @@ def obs_pattern_absent(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list
         literal = not is_rx
     if not specs:
         return "skip", "パターンが宣言されていない", []
-    hits = _scan_specs(files, specs, literal, chk)
+    # 人の判定を受け付けるかは **観測ごとに config で宣言する**。既定は受け付けない。
+    # 秘密の検査まで一律に抑制できる形にすると、抑制を宣言していない組織でも
+    # 「誰かが cleared と書けば通る」経路が生まれる。auditable を engine の判断で
+    # 決めないのは、何を人の判断に委ねるかが組織の決めることだからである。
+    auditable = bool(chk.get("auditable"))
+    # 全件要るのは抑制を1件ずつ突き合わせるときだけ。3858 件当たるリポもあるので、
+    # 宣言していない観測で全件を持つのは無駄でしかない。
+    hits = _scan_specs(files, specs, literal, chk, collect_all=auditable)
+    notes: list[str] = []
+    if auditable:
+        hits, notes = _apply_audit(root, chk, hits)
     if not hits:
+        if notes:
+            # 全件が人の判定で消えたことを、最初から無かったことにはしない。
+            return "pass", "人の判定で全件が抑制されています — " + "; ".join(notes), []
         return "pass", f"{len(files)} ファイルに該当なし", []
     total = sum(n for _, n, _ in hits)
     # ラベルが同じものはまとめる。clients.names: を12回繰り返すと、読むための
@@ -570,7 +615,10 @@ def obs_pattern_absent(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list
     # 例示は宣言ごとに1件ずつ取る。同じ語の3件を並べると、2種目以降が在ることが
     # 出力から消える（それが 2026-09-26 に 33 本を仕分けられなかった原因である）。
     examples = [ms[0].where() for _, _, ms in hits[:MAX_NAMED] if ms]
-    return "fail", f"{total} 件該当 — {named}{more}", examples
+    # 抑制と記録の健全性は例示ではなく detail に出す。例示は場所を指すだけなので
+    # 目で飛ばされるが、「何件を人の判定で引いたか」は判定の一部である。
+    tail = ("  ／ " + "; ".join(notes)) if notes else ""
+    return "fail", f"{total} 件該当 — {named}{more}{tail}", examples
 
 
 def obs_pattern_max(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list[str]]:

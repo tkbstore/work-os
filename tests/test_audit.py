@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -30,9 +31,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 # 共通モジュールは解決しない。抑制しているのは順序の指摘だけである。
 from _registry import borrow_terms, require  # noqa: E402
 
-require("private_terms.toml")
+require("private_terms.toml", "release_lanes.toml", "secret_patterns.toml")
 AUDIT = ROOT / "engine" / "audit.py"
 GATE = ROOT / "engine" / "deliverable_gate.py"
+REPO_GATE = ROOT / "engine" / "release_gate.py"
 
 GIT_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
            "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid",
@@ -51,9 +53,48 @@ def make_registry(td: Path) -> Path:
         "WORKOS_REGISTRY") else None
     from _registry import registry_root
     src = src or registry_root()
-    (reg / "private_terms.toml").write_text(
-        (src / "private_terms.toml").read_text(encoding="utf-8"), encoding="utf-8")
+    for name in ("private_terms.toml", "release_lanes.toml", "secret_patterns.toml"):
+        if (src / name).is_file():
+            (reg / name).write_text((src / name).read_text(encoding="utf-8"),
+                                    encoding="utf-8")
     return reg
+
+
+def make_auditable(reg: Path, check_id: str) -> None:
+    """release_lanes.toml の1つの観測に auditable = true を足す。
+
+    engine ではなく宣言で切り替わることが要点。engine が観測ごとに決める形だと、
+    何を人の判断に委ねたかが組織の外（コード）に移ってしまう。
+    """
+    lanes = reg / "release_lanes.toml"
+    out, armed = [], False
+    for line in lanes.read_text(encoding="utf-8").splitlines():
+        out.append(line)
+        if line.strip() == f'id = "{check_id}"':
+            armed = True
+        elif armed and line.strip().startswith("kind"):
+            out.append("auditable = true")
+            armed = False
+    lanes.write_text("\n".join(out) + "\n", encoding="utf-8")
+
+
+def term_counts(out: str) -> dict[str, int]:
+    """no_private_terms の行から {語: 件数} を読む。
+
+    件数を literal 文字列で当てると、木の中身が1ファイル増えただけで検査が壊れる
+    （実際に一度壊した）。出力の意味の側を読む。
+    """
+    for line in out.splitlines():
+        if "no_private_terms:" in line and "clients.names:" in line:
+            body = line.split("clients.names:", 1)[1]
+            return {t: int(n) for t, n in re.findall(r"([A-Za-z0-9\-]+) (\d+) 件", body)}
+    return {}
+
+
+def run_repo_gate(reg: Path, repo: Path) -> tuple[int, str]:
+    proc = subprocess.run([sys.executable, str(REPO_GATE), str(repo), "--owned"],
+                          capture_output=True, text=True, timeout=300, env=env(reg))
+    return proc.returncode, proc.stdout + proc.stderr
 
 
 def make_repo(td: Path, name: str, body: str, extra: dict | None = None) -> Path:
@@ -101,7 +142,7 @@ def main() -> int:
             failed.append(desc)
 
     one, two = borrow_terms(2)
-    decl_two = DECL_PREFIX + two
+    decl_one, decl_two = DECL_PREFIX + one, DECL_PREFIX + two
     # 2社が在る成果物。片方を抑制すると宛先が確定する、という形にしてある。
     body = f"# {one} 様向け\n\n参考: {two} の公開資料\n"
     target = "deliverables/report.md:3"
@@ -201,6 +242,46 @@ def main() -> int:
         check("形の違う鍵を無効として名指しする", "鍵の形が違う" in listing)
         check("効いていないことを言う", "効いていません" in listing)
         audit_toml.write_text(text, encoding="utf-8")
+
+        # --- release_gate 側: 宣言していなければ何も変わらない -------------------
+        # 抑制を受け付けるかは観測ごとの宣言で決まる。既定（宣言なし）で挙動が
+        # 変わると、抑制を導入していない組織にも「cleared と書けば通る」経路が
+        # 生まれる。既定のままで抑制が effect を持たないことを先に固定する。
+        print("\nrelease_gate（auditable を宣言していないとき）")
+        pub = ('[repo]\nname = "s"\nenforcement = "warn"\n'
+               '[publish]\nintent = "internal"\n')
+        rg = make_repo(td, "rg", body)
+        (rg / "work.toml").write_text(pub, encoding="utf-8")
+        (rg / "src").mkdir(exist_ok=True)
+        (rg / "src" / "note.py").write_text(f'A = "{one}"\nB = "{two}"\n',
+                                           encoding="utf-8")
+        subprocess.run(["git", "-C", str(rg), "add", "-A"], check=True, timeout=60)
+        subprocess.run(["git", "-C", str(rg), "commit", "-qm", "chore: first"],
+                       check=True, timeout=60, env=env(reg))
+        # 記録する **前** の件数を取る。「0 より大きい」では判別できない
+        # （抑制されて 2→1 になっても真になる）。比較の基準は記録前の実測にする。
+        code, out = run_repo_gate(reg, rg)
+        pristine = term_counts(out)
+        check("記録前に両方の語が当たっている",
+              pristine.get(one, 0) > 0 and pristine.get(two, 0) > 0)
+        rc, _ = clear(reg, rg, "src/note.py:1", decl_one)
+        check("記録できる", rc == 0)
+        code, out = run_repo_gate(reg, rg)
+        before = term_counts(out)
+        check("宣言していない観測は1件も抑制されない", before == pristine)
+        check("抑制の注記も出ない", "人の判定で抑制" not in out)
+
+        # --- release_gate 側: 宣言すると効く ------------------------------------
+        print("\nrelease_gate（auditable を宣言したとき）")
+        make_auditable(reg, "no_private_terms")
+        code, out = run_repo_gate(reg, rg)
+        after = term_counts(out)
+        check("宣言した観測は抑制される（1 件減る）",
+              after.get(one, 0) == before.get(one, 0) - 1)
+        check("抑制していない語は1件も減らない",
+              after.get(two, 0) == before.get(two, 0))
+        check("抑制した件数を注記に出す", "人の判定で抑制" in out)
+        check("記録の規模を出す", "判定の記録" in out)
 
         # --- 記録が読めないとき ----------------------------------------------
         print("\n記録が読めないとき")

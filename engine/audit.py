@@ -40,13 +40,24 @@ import sys
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from typing import Protocol
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 # E402 は「import が先頭に無い」の指摘。上で sys.path を挿してからでないと engine/
 # は解決しない。抑制しているのは順序の指摘だけである。
-from release_gate import Match  # noqa: E402
-# 同じ理由（sys.path を挿した後にしか解決しない）。
 from workos import _load_toml, registry_path  # noqa: E402
+
+
+class Hit(Protocol):
+    """当たった1件。release_gate.Match がこの形を満たす。
+
+    型で受けずに形で受けるのは、**逆向きの import を作らないため**である。
+    release_gate 側から audit を呼ぶので、audit が release_gate を import すると
+    循環する。当たりを運ぶ型は観測する側のものなので、こちらは形だけ知る。
+    """
+    rel: str
+    line: int
+    body: str
 
 AUDIT_FILE = "audit.toml"
 VERDICTS = ("cleared", "leak")
@@ -98,7 +109,7 @@ class Entry:
         """抑制するか。`leak` は記録であって抑制ではない。"""
         return not self.invalid and self.verdict == "cleared"
 
-    def covers(self, repo: str, declaration: str, hit: Match) -> bool:
+    def covers(self, repo: str, declaration: str, hit: Hit) -> bool:
         return (self.repo == repo and self.path == hit.rel
                 and self.declaration == declaration
                 and self.line_key == line_key(hit.body))
@@ -115,13 +126,13 @@ class Log:
     def broken(self) -> list[tuple[Entry, str]]:
         return [(e, e.invalid) for e in self.entries if e.invalid]
 
-    def used(self, repo: str, declaration: str, hits: list[Match]) -> set[str]:
+    def used(self, repo: str, declaration: str, hits: list[Hit]) -> set[str]:
         """この宣言の当たりを抑制した記録の鍵。"""
         return {e.line_key for e in self.entries if e.suppresses
                 for h in hits if e.covers(repo, declaration, h)}
 
     def filter(self, repo: str, declaration: str,
-               hits: list[Match]) -> tuple[list[Match], int]:
+               hits: list[Hit]) -> tuple[list[Hit], int]:
         """抑制されなかった当たりと、抑制された件数。
 
         抑制は1件ずつしか効かない。同じファイルの別の行、同じ行の別の宣言は
