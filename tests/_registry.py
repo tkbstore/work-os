@@ -21,7 +21,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "engine"))
 
-from workos import registry_root  # noqa: E402
+# E402 は「import が先頭に無い」の指摘。上で sys.path を挿してからでないと engine/
+# は解決しない。抑制しているのは順序の指摘だけで、動かない理由は隠していない。
+from workos import _load_toml, registry_root  # noqa: E402
 
 SKIPPED = 3
 
@@ -39,3 +41,34 @@ def require(*names: str) -> None:
           f"     何を書くファイルかは README の「Configuration 層はこのリポジトリに"
           f"在りません」を参照。")
     raise SystemExit(SKIPPED)
+
+
+def borrow_terms(count: int = 1, group: str = "clients") -> list[str]:
+    """registry が「持ち出してはいけない」と宣言している語を count 個借りる。
+
+    検査の見本をテストの本文に直接書けないため借りる。**ゲートは自分自身のテストを
+    読む**ので、固有名詞を書くと work-os 自身の provenance レーンがそれを検出する。
+
+    2語以上を借りられる口にしているのは、「どの語が当たったか」を出しているかが
+    1語では分からないからである。語を捨てる実装でも、語が1つしか在らない木では
+    「当たった」ことだけは正しく出る。
+
+    group を [clients] に絞るのが既定。自社製品名（products）や自分の名前（org）は
+    そのリポに在って当然のもので、公開判定では裁かない。
+    """
+    terms = registry_root() / "private_terms.toml"
+    if not terms.is_file():
+        # 落ちること自体は正しい（検査していないものを通さない）が、
+        # FileNotFoundError だけでは何が足りないのか読めない。
+        raise SystemExit(f"検査語の宣言が見つかりません: {terms}\n"
+                         f"  registry の場所を教えてください（WORKOS_REGISTRY=<path>）")
+    body = _load_toml(terms).get(group, {})
+    out: list[str] = []
+    for val in (body.values() if isinstance(body, dict) else [body]):
+        for term in (val if isinstance(val, list) else [val]):
+            t = str(term).strip()
+            if len(t) >= 4 and t.isalnum() and t not in out:
+                out.append(t)
+            if len(out) == count:
+                return out
+    raise SystemExit(f"[{group}] に {count} 語の借りられる宣言がありません: {terms}")

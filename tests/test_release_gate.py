@@ -23,7 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _registry import require  # noqa: E402
+from _registry import borrow_terms, require  # noqa: E402
 
 require("release_lanes.toml", "secret_patterns.toml", "private_terms.toml")
 GATE = ROOT / "engine" / "release_gate.py"
@@ -64,28 +64,6 @@ def a_private_term(group: str = "clients") -> str:
             if len(t) >= 4 and t.isalnum():
                 return t
     return "placeholderterm"
-
-
-def some_private_terms(count: int, group: str = "clients") -> list[str]:
-    """registry が禁じている語を count 個借りる。
-
-    1語では「どの語が当たったか」を出しているかが分からない。語を捨てる実装でも、
-    語が1つしか在らない木では「当たった」ことだけは正しく出るためである。
-    2語以上を入れて、両方が名指しされることを見る必要がある。
-    """
-    terms = registry_root() / "private_terms.toml"
-    if not terms.is_file():
-        raise SystemExit(f"検査語の宣言が見つかりません: {terms}")
-    body = _load_toml(terms).get(group, {})
-    out: list[str] = []
-    for val in (body.values() if isinstance(body, dict) else [body]):
-        for term in (val if isinstance(val, list) else [val]):
-            t = str(term).strip()
-            if len(t) >= 4 and t.isalnum() and t not in out:
-                out.append(t)
-            if len(out) == count:
-                return out
-    raise SystemExit(f"[{group}] に {count} 語の借りられる宣言がありません")
 
 
 FAKE_KEY = "AKIA" + "IOSFODNN7EXAMPLE"          # 形だけの AWS アクセスキー
@@ -324,7 +302,7 @@ def main() -> int:
         # 仕分けられなかった。このチェックの目的は「外販物に他の顧客の名前が
         # 入っていたら渡せない」なので、語が出ないと目的を果たさない。
         print("\n当たった語が出ること")
-        two = some_private_terms(2)
+        two = borrow_terms(2)
         multi = build(Path(td) / "multi", {
             **HEALTHY_FILES,
             "src/note.py": "".join(f'C{i} = "{t}"\n' for i, t in enumerate(two)),

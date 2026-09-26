@@ -26,6 +26,7 @@ golden_path = [
   "engine/generators.py",
   "engine/abstraction_gate.py",
   "engine/release_gate.py",
+  "engine/deliverable_gate.py",
   "engine/adopt.py",
   "engine/promote.py",
   "engine/promotion.py",
@@ -38,6 +39,7 @@ golden_path = [
   "templates",
   "tests/test_guards.py",
   "tests/test_release_gate.py",
+  "tests/test_deliverable_gate.py",
 ]
 # config 層は別リポジトリ（work-os-registry）にある。組織固有の事実を
 # 本体の履歴に残さないため 2026-08-31 に切り出した。所在は engine/workos.py の
