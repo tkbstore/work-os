@@ -69,6 +69,17 @@ GATES: list[tuple[str, list[str], str]] = [
     # 下げるのは、公開を取り下げると決めたときだけ。
     ("release", [sys.executable, "engine/release_gate.py", ".",
                  "--execute", "--require", "public"], "error"),
+    # 台帳が実在とズレていないか。カタログは生成物なので、生成しなおさないかぎり
+    # 静かに腐る。実測 2026-09-26: 08-31 生成のカタログが 5 本消えて 5 本増えた状態で
+    # 4週間通っていた。本数は 82 / 82 で一致していたので、件数を見ても気づけない。
+    #
+    # warn である。ズレを直すには registry への書き込みが要り、それは work-os からは
+    # できない（別リポで、cross-repo-guard が止める）。自分で直せないものを error に
+    # すると毎回差し戻しになり、読まれなくなる。
+    #
+    # 根は渡さない。カタログの出自に書いてある根を使う。ここにパスを書くと、
+    # 「どこを数えたか」の答えが2箇所になり、食い違ったときにどちらが本当か分からない。
+    ("catalog", [sys.executable, "engine/catalog.py", "--verify"], "warn"),
 ]
 
 
@@ -93,7 +104,11 @@ def main() -> int:
         if proc.returncode == 0:
             print(f"[work-os-qa] {name}: PASS")
             continue
-        print(f"[work-os-qa] {name}: FAIL (exit {proc.returncode})", file=sys.stderr)
+        # severity が error のゲートしか無かった間は FAIL でよかった。warn のゲートを
+        # 足した時点で、exit 1 を FAIL と呼ぶのは「確かめていない」を「落ちた」に
+        # 畳むことになる。このファイルの上で自分がやらないと書いたことである。
+        label = "FAIL" if severity == "error" else "WARN"
+        print(f"[work-os-qa] {name}: {label} (exit {proc.returncode})", file=sys.stderr)
         tail = (proc.stdout + proc.stderr).strip().splitlines()[-25:]
         for line in tail:
             print(f"[work-os-qa]   {line}", file=sys.stderr)

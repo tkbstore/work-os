@@ -8,8 +8,12 @@ registry/repos.toml は**存在**を漏れなく持っているが、**能力**�
 このカタログは手で書かない。書いたものは腐るからである。コードから機械的に導く。
 
   python3 engine/catalog.py <repos> --build     # registry/catalog.toml を生成
+  python3 engine/catalog.py --verify            # 宣言と実在のズレを出す
   python3 engine/catalog.py --find pdf          # どのリポが持っているか
   python3 engine/catalog.py --find pdf --why    # 何を根拠にそう言うか
+
+生成物には出自（[meta]: いつ・どこで・何本数えたか）を書き残す。件数だけでは実在と
+比べられない。実測 2026-09-26: 5 本消えて 5 本増えたカタログが 82 / 82 で一致していた。
 
 外部依存なし。生成先は registry/（非公開層）。engine には事実を持たせない。
 """
@@ -21,6 +25,7 @@ import json
 import math
 import re
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -139,7 +144,16 @@ def build(root: Path) -> int:
     out = ["# catalog.toml — engine/catalog.py で生成。手で書かない（書いたものは腐る）。",
            "# purpose は README/CLAUDE.md からの下書き。目視で直してよい。",
            "# terms はコードの形から導いた能力語。直すのではなく再生成すること。",
-           f"# {len(rows)} repositories", ""]
+           "",
+           "# 生成の出自。--verify がこれを読んで、宣言と実在のズレを出す。",
+           "# 以前はここに件数だけを書いていた（\"82 repositories\"）。件数は実在と",
+           "# 比べられない。何がズレたかを言うには「何を、どこで、いつ数えたか」が要る。",
+           "# 実測 2026-09-26: 08-31 生成のカタログが 5 本のリポを知らないまま4週間通っていた。",
+           "[meta]",
+           f'generated_at = "{_now()}"',
+           f'root         = "{esc(str(root))}"',
+           f"repo_count   = {len(rows)}",
+           "require_git  = true", ""]
     for name, purpose, terms in rows:
         out.append("[[repo]]")
         out.append(f'name    = "{esc(name)}"')
@@ -154,6 +168,84 @@ def build(root: Path) -> int:
     if missing:
         print(f"purpose が空 {len(missing)} 件（README も CLAUDE.md も無い）: "
               f"{', '.join(missing[:8])}")
+    return 0
+
+
+def _now() -> str:
+    """生成時刻。TOML の日付型ではなく文字列で持つ。
+
+    読み側が2系統ある（tomllib と workos の部分実装）ので、両方が同じに読める
+    形にそろえる。鮮度の記録それ自体が読めなくなるのが一番まずい壊れ方である。
+    """
+    return datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%dT%H:%M:%S%z")
+
+
+def meta() -> dict:
+    if not CATALOG.exists():
+        return {}
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from workos import _load_toml  # noqa: PLC0415
+    m = _load_toml(CATALOG).get("meta")
+    return dict(m) if isinstance(m, dict) else {}
+
+
+def verify(root: Path | None) -> int:
+    """カタログの宣言と、いま実在するリポジトリを突き合わせる。
+
+    終了コードは3値。workos-qa.py の規約と同じ理由で「確かめていない」を
+    「落ちた」に畳まない。畳むと、出自の無い古いカタログが差し戻しを出し続けて
+    読まれなくなる。読まれない検査は無いのと同じである。
+
+      0  宣言と実在が一致した
+      1  確かめられない（カタログが無い / 出自が無い / 根が消えた）
+      2  ズレた。どの名前がどちら側に在るかを出す
+    """
+    rows = load()
+    if not rows:
+        print("カタログがありません。先に --build してください。"
+              "（確かめていません。ズレていないという意味ではありません）",
+              file=sys.stderr)
+        return 1
+
+    m = meta()
+    if root is None:
+        declared = str(m.get("root") or "")
+        if not declared:
+            print("出自が書かれていないカタログです。何をどこで数えたかが分からないので、"
+                  "実在と比べられません。--build で作り直すか、根を引数で渡してください。"
+                  "（確かめていません）", file=sys.stderr)
+            return 1
+        root = Path(declared)
+    root = Path(root).expanduser()
+    if not root.is_dir():
+        print(f"数えた根が今は在りません: {root}（確かめていません）", file=sys.stderr)
+        return 1
+
+    known = {str(r.get("name") or "") for r in rows} - {""}
+    live = {d.name for d in iter_repo_dirs(root)}
+    unseen = {d.name for d in iter_repo_dirs(root, require_git=False)} - live
+
+    missing = sorted(live - known)
+    stale = sorted(known - live)
+
+    when = str(m.get("generated_at") or "不明")
+    print(f"カタログ {len(known)} 本 / 実在 {len(live)} 本   生成 {when}   根 {root}")
+    if unseen:
+        # ここは「ズレ」ではなく定義の外側。git になっていないものはカタログの
+        # 対象ではない（iter_repo_dirs の require_git）。黙ると、木に在るのに
+        # どの検査も見ていないディレクトリが沈黙のまま増える。
+        print(f"  定義の外 {len(unseen)} 本（.git が無いのでカタログの対象外）: "
+              f"{', '.join(sorted(unseen))}")
+    for name in missing:
+        print(f"  NG 実在するがカタログに無い: {name}")
+    for name in stale:
+        print(f"  NG カタログに在るが実在しない: {name}")
+    if missing or stale:
+        print(f"ズレ {len(missing) + len(stale)} 件。"
+              f"python3 engine/catalog.py {root} --build で作り直してください。",
+              file=sys.stderr)
+        return 2
+    print("一致。")
     return 0
 
 
@@ -275,6 +367,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="能力で引けるカタログ")
     ap.add_argument("root", nargs="?", type=Path, help="--build のとき必要")
     ap.add_argument("--build", action="store_true", help="カタログを生成する")
+    ap.add_argument("--verify", action="store_true",
+                    help="宣言と実在のズレを出す（root 省略時は出自から読む）")
     ap.add_argument("--find", metavar="TERM", help="能力語で引く")
     ap.add_argument("--why", action="store_true", help="一致の根拠を出す")
     ap.add_argument("--compare", nargs="+", metavar="REPO",
@@ -282,6 +376,8 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=8, help="--compare の表示件数")
     args = ap.parse_args()
 
+    if args.verify:
+        return verify(args.root.expanduser().resolve() if args.root else None)
     if args.build:
         if not args.root:
             print("--build には root が必要です", file=sys.stderr)
