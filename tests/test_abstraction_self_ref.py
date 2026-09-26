@@ -43,9 +43,11 @@ SLUG = f"{TERM}/{REPO_NAME}"
 def build(tmp: Path, *, intent: str, remote: str | None, lines: list[str]) -> tuple[Path, Path]:
     """仕組みの層だけを持つリポジトリを合成する。"""
     repo = tmp / "repo"
-    repo.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(ROOT / "engine", repo / "engine",
-                    ignore=shutil.ignore_patterns("__pycache__"))
+    (repo / "engine").mkdir(parents=True, exist_ok=True)
+    # abstraction_gate が要るのは workos だけ。engine 全部を写すと、検査1件あたり
+    # 19 ファイルの copy と git add になり、合成の費用が検査の中身より大きくなる。
+    for mod in ("abstraction_gate.py", "workos.py"):
+        shutil.copy2(ROOT / "engine" / mod, repo / "engine" / mod)
     (repo / "work.toml").write_text(
         f'[repo]\nname = "{REPO_NAME}"\n\n[publish]\nintent = "{intent}"\n', encoding="utf-8")
     (repo / "NOTES.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
