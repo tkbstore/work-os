@@ -60,21 +60,31 @@ def make_registry(td: Path) -> Path:
     return reg
 
 
-def make_auditable(reg: Path, check_id: str) -> None:
-    """release_lanes.toml の1つの観測に auditable = true を足す。
+def set_auditable(reg: Path, check_id: str, value: bool) -> None:
+    """1つの観測の auditable の宣言を、在っても無くても宣言しなおす。
 
     engine ではなく宣言で切り替わることが要点。engine が観測ごとに決める形だと、
     何を人の判断に委ねたかが組織の外（コード）に移ってしまう。
+
+    足す側だけを持っていたときは、**実物の宣言がまだ false であること**に暗黙に
+    依存していた。2026-09-26 に実物へ auditable = true を入れた瞬間に2通りに壊れた:
+    未宣言側の検査が前提を失って通らなくなり、宣言側では同じ表に同じキーが2つ
+    並んで宣言そのものが読めなくなった。仕掛けは現在地に依存させない。
     """
     lanes = reg / "release_lanes.toml"
-    out, armed = [], False
+    out: list[str] = []
+    inside = False
     for line in lanes.read_text(encoding="utf-8").splitlines():
+        t = line.strip()
+        if t.startswith("[["):
+            inside = False
+        if inside and t.startswith("auditable"):
+            continue          # 既に在る宣言は落としてから入れなおす
         out.append(line)
-        if line.strip() == f'id = "{check_id}"':
-            armed = True
-        elif armed and line.strip().startswith("kind"):
-            out.append("auditable = true")
-            armed = False
+        if t == f'id = "{check_id}"':
+            inside = True
+            if value:
+                out.append("auditable = true")
     lanes.write_text("\n".join(out) + "\n", encoding="utf-8")
 
 
@@ -248,6 +258,9 @@ def main() -> int:
         # 変わると、抑制を導入していない組織にも「cleared と書けば通る」経路が
         # 生まれる。既定のままで抑制が effect を持たないことを先に固定する。
         print("\nrelease_gate（auditable を宣言していないとき）")
+        # 「宣言していない」を仕掛け側で明示する。実物の宣言がどちらであっても
+        # この場の前提が動かないようにする（実物は 2026-09-26 に true になった）。
+        set_auditable(reg, "no_private_terms", False)
         pub = ('[repo]\nname = "s"\nenforcement = "warn"\n'
                '[publish]\nintent = "internal"\n')
         rg = make_repo(td, "rg", body)
@@ -273,7 +286,7 @@ def main() -> int:
 
         # --- release_gate 側: 宣言すると効く ------------------------------------
         print("\nrelease_gate（auditable を宣言したとき）")
-        make_auditable(reg, "no_private_terms")
+        set_auditable(reg, "no_private_terms", True)
         code, out = run_repo_gate(reg, rg)
         after = term_counts(out)
         check("宣言した観測は抑制される（1 件減る）",
