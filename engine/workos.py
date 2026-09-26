@@ -204,6 +204,12 @@ def _strip_comment(line: str) -> str:
 def _mini_toml(text: str) -> dict:
     root: dict = {}
     current: dict = root
+    # 明示的に `[x.y]` と宣言された表。同じ表を二度宣言するのは TOML では誤りで、
+    # tomllib は落ちる。setdefault で黙って混ぜると、3.11 未満だけが**壊れた宣言を
+    # 読めてしまう**。2026-09-26 に fleet_policy.toml の `[third_party]` 重複で実際に
+    # 起き、ゲートは 3.13 では「読めなかった」と言い、3.9 では何も言わなかった。
+    # 上位表を後から宣言するのは合法なので（[a.b] のあとの [a]）、直接の再宣言だけを見る。
+    declared: set = set()
 
     def descend(parts: list[str], as_array: bool) -> dict:
         node = root
@@ -217,6 +223,10 @@ def _mini_toml(text: str) -> dict:
             node.setdefault(last, [])
             node[last].append({})
             return node[last][-1]
+        key = tuple(parts)
+        if key in declared:
+            raise TomlSubsetError("表を二度宣言している: [" + ".".join(parts) + "]")
+        declared.add(key)
         return node.setdefault(last, {})
 
     lines = text.splitlines()
@@ -237,6 +247,10 @@ def _mini_toml(text: str) -> dict:
             raise TomlSubsetError(f"{n} 行目が k = v でない: {line[:60]}")
         key, _, raw = line.partition("=")
         key, raw = _bare_key(key), raw.strip()
+        # 同じキーを二度書くのも誤り。後の値で黙って上書きすると、宣言を読んだ側は
+        # どちらが効いたかを出力から知れない。tomllib と同じく落とす。
+        if key in current:
+            raise TomlSubsetError(f"{n} 行目でキーを二度宣言している: {key[:60]}")
         delim = next((d for d in ('"""', "'''") if raw.startswith(d)), "")
         if delim:
             raw = lines[n - 1].partition("=")[2].strip()   # 複数行文字列は # も本文
