@@ -13,6 +13,7 @@
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tkbstore/work-os/main/install.sh | sh
 workos-gate <path-to-a-repo>        # そのリポジトリを外に出せるかを見る
+workos-gate --checks                # 何を見ているのかを列挙する（対象は要りません）
 ```
 
 `~/.local/share/workos-gate` に展開して `~/.local/bin/workos-gate` を置くだけです。
@@ -64,6 +65,9 @@ python3 engine/promote.py <repos>
 # 5. 外に出せるかを見る（[publish] を宣言したリポだけ）
 python3 engine/release_gate.py <repos>/<a-repo> --execute
 
+# 何を見ているのかを先に読む（リポジトリに依らない。--json で機械可読）
+python3 engine/release_gate.py --checks
+
 # 手元の木をまとめて見る（自組織のリポなので --scan は所有を主張する）
 python3 engine/release_gate.py --scan <repos>
 ```
@@ -72,8 +76,13 @@ python3 engine/release_gate.py --scan <repos>
 
 | 段 | 通ると何ができるか | 見るレーン |
 |----|------------------|-----------|
-| 1. `internal` | 社内で共有する | `safety` `portability` `provenance`（顧客名は警告のみ） |
-| 2. `public` | public リポジトリとして切り出す | 第1段 + `entry` `usability` `agent_ready` `correctness` `robustness` |
+| 1. `internal` | 社内で共有する | `safety` `portability` `provenance` `correctness`（顧客名とテストは警告のみ） |
+| 2. `public` | public リポジトリとして切り出す | `safety` `provenance` `correctness`（同じ観測を severity を上げて当て直す）+ `history` `entry` `usability` `agent_ready` `robustness` |
+
+この表は要約です。**どの段でどの観測がどの severity で当たるかは
+`release_gate.py --checks` が判定基準そのものから出します。**
+食い違ったら `--checks` のほうが正しい（この表は 2026-09-27 に実際に 3 箇所ずれていました。
+段に `correctness` と `history` を足したのに、ここを直していませんでした）。
 
 第 1 段は「出した瞬間に取り返しがつかないもの」だけを見ます。README が無くても同僚には
 渡せますが、鍵が入っていたら渡せません。顧客名は同僚にとって在って当然のものなので、

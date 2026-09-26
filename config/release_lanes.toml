@@ -5,13 +5,21 @@
 #
 # 観測の種類（engine が実装している語彙。これ以外は書けない）:
 #   file_present      any_of のいずれかのファイルが存在する
+#   pattern_present   globs のファイル群に patterns のいずれかが現れる（在ることを求める）
+#   exclude_not_tracked  [publish] exclude に挙げた道が、git の追跡下に残っていない
 #   doc_section       file の中に any_of の正規表現のいずれかが現れる
 #   runnable_block    file の中の実行可能なコードブロックが min 個以上ある
 #   pattern_absent    globs のファイル群に patterns のどれも現れない
 #   pattern_max       globs のファイル群で pattern の出現が max 個以下
 #   declared_command  work.toml の [publish.commands] に name が宣言されている
 #   command_exit_zero 宣言されたコマンド name が exit 0 で終わる（--execute 時のみ）
-#   first_block_max_lines  file の最初の実行ブロックが max 行以下
+#   history_erased         公開の起点より前の履歴が消してある
+#   history_pattern_absent 履歴の本文とコミットメッセージに patterns が現れない
+#
+# ここに無い kind を書くと、engine は skip にするだけで落とさない（走らないまま
+# 通る）。engine が実際に実装している一覧は release_gate.py --checks が出す。
+# 上の並びは説明のための写しなので、食い違ったら --checks のほうが正しい
+# （実測 2026-09-27: 実装されていない first_block_max_lines がここに残っていた）。
 #
 # 共通オプション:
 #   except_globs      globs から差し引く（テスト用の見本など、あって当然のもの）

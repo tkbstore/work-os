@@ -15,6 +15,7 @@ registry/release_lanes.toml に宣言する。基準を変える現場はコー�
   python3 engine/release_gate.py <repo> --execute # 宣言されたコマンドを実走させる
   python3 engine/release_gate.py --scan <root>    # 公開を宣言した全リポを検査
   python3 engine/release_gate.py --json           # 機械可読
+  python3 engine/release_gate.py --checks         # 何を見ているのかを列挙（対象不要）
 
 外部依存なし。--execute を付けない限り、読み取りのみ。
 """
@@ -1340,9 +1341,22 @@ def main(argv: list[str] | None = None) -> int:
                          "（顧客名・絶対パスの観測はこれが無いと当たらない）")
     ap.add_argument("--require", metavar="STAGE",
                     help="この段に届かなければ exit 2（ローカルゲートから呼ぶための口）")
+    ap.add_argument("--checks", action="store_true",
+                    help="判定基準そのものを列挙する（リポジトリは見ない）")
     args = ap.parse_args(argv)
 
     lanes_cfg = load_lanes()
+
+    if args.checks:
+        # 列挙は merge 済みの lanes_cfg から作る。判定が使う辞書と同じものを渡すので、
+        # 一覧と実際に走るものがずれない。別に読み直すと、ずれても両方それらしく出る。
+        import checks_list  # noqa: PLC0415 — 循環 import を避けるため使う場所で読む
+        cat = checks_list.build(lanes_cfg)
+        if args.json:
+            print(json.dumps(cat, ensure_ascii=False, indent=2))
+        else:
+            checks_list.render(cat)
+        return 0
     roots = (discover(Path(args.scan), args.assume_public) if args.scan
              else [Path(r) for r in args.repos])
 
