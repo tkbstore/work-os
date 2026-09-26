@@ -66,6 +66,28 @@ def a_private_term(group: str = "clients") -> str:
     return "placeholderterm"
 
 
+def some_private_terms(count: int, group: str = "clients") -> list[str]:
+    """registry が禁じている語を count 個借りる。
+
+    1語では「どの語が当たったか」を出しているかが分からない。語を捨てる実装でも、
+    語が1つしか在らない木では「当たった」ことだけは正しく出るためである。
+    2語以上を入れて、両方が名指しされることを見る必要がある。
+    """
+    terms = registry_root() / "private_terms.toml"
+    if not terms.is_file():
+        raise SystemExit(f"検査語の宣言が見つかりません: {terms}")
+    body = _load_toml(terms).get(group, {})
+    out: list[str] = []
+    for val in (body.values() if isinstance(body, dict) else [body]):
+        for term in (val if isinstance(val, list) else [val]):
+            t = str(term).strip()
+            if len(t) >= 4 and t.isalnum() and t not in out:
+                out.append(t)
+            if len(out) == count:
+                return out
+    raise SystemExit(f"[{group}] に {count} 語の借りられる宣言がありません")
+
+
 FAKE_KEY = "AKIA" + "IOSFODNN7EXAMPLE"          # 形だけの AWS アクセスキー
 BARE_EXCEPT = "    " + "except" + ":\n        " + "pass\n"
 HOME_PATH = str(Path.home()) + "/somewhere/"
@@ -294,6 +316,30 @@ def main() -> int:
         check("第2段で止まる（public には出せない）",
               bool(res) and res[0]["blocked_at"] == "public")
         check("到達点は internal と出る", bool(res) and res[0]["reached"] == "internal")
+
+        # --- 当たった語が出力に残ること --------------------------------------
+        # 分類（fail）と同じ粒度で「どの語が当たったか」が出ていないと、誤判定が
+        # 見えない。実害は 2026-09-26 に出た: 33 本が全部「3 件以上該当
+        # [clients.names]」と表示され、自分の顧客名なのか他社の名前なのかを
+        # 仕分けられなかった。このチェックの目的は「外販物に他の顧客の名前が
+        # 入っていたら渡せない」なので、語が出ないと目的を果たさない。
+        print("\n当たった語が出ること")
+        two = some_private_terms(2)
+        multi = build(Path(td) / "multi", {
+            **HEALTHY_FILES,
+            "src/note.py": "".join(f'C{i} = "{t}"\n' for i, t in enumerate(two)),
+        })
+        _, res = run(multi)
+        finding = next((f for r in res for lane in r["lanes"]
+                        for f in lane["findings"] if f["id"] == "no_private_terms"), None)
+        check("顧客名を検出する", bool(finding) and finding["state"] == "fail")
+        detail = (finding or {}).get("detail", "")
+        for t in two:
+            check(f"当たった語が detail に出る（{len(t)} 文字の語）", t in detail)
+        check("語ごとの件数が出る", "1 件" in detail)
+        # 1語目で打ち切ると2語目が消える。件数の合計だけでは区別できない。
+        check("2 語とも名指しされる（1語目で打ち切らない）",
+              all(t in detail for t in two))
 
         check("severity のスカラーはどの段でも同じ",
               check_severity({"severity": "block"}, "internal") == "block"

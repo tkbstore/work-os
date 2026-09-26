@@ -45,6 +45,10 @@ RUNNABLE_LANGS = {"", "sh", "bash", "zsh", "shell", "console",
 DIAGRAM_CHARS = set("─│┌┐└┘├┤┬┴┼━┃╴╶▶▼◀▲→←↑↓╔╗╚╝║═")
 MAX_BYTES = 512_000       # これを超えるファイルは本文検査から外す（生成物・データ）
 MAX_EXAMPLES = 3          # 失敗の例示は何件まで出すか
+# 当たった宣言を何種まで名指しするか。例示（場所）とは別に数えるのは、当たった語が
+# **分類の結果そのもの**であり、黙って切ると誤判定が見えなくなるためである。
+# 切るときは「ほか N 種」と数を言う。
+MAX_NAMED = 12
 
 
 # --------------------------------------------------------------------------- #
@@ -464,6 +468,51 @@ def _collect_hits(files: list[tuple[str, Path]], rx: re.Pattern,
     return hits
 
 
+def _scan_specs(files: list[tuple[str, Path]], specs: list[tuple[str, str]],
+                literal: bool, chk: dict) -> list[tuple[str, int, list[str]]]:
+    """宣言されたパターンを全部当てて、**宣言ごとに** 件数と例を返す。
+
+    1件目で打ち切らないことが要点である。打ち切ると「顧客Aの名前だけが在る」と
+    「A と B と C が在る」が同じ出力になり、自分の顧客か他社かを仕分けられない
+    （2026-09-26 に 33 本が全部「3 件以上該当 [clients.names]」と出て、実際に
+    仕分けができなかった）。
+
+    literal 側は宣言された語そのものを名前に含める。語は分類の根拠であって秘密では
+    ない。正規表現側は含めない——マッチした文字列が秘密の値そのものになるため、
+    ラベル（private_key 等）だけを出す。
+
+    ファイルは1回しか読まない。宣言ごとに読み直すと宣言の数だけ I/O が増える。
+    """
+    rxs: list[tuple[str, re.Pattern]] = []
+    broken: list[tuple[str, int, list[str]]] = []
+    for label, raw in specs:
+        try:
+            rxs.append((f"{label}:{raw}" if literal else label,
+                        re.compile(re.escape(raw) if literal else raw,
+                                   re.I if literal else 0)))
+        except re.error as exc:
+            broken.append((f"<不正な正規表現 {label}: {exc}>", 1, []))
+    counts: dict[str, int] = {}
+    examples: dict[str, list[str]] = {}
+    for rel, path in files:
+        text = read_text(path)
+        if text is None:
+            continue
+        voids = _voided(text, chk)
+        for shown, rx in rxs:
+            for m in rx.finditer(text):
+                if _inside(m.span(), voids):
+                    continue
+                counts[shown] = counts.get(shown, 0) + 1
+                ex = examples.setdefault(shown, [])
+                if len(ex) < MAX_EXAMPLES:
+                    ex.append(f"{rel}:{text.count(chr(10), 0, m.start()) + 1}")
+    hit = [(shown, counts[shown], examples[shown]) for shown, _ in rxs
+           if shown in counts]
+    hit.sort(key=lambda t: -t[1])
+    return broken + hit
+
+
 def obs_pattern_absent(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list[str]]:
     files = _scoped(ctx["files"], chk.get("globs", ["**/*"]),
                     _except_globs(chk, ctx["lanes_cfg"]))
@@ -478,23 +527,22 @@ def obs_pattern_absent(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list
         literal = not is_rx
     if not specs:
         return "skip", "パターンが宣言されていない", []
-    all_hits: list[str] = []
-    for label, raw in specs:
-        pat = re.escape(raw) if literal else raw
-        try:
-            rx = re.compile(pat, re.I if literal else 0)
-        except re.error as exc:
-            all_hits.append(f"<不正な正規表現 {label}: {exc}>")
-            continue
-        for hit in _collect_hits(files, rx, MAX_EXAMPLES, chk):
-            all_hits.append(f"{hit} [{label}]")
-            if len(all_hits) >= MAX_EXAMPLES:
-                break
-        if len(all_hits) >= MAX_EXAMPLES:
-            break
-    if all_hits:
-        return "fail", f"{len(all_hits)} 件以上該当", all_hits
-    return "pass", f"{len(files)} ファイルに該当なし", []
+    hits = _scan_specs(files, specs, literal, chk)
+    if not hits:
+        return "pass", f"{len(files)} ファイルに該当なし", []
+    total = sum(n for _, n, _ in hits)
+    # ラベルが同じものはまとめる。clients.names: を12回繰り返すと、読むための
+    # 出力として機能しない（仕分けはこの行を目で読んで進める）。
+    groups: dict[str, list[str]] = {}
+    for shown, n, _ in hits[:MAX_NAMED]:
+        label, _, term = shown.partition(":")
+        groups.setdefault(label, []).append(f"{term} {n} 件" if term else f"{n} 件")
+    named = " / ".join(f"{k}: " + "、".join(v) for k, v in groups.items())
+    more = f" / ほか {len(hits) - MAX_NAMED} 種" if len(hits) > MAX_NAMED else ""
+    # 例示は宣言ごとに1件ずつ取る。同じ語の3件を並べると、2種目以降が在ることが
+    # 出力から消える（それが 2026-09-26 に 33 本を仕分けられなかった原因である）。
+    examples = [ex[0] for _, _, ex in hits[:MAX_NAMED] if ex]
+    return "fail", f"{total} 件該当 — {named}{more}", examples
 
 
 def obs_pattern_max(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list[str]]:
