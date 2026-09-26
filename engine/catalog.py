@@ -133,10 +133,20 @@ def capability_terms(repo: Path) -> set[str]:
 
 
 def build(root: Path) -> int:
-    rows = []
+    # purpose は人が持ち、terms は機械が持つ。このファイルのヘッダがそう宣言している
+    # （「purpose は下書き。目視で直してよい」「terms は直すのではなく再生成すること」）。
+    # 実装はその宣言を見ていなかった。毎回 README から作り直して人の修正を上書きするので、
+    # 台帳のズレを直す操作そのものが手で直した purpose を壊していた（実測 2026-09-26: 2 本）。
+    # 直せと言われている欄を、直しても消える置き場にしてはいけない。
+    kept = {str(r.get("name") or ""): str(r.get("purpose") or "") for r in load()}
+    rows, drafts = [], []
     for repo in iter_repo_dirs(root):
         terms = sorted(capability_terms(repo))
-        rows.append((repo.name, read_purpose(repo), terms))
+        draft = read_purpose(repo)
+        purpose = kept.get(repo.name) or draft
+        if purpose != draft and draft:
+            drafts.append((repo.name, purpose, draft))
+        rows.append((repo.name, purpose, terms))
 
     def esc(s: str) -> str:
         return s.replace('\\', '\\\\').replace('"', '\\"')
@@ -168,6 +178,13 @@ def build(root: Path) -> int:
     if missing:
         print(f"purpose が空 {len(missing)} 件（README も CLAUDE.md も無い）: "
               f"{', '.join(missing[:8])}")
+    if drafts:
+        # 黙って人の側を残すと、README が育っても台帳が古い説明を持ち続ける。
+        # 採るかどうかは人が決めるので、下書きとの差を毎回出す。
+        print(f"purpose は残しました。README 側の下書きと違うもの {len(drafts)} 件："
+              "採るなら手で書き換えてください。")
+        for name, purpose, draft in drafts[:8]:
+            print(f"  {name}\n    台帳: {purpose[:70]}\n    下書き: {draft[:70]}")
     return 0
 
 
