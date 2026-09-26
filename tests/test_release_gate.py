@@ -122,6 +122,54 @@ def build(tmp: Path, files: dict[str, str]) -> Path:
     return repo
 
 
+def temp_registry(td: Path, default_intent: str | None) -> Path:
+    """本物の registry を複製し、[gate] default_intent を宣言しなおす。
+
+    この検査は本物の registry を直接使っている。既定の宣言が在るかどうかで挙動が
+    変わる観測をそのまま実物に当てると、実物の現在地が前提になる。2026-09-26 に
+    実物へ default_intent を入れた瞬間に3件が前提を失った。両方の状態を明示して
+    固定する。
+    """
+    reg = td / f"reg-{default_intent or 'none'}"
+    reg.mkdir(parents=True, exist_ok=True)
+    src = registry_root()
+    for name in ("private_terms.toml", "release_lanes.toml", "secret_patterns.toml",
+                 "fleet_policy.toml"):
+        if (src / name).is_file():
+            (reg / name).write_text((src / name).read_text(encoding="utf-8"),
+                                    encoding="utf-8")
+    lanes = reg / "release_lanes.toml"
+    body = [ln for ln in lanes.read_text(encoding="utf-8").splitlines()
+            if not ln.strip().startswith("default_intent")]
+    if default_intent:
+        out: list[str] = []
+        for ln in body:
+            out.append(ln)
+            if ln.strip() == "[gate]":
+                out.append(f'default_intent = "{default_intent}"')
+        body = out
+    lanes.write_text("\n".join(body) + "\n", encoding="utf-8")
+    return reg
+
+
+def run_in(reg: Path, repo: Path, *args: str) -> tuple[int, list[dict]]:
+    """registry を指定して走らせる（--json）。"""
+    proc = subprocess.run([sys.executable, str(GATE), str(repo), "--json", *args],
+                          capture_output=True, text=True, timeout=180,
+                          env={**os.environ, "WORKOS_REGISTRY": str(reg)})
+    try:
+        return proc.returncode, json.loads(proc.stdout or "[]")
+    except json.JSONDecodeError:
+        return proc.returncode, []
+
+
+def run_text_in(reg: Path, repo: Path, *args: str) -> str:
+    proc = subprocess.run([sys.executable, str(GATE), str(repo), *args],
+                          capture_output=True, text=True, timeout=180,
+                          env={**os.environ, "WORKOS_REGISTRY": str(reg)})
+    return proc.stdout
+
+
 def run(repo: Path, *args: str) -> tuple[int, list[dict]]:
     proc = subprocess.run([sys.executable, str(GATE), str(repo), "--json", *args],
                           capture_output=True, text=True, timeout=180)
@@ -250,21 +298,74 @@ def main() -> int:
             check(f"{cid} が誤爆しない", st.get(cid) == "pass")
 
         # --- 対象の絞り込み ------------------------------------------------
-        print("\n対象の絞り込み")
+        # 既定の宣言が無いとき / 在るときの両方を固定する。既定が無いときの挙動は
+        # 「何も言わずに exit 0」で、沈黙と通過が見分けられない。既定を宣言したら
+        # 採点の対象に入るが、宣言のふりはしない。
         undeclared = build(Path(td) / "undeclared",
                            {"work.toml": '[repo]\nname = "x"\n', "README.md": "# x\n"})
-        _, res = run(undeclared)
-        check("[publish] 未宣言のリポは対象外", res == [])
-
         private = build(Path(td) / "private",
                         {"work.toml": '[repo]\nname = "x"\n'
                                       '[publish]\nintent = "private"\n'})
-        _, res = run(private)
-        check("intent=private は対象外", res == [])
-
         no_work = build(Path(td) / "nowork", {"README.md": "# x\n"})
-        _, res = run(no_work)
+
+        print("\n対象の絞り込み（registry が既定を宣言していないとき）")
+        reg_none = temp_registry(Path(td), None)
+        _, res = run_in(reg_none, undeclared)
+        check("[publish] 未宣言のリポは対象外", res == [])
+        _, res = run_in(reg_none, private)
+        check("intent=private は対象外", res == [])
+        _, res = run_in(reg_none, no_work)
         check("work.toml が無いリポは対象外", res == [])
+
+        print("\n対象の絞り込み（registry が既定を宣言したとき）")
+        reg_int = temp_registry(Path(td), "internal")
+        _, res = run_in(reg_int, undeclared)
+        check("未宣言でも既定の段で採点される",
+              bool(res) and res[0]["intent"] == "internal")
+        check("宣言ではないことが JSON に出る",
+              bool(res) and res[0]["intent_source"] == "default")
+        txt = run_text_in(reg_int, undeclared)
+        check("人が読む出力でも宣言のふりをしない", "未宣言" in txt)
+        _, res = run_in(reg_int, no_work)
+        check("work.toml が無くても既定で採点される",
+              bool(res) and res[0]["intent"] == "internal")
+        _, res = run_in(reg_int, private)
+        check("既定は明示した宣言を上書きしない", res == [])
+        # 統治クラスの宣言から所有を読む。当たった宣言を出すこと
+        _, res = run_in(reg_int, undeclared)
+        check("統治クラスの根拠が出る",
+              bool(res) and "統治クラス" in str(res[0]["owned_note"]))
+        check("宣言が無ければ owned として扱う（fleet.py と同じ既定）",
+              bool(res) and "owned" in str(res[0]["owned_note"]))
+        check("自組織の観測が当たる", states(res).get("no_private_terms") != "skip")
+
+        # 統治クラスが owned でないリポには、自組織の観測を当てない。
+        # 実際に宣言したリポを1つ用意する。ここが無いと「全部 owned とする」実装
+        # （統治クラスを一切見ない）が素通りする——最初にそれで素通りさせた。
+        outsider = build(Path(td) / "outsider",
+                         {"work.toml": '[repo]\nname = "x"\n', "README.md": "# x\n",
+                          "note.md": f"{a_private_term()} を含む行\n"})
+        # 宣言は追記ではなく書き直す。実物にも [third_party] が在るので追記すると
+        # 表が重複して TOML が読めなくなる（最初にそれで engine を traceback させた）。
+        # 仕掛けが実物の中身に依存しない形にもなる。
+        pol = reg_int / "fleet_policy.toml"
+        pol.write_text('[third_party]\noutsider = "検査用。他者所有として宣言する"\n',
+                       encoding="utf-8")
+        _, res = run_in(reg_int, outsider)
+        check("owned でない統治クラスをそう出す",
+              bool(res) and "third_party" in str(res[0]["owned_note"]))
+        check("owned でなければ自組織の観測は当てない",
+              states(res).get("no_private_terms") == "skip")
+
+        # 宣言が壊れているとき。ゲート全体が死んではいけない
+        pol.write_text('[third_party]\nx = "a"\n[third_party]\nx = "b"\n',
+                       encoding="utf-8")
+        code, res = run_in(reg_int, undeclared)
+        check("宣言が壊れていても判定を返す", bool(res))
+        check("読めなかったことを出す",
+              bool(res) and "読めません" in str(res[0]["owned_note"]))
+        check("読めないときも自組織の観測は当てたまま",
+              states(res).get("no_private_terms") != "skip")
 
         # --- exclude が効くこと --------------------------------------------
         print("\n除外と実行の既定")

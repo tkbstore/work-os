@@ -28,6 +28,7 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -134,6 +135,14 @@ class RepoResult:
     # 宣言が無いリポ（--assume-public の校正モード）では、宣言に依存する観測を
     # 走らせない。何件が未実走かを数えるときも、走る予定の無いものは数えない。
     declared: bool = True
+    # intent をどこから得たか。宣言とそれ以外を混ぜると、出力が「宣言した」と
+    # 読まれてしまう。段に載せたことと、本人が宣言したことは別の事実である。
+    #   declared  work.toml の [publish] intent
+    #   default   宣言が無いので registry の [gate] default_intent を当てた
+    #   assumed   --assume-public の校正モード
+    intent_source: str = "declared"
+    # 自組織のものと見なした根拠。当たった宣言を出す（分類したら根拠を出す）
+    owned_note: str = ""
     stages: list[StageResult] = field(default_factory=list)
 
     @property
@@ -215,6 +224,39 @@ def load_lanes() -> dict:
     if not LANES_FILE.is_file():
         sys.exit(f"判定基準が見つかりません: {LANES_FILE}")
     return _load_toml(LANES_FILE)
+
+
+@lru_cache(maxsize=1)
+def _policy() -> tuple[dict[str, tuple[str, str]], str]:
+    """統治クラスの宣言を1度だけ読む。(宣言, 読めなかった理由) を返す。
+
+    所有者の一覧をここで新しく書かない。同じことを2箇所で宣言すると、片方だけが
+    更新されて食い違う。fleet_policy.toml は既に「既定は owned、例外だけ名指し」
+    という形を持っているので、それを借りる。
+
+    読み込みの失敗を投げ返さない。宣言が壊れているだけでゲート全体が traceback で
+    死ぬと、公開可否をひとつも答えられなくなる（実測 2026-09-26: 重複した表を
+    1つ足しただけでそうなった）。読めなかったことは呼ぶ側に伝える。
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    try:
+        from fleet import load_policy  # noqa: PLC0415
+        return load_policy(), ""
+    # 壊れ方の種類で扱いは変わらない。どの例外でも「読めなかった」1つに落ちる。
+    except Exception as exc:                                   # noqa: BLE001
+        return {}, f"{type(exc).__name__}: {exc}"
+
+
+def _fleet_class(name: str) -> tuple[str, str]:
+    """リポ名から (統治クラス, 理由)。宣言が無ければ owned（fleet.py と同じ既定）。"""
+    pol, err = _policy()
+    if err:
+        # 読めないことを「例外の宣言なし」と同じ扱いに畳まない。観測は当てたまま
+        # にして（当てないほうは検査が静かに消える側である）、根拠が読めなかった
+        # ことを出力に残す。黙って owned にすると、他者のリポを自組織として
+        # 扱ったことが出力から消える。
+        return "owned", f"宣言を読めませんでした（{err}）"
+    return pol.get(name, ("owned", ""))
 
 
 def load_publish(root: Path) -> dict:
@@ -923,18 +965,46 @@ def evaluate(root: Path, lanes_cfg: dict, execute: bool = False,
     root = Path(root).resolve()
     pub = load_publish(root)
     intent = str(pub.get("intent", "")).strip()
-    targets = lanes_cfg.get("gate", {}).get("target_intents", ["public"])
+    gate_cfg = lanes_cfg.get("gate", {})
+    targets = gate_cfg.get("target_intents", ["public"])
     declared = bool(pub)
+    source = "declared"
+    owned_note = ""
     if intent not in targets:
         # 校正モード: 他所のリポを同じ物差しに当てて、この物差し自体を疑う。
         # 宣言が無いものは宣言に依存する観測を裁かない（見えないものは採点しない）。
-        if not assume_public:
-            return None
-        pub, intent, declared = {"intent": "public"}, "public", False
-        if assume_shape:
-            pub["shape"] = assume_shape
+        if assume_public:
+            pub, intent, declared, source = {"intent": "public"}, "public", False, "assumed"
+            if assume_shape:
+                pub["shape"] = assume_shape
+        else:
+            # 宣言が無いリポに当てる段を registry が宣言していれば、そこに載せる。
+            # 載せない場合の実際の挙動は「何も言わずに exit 0」だった。沈黙と通過が
+            # 見分けられないので、82 本のうち 77 本について、ゲートは検査したのか
+            # していないのかを答えていなかった（2026-09-26 実測）。
+            # 既定は engine では決めない。どの段を既定にするかは組織の判断である。
+            #
+            # 当てるのは **何も宣言していないリポだけ**。intent = "private" のように
+            # 宣言があって targets に無いものは、本人が「出さない」と言っている。
+            # そこへ既定を当てると、明示した宣言を既定が上書きすることになる。
+            default_intent = str(gate_cfg.get("default_intent", "")).strip()
+            if intent or default_intent not in targets:
+                return None
+            pub, intent, declared, source = ({"intent": default_intent},
+                                             default_intent, False, "default")
 
     owned = owned or declared
+    if source == "default" and not owned:
+        # 自組織のものかは、ここで新しく列挙しない。統治クラスの宣言
+        # （fleet_policy.toml）が既に「既定は owned、例外だけ名指し」の形で在る。
+        # 当たった宣言を出す。出さないと、外部のフォークを自組織として扱ったのか
+        # どうかが出力から消える。
+        klass, note = _fleet_class(root.name)
+        if klass == "owned":
+            owned = True
+            owned_note = f"統治クラス owned（{note or '例外の宣言なし'}）"
+        else:
+            owned_note = f"統治クラス {klass} — 自組織の観測は当てない（{note}）"
     ctx = {
         "files": tracked_files(root, list(pub.get("exclude", []))),
         "exclude": list(pub.get("exclude", [])),
@@ -951,6 +1021,7 @@ def evaluate(root: Path, lanes_cfg: dict, execute: bool = False,
         "released_at": str(pub.get("released_at", "")).strip(),
     }
     result = RepoResult(name=root.name, root=root, intent=intent,
+                       intent_source=source, owned_note=owned_note,
                         enforcement=str(pub.get("_enforcement", "warn")),
                         declared=declared)
 
@@ -1039,8 +1110,16 @@ REACHED = {"": "どこにも出せない", "internal": "社内で共有できる
 
 
 def render(result: RepoResult, verbose: bool = False) -> None:
-    print(f"\n[{result.name}]  intent={result.intent}"
+    # 出どころを黙ると、既定で載せた段が「本人が宣言した」と読まれる。
+    # 段に載せたことと、本人が宣言したことは別の事実なので、必ず並べて出す。
+    note = {"declared": "",
+            "default": "（未宣言。registry の既定を当てた）",
+            "assumed": "（未宣言。校正モードで public と仮定）"}.get(
+                result.intent_source, "")
+    print(f"\n[{result.name}]  intent={result.intent}{note}"
           f"  → {REACHED.get(result.reached, result.reached)}")
+    if result.owned_note:
+        print(f"  {result.owned_note}")
     for stage in result.stages:
         mark = "NG" if stage.blocked else ("保留" if stage.unproven else "OK")
         print(f"  ── {mark} 第{result.stages.index(stage) + 1}段 {stage.name}: {stage.title}")
@@ -1074,6 +1153,10 @@ def to_dict(result: RepoResult) -> dict:
     return {
         "repo": result.name,
         "intent": result.intent,
+        # 段に載せた事実と、本人が宣言した事実を機械が読む側でも分けて持つ。
+        # 人が読む出力だけで区別できても、JSON を集計する側が混ぜる。
+        "intent_source": result.intent_source,
+        "owned_note": result.owned_note,
         "reached": result.reached,
         "blocked_at": result.blocked_at,
         "unproven_at": result.unproven_at,
