@@ -52,8 +52,19 @@ GATES: list[tuple[str, list[str], str]] = [
     # 仕組みの層に組織固有の名前が漏れていないか。
     # 08-28 に自分で4件漏らし、指摘は別セッションから届いた。自分のテストは緑だった
     ("abstraction", [sys.executable, "engine/abstraction_gate.py"], "error"),
-    # ガードのテスト。ここが緑でないとフリート全体の検査が信用できない
-    ("test", [sys.executable, "tests/run_all.py"], "error"),
+    # テストはここでは走らせない。下の release が --execute で
+    # [publish.commands] test（= tests/run_all.py）を実走させるので、独立して
+    # 置くと **同じスイートを2回走らせる**ことになる。
+    #
+    # 実測 2026-09-26: test 49.7s / release 47.8s / 合計 97.7s で、BUDGET 90 を
+    # 超えて release と catalog が走らないまま終わっていた。時間切れは
+    # 「検査していない」なので差し戻しはしないが、**最も重いゲートだけが毎回
+    # 走らない**形になる。予算を上げてもテストが増えればまた同じところに来る。
+    #
+    # 落としても信号は減らない。テストが落ちれば release の correctness レーンに
+    # `test_passes: NG` として出て、--require public に届かず error になる。
+    # 前段のレーンが止まって correctness に届かなかったときも、release_gate は
+    # 「走らせていない観測」を名指しして必須の段に届かないと言う。沈黙にはならない。
     # 自分の公開ゲートを自分で通す。work-os は他リポの公開可否を判定する側なので、
     # 自分に当てていない検査を持っているとその判定が嘘になる。
     #
