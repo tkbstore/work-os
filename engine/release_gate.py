@@ -468,9 +468,25 @@ def _collect_hits(files: list[tuple[str, Path]], rx: re.Pattern,
     return hits
 
 
+@dataclass(frozen=True)
+class Match:
+    """当たった1件。行番号ではなく **本文** を持つのが要点。
+
+    判定の記録（audit）の鍵を行番号にすると、行が動いた瞬間に鍵が外れる。外れたこと
+    は出力に現れないので、抑制だけが静かに消える。鍵を内容に結びつけるために本文を運ぶ。
+    """
+    rel: str
+    line: int
+    body: str
+
+    def where(self) -> str:
+        return f"{self.rel}:{self.line}"
+
+
 def _scan_specs(files: list[tuple[str, Path]], specs: list[tuple[str, str]],
-                literal: bool, chk: dict) -> list[tuple[str, int, list[str]]]:
-    """宣言されたパターンを全部当てて、**宣言ごとに** 件数と例を返す。
+                literal: bool, chk: dict,
+                collect_all: bool = False) -> list[tuple[str, int, list[Match]]]:
+    """宣言されたパターンを全部当てて、**宣言ごとに** 件数と当たった場所を返す。
 
     1件目で打ち切らないことが要点である。打ち切ると「顧客Aの名前だけが在る」と
     「A と B と C が在る」が同じ出力になり、自分の顧客か他社かを仕分けられない
@@ -482,9 +498,18 @@ def _scan_specs(files: list[tuple[str, Path]], specs: list[tuple[str, str]],
     ラベル（private_key 等）だけを出す。
 
     ファイルは1回しか読まない。宣言ごとに読み直すと宣言の数だけ I/O が増える。
+
+    返す Match は行番号だけでなく **行の本文** を持つ。人が下した判定を記録するとき、
+    鍵を行番号にすると行が動いた瞬間に静かに外れる（detect-secrets の baseline が
+    この形で「カバレッジが黙って落ちる」という壊れ方をしている）。鍵は内容に結び
+    つける必要があるので、内容をここから渡す。
+
+    collect_all=False のときは宣言ごとに MAX_EXAMPLES 件で打ち切る。例示は場所を
+    指すためのもので、全件は要らない。True にすると全件返す——判定の記録を突き合わ
+    せる側は、1件でも取りこぼすとそこだけ抑制が効かないため全件が要る。
     """
     rxs: list[tuple[str, re.Pattern]] = []
-    broken: list[tuple[str, int, list[str]]] = []
+    broken: list[tuple[str, int, list[Match]]] = []
     for label, raw in specs:
         try:
             rxs.append((f"{label}:{raw}" if literal else label,
@@ -493,21 +518,24 @@ def _scan_specs(files: list[tuple[str, Path]], specs: list[tuple[str, str]],
         except re.error as exc:
             broken.append((f"<不正な正規表現 {label}: {exc}>", 1, []))
     counts: dict[str, int] = {}
-    examples: dict[str, list[str]] = {}
+    found: dict[str, list[Match]] = {}
     for rel, path in files:
         text = read_text(path)
         if text is None:
             continue
+        lines = text.splitlines()
         voids = _voided(text, chk)
         for shown, rx in rxs:
             for m in rx.finditer(text):
                 if _inside(m.span(), voids):
                     continue
                 counts[shown] = counts.get(shown, 0) + 1
-                ex = examples.setdefault(shown, [])
-                if len(ex) < MAX_EXAMPLES:
-                    ex.append(f"{rel}:{text.count(chr(10), 0, m.start()) + 1}")
-    hit = [(shown, counts[shown], examples[shown]) for shown, _ in rxs
+                seen = found.setdefault(shown, [])
+                if collect_all or len(seen) < MAX_EXAMPLES:
+                    no = text.count(chr(10), 0, m.start()) + 1
+                    body = lines[no - 1] if no - 1 < len(lines) else ""
+                    seen.append(Match(rel, no, body))
+    hit = [(shown, counts[shown], found[shown]) for shown, _ in rxs
            if shown in counts]
     hit.sort(key=lambda t: -t[1])
     return broken + hit
@@ -541,7 +569,7 @@ def obs_pattern_absent(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list
     more = f" / ほか {len(hits) - MAX_NAMED} 種" if len(hits) > MAX_NAMED else ""
     # 例示は宣言ごとに1件ずつ取る。同じ語の3件を並べると、2種目以降が在ることが
     # 出力から消える（それが 2026-09-26 に 33 本を仕分けられなかった原因である）。
-    examples = [ex[0] for _, _, ex in hits[:MAX_NAMED] if ex]
+    examples = [ms[0].where() for _, _, ms in hits[:MAX_NAMED] if ms]
     return "fail", f"{total} 件該当 — {named}{more}", examples
 
 

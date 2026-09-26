@@ -54,6 +54,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from release_gate import _scan_specs, load_pattern_file, read_text  # noqa: E402
 # 同じ理由（sys.path を挿した後にしか解決しない）。抑制は順序の指摘だけ。
 from workos import _load_toml, iter_repo_dirs  # noqa: E402
+# 同じ理由。人が下した判定を読むのはここだけで、判定そのものは audit が持つ。
+import audit  # noqa: E402
 
 # 宛先の計算に使う語の宣言。カテゴリを [clients] に絞るのは、ここで問うのが
 # 「他の顧客に渡せるか」だけだからである。自社製品名や自分の名前が成果物に在るのは
@@ -77,6 +79,11 @@ class Deliverable:
     clients: dict[str, int] = field(default_factory=dict)
     # 読めなかったファイル。通したことにしないために数える。
     unread: list[str] = field(default_factory=list)
+    # 人の判定で抑制した件数（宣言ごと）。**0 件でも行を出す**ので、抑制が
+    # 効いていることが出力から消えない。抑制を黙って効かせると rubber-stamp になる。
+    suppressed: dict[str, int] = field(default_factory=dict)
+    # 記録の健全性。ゲートが毎回出す（黙って育てられないようにするため）。
+    audit_notes: list[str] = field(default_factory=list)
 
     @property
     def recipients(self) -> list[str]:
@@ -166,9 +173,24 @@ def observe(root: Path, item: Deliverable) -> Deliverable:
             item.unread.append(rel)
         else:
             readable.append((rel, path))
-    for shown, count, _ in _scan_specs(readable, specs, not is_rx, {}):
+    # collect_all=True。抑制は1件ずつ突き合わせるので、1件でも取りこぼすと
+    # そこだけ抑制が効かない。例示の上限（3件）では足りない。
+    log = audit.load()
+    live: set[tuple[str, str, str]] = set()
+    for shown, _, hits in _scan_specs(readable, specs, not is_rx, {},
+                                      collect_all=True):
+        kept, dropped = log.filter(root.name, shown, hits)
         _, _, term = shown.partition(":")
-        item.clients[term or shown] = count
+        name = term or shown
+        if dropped:
+            item.suppressed[name] = dropped
+        for h in hits:
+            live.add((root.name, shown, audit.line_key(h.body)))
+        # 全件が抑制されたら、この宣言は宛先に数えない。人が実物を見て
+        # 「混入ではない」と決めたということなので、判定を覆さない。
+        if kept:
+            item.clients[name] = len(kept)
+    item.audit_notes = audit.health(log, root.name, live)
     return item
 
 
@@ -200,6 +222,13 @@ def render(root: Path, items: list[Deliverable]) -> None:
             # 判定と同じ場所に件数を出す。数の無い判定は誤りが見えない。
             print("        在る顧客名: " + "、".join(
                 f"{t} {item.clients[t]} 件" for t in item.recipients))
+        if item.suppressed:
+            # 抑制した件数は必ず出す。黙って引くと、何を通したか分からなくなる。
+            print("        人の判定で抑制: " + "、".join(
+                f"{t} {n} 件" for t, n in sorted(item.suppressed.items(),
+                                                key=lambda kv: -kv[1])))
+        for note in item.audit_notes:
+            print(f"        {note}")
         if item.unread:
             head = "、".join(item.unread[:MAX_EXAMPLES])
             print(f"        見ていない {len(item.unread)} ファイル"
@@ -213,6 +242,7 @@ def as_json(results: list[tuple[Path, list[Deliverable]]]) -> str:
         "deliverables": [{"path": i.path, "title": i.title, "files": len(i.files),
                           "verdict": i.verdict, "recipients": i.recipients,
                           "clients": i.clients, "unread": i.unread,
+                          "suppressed": i.suppressed,
                           "settled": i.settled} for i in items],
     } for root, items in results], ensure_ascii=False, indent=2)
 
