@@ -38,6 +38,9 @@ import audit  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 REGISTRY = registry_root()
+# 骨格（観測の種類・段のラダー・既定の severity）は work-os が持つ。
+LANES_DEFAULT = Path(__file__).resolve().parent.parent / "config" / "release_lanes.toml"
+# 事実（顧客名・秘密のパターン）と組織の選択は registry が持つ。差分だけを書く。
 LANES_FILE = REGISTRY / "release_lanes.toml"
 
 # 実行できるコードブロックとみなす言語。空の info string も手順とみなす。
@@ -138,7 +141,8 @@ class RepoResult:
     # intent をどこから得たか。宣言とそれ以外を混ぜると、出力が「宣言した」と
     # 読まれてしまう。段に載せたことと、本人が宣言したことは別の事実である。
     #   declared  work.toml の [publish] intent
-    #   default   宣言が無いので registry の [gate] default_intent を当てた
+    #   default   宣言が無いので判定基準の [gate] default_intent を当てた
+    #             （骨格 work-os/config、または registry の上書き）
     #   assumed   --assume-public の校正モード
     intent_source: str = "declared"
     # 自組織のものと見なした根拠。当たった宣言を出す（分類したら根拠を出す）
@@ -220,10 +224,68 @@ class RepoResult:
 # 入力の読み込み
 # --------------------------------------------------------------------------- #
 
+def _merge_checks(base: list, over: list) -> list:
+    """観測の列を **id で** 突き合わせる。位置では合わせない。
+
+    位置で合わせると、骨格の側に観測を1つ挿し込んだ日に、上書きが全部1つずれて
+    別の観測に当たる。しかもその日は何も落ちない（当たり先が在るので）。
+    enabled = false は落とす。骨格の観測が自分の組織に合わないとき、上書き側から
+    消す手段が無いと、合わない観測を毎回読み飛ばす運用になる。
+    """
+    out: list[dict] = []
+    by_id: dict[str, dict] = {}
+    for chk in base:
+        d = dict(chk)
+        by_id[str(d.get("id"))] = d
+        out.append(d)
+    for chk in over:
+        cid = str(chk.get("id"))
+        if cid in by_id:
+            by_id[cid].update(dict(chk))
+        else:
+            d = dict(chk)
+            by_id[cid] = d
+            out.append(d)
+    return [c for c in out if c.get("enabled", True)]
+
+
+def _merge_cfg(base: dict, over: dict) -> dict:
+    """表は再帰的に重ね、観測の列は id で突き合わせ、それ以外の配列は置き換える。
+
+    配列を継ぎ足さないのは、継ぎ足しと置き換えを同じ書き方で表すと、書いた側が
+    どちらになるか読めなくなるからである。置き換えなら宣言した通りになる。
+    """
+    out = dict(base)
+    for key, val in over.items():
+        cur = out.get(key)
+        if isinstance(cur, dict) and isinstance(val, dict):
+            out[key] = _merge_cfg(cur, val)
+        elif key == "checks" and isinstance(cur, list) and isinstance(val, list):
+            out[key] = _merge_checks(cur, val)
+        else:
+            out[key] = val
+    return out
+
+
 def load_lanes() -> dict:
-    if not LANES_FILE.is_file():
-        sys.exit(f"判定基準が見つかりません: {LANES_FILE}")
-    return _load_toml(LANES_FILE)
+    """判定基準を2層で読む。骨格は work-os、事実と組織の選択は registry。
+
+    骨格まで registry に置いていたときは、公開されている work-os はゲートの形すら
+    持っておらず、install しても1つも観測が走らなかった（load_lanes がその場で
+    sys.exit していた）。一方、顧客名や秘密のパターンを work-os に置くことはできない。
+    だから形と事実を別の層に置く。engine には事実を持たせない、と同じ理由である。
+
+    上書きは **差分だけ** を書く。骨格を丸ごと写して上書きすると、同じ宣言が2箇所に
+    在る状態になり、片方だけが更新されて食い違う（カタログで実際に起きた形）。
+    """
+    base = _load_toml(LANES_DEFAULT) if LANES_DEFAULT.is_file() else {}
+    over = _load_toml(LANES_FILE) if LANES_FILE.is_file() else {}
+    if not base:
+        if not over:
+            sys.exit(f"判定基準が見つかりません: {LANES_DEFAULT}")
+        # 骨格が無い配置（registry に全部在る古い形）。そのまま動かす。
+        return over
+    return _merge_cfg(base, over)
 
 
 @lru_cache(maxsize=1)
@@ -317,10 +379,16 @@ def load_pattern_file(name: str,
     categories を渡すと、その名前のテーブルだけを使う。1つの宣言ファイルが
     複数の目的に使われるとき、目的ごとに要る部分だけを取るための口。
     """
-    path = REGISTRY / name
-    if not path.is_file():
+    # 骨格と事実の2層。形（秘密の正規表現など）は work-os が持ち、事実（固有名詞など）は
+    # registry が持つ。同名のファイルが両方に在れば registry を上に重ねる。
+    # 重ね方は lanes と同じ規則にそろえる（表は再帰、葉は置き換え）。規則が2通りあると
+    # 書いた側がどちらになるか読めなくなる。
+    data: dict = {}
+    for path in (LANES_DEFAULT.parent / name, REGISTRY / name):
+        if path.is_file():
+            data = _merge_cfg(data, _load_toml(path))
+    if not data:
         return [], True
-    data = _load_toml(path)
     if categories:
         data = {k: v for k, v in data.items() if k in categories}
     if isinstance(data.get("patterns"), dict):
@@ -1113,7 +1181,7 @@ def render(result: RepoResult, verbose: bool = False) -> None:
     # 出どころを黙ると、既定で載せた段が「本人が宣言した」と読まれる。
     # 段に載せたことと、本人が宣言したことは別の事実なので、必ず並べて出す。
     note = {"declared": "",
-            "default": "（未宣言。registry の既定を当てた）",
+            "default": "（未宣言。判定基準の既定を当てた）",
             "assumed": "（未宣言。校正モードで public と仮定）"}.get(
                 result.intent_source, "")
     print(f"\n[{result.name}]  intent={result.intent}{note}"

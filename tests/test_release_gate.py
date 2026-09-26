@@ -23,7 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _registry import borrow_terms, require  # noqa: E402
+from _registry import CONFIG_DIR, borrow_terms, require  # noqa: E402
 
 require("release_lanes.toml", "secret_patterns.toml", "private_terms.toml")
 GATE = ROOT / "engine" / "release_gate.py"
@@ -138,16 +138,13 @@ def temp_registry(td: Path, default_intent: str | None) -> Path:
         if (src / name).is_file():
             (reg / name).write_text((src / name).read_text(encoding="utf-8"),
                                     encoding="utf-8")
+    # 上書き側に [gate] を足して宣言しなおす。行を消すだけでは足りない——判定基準は
+    # 2層で読まれるので、骨格（work-os/config）の宣言が残る。空文字は「どの段にも
+    # 載せない」を意味するので、既定を無効にする側もここで宣言できる。
     lanes = reg / "release_lanes.toml"
     body = [ln for ln in lanes.read_text(encoding="utf-8").splitlines()
             if not ln.strip().startswith("default_intent")]
-    if default_intent:
-        out: list[str] = []
-        for ln in body:
-            out.append(ln)
-            if ln.strip() == "[gate]":
-                out.append(f'default_intent = "{default_intent}"')
-        body = out
+    body += ["", "[gate]", f'default_intent = "{default_intent or ""}"']
     lanes.write_text("\n".join(body) + "\n", encoding="utf-8")
     return reg
 
@@ -1025,9 +1022,14 @@ def main() -> int:
         # あり、3.9 の fallback パーサでは二重のまま残って robustness レーンが黙って
         # 素通りした。落ちるのではなく「通ってしまう」種類の壊れ方なので固定する。
         print("\n宣言の書き方")
-        reg = registry_root()
-        for name in ("release_lanes.toml", "secret_patterns.toml"):
-            lines = [ln for ln in (reg / name).read_text(encoding="utf-8").splitlines()
+        # 宣言は2層に在る（骨格 = work-os/config、事実と上書き = registry）。
+        # registry だけを見ると、形を骨格側へ移した日にこの検査が死ぬ。
+        def decl_paths(name: str) -> list[Path]:
+            return [p for p in (CONFIG_DIR / name, registry_root() / name) if p.is_file()]
+
+        for name, path in [(n, p) for n in ("release_lanes.toml", "secret_patterns.toml")
+                           for p in decl_paths(n)]:
+            lines = [ln for ln in path.read_text(encoding="utf-8").splitlines()
                      if not ln.lstrip().startswith("#")]
             basic = [ln.strip() for ln in lines
                      if ln.split("=")[0].strip() == "pattern" and ' = "' in ln]
@@ -1036,8 +1038,8 @@ def main() -> int:
             check(f"{name}: 二重エスケープが残っていない", not doubled)
         try:
             import tomllib
-            for name in ("release_lanes.toml", "secret_patterns.toml"):
-                path = reg / name
+            for name, path in [(n, p) for n in ("release_lanes.toml", "secret_patterns.toml")
+                               for p in decl_paths(n)]:
                 check(f"{name}: tomllib と fallback の解釈が一致",
                       tomllib.load(path.open("rb")) == _load_toml(path))
         except ImportError:

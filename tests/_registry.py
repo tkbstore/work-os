@@ -28,10 +28,17 @@ from workos import _load_toml, registry_root  # noqa: E402
 SKIPPED = 3
 
 
+# 骨格（形）の置き場。判定基準は work-os と registry の2層で読まれるので、
+# 検査の前提も2層で探す。registry だけを見ていた頃は、形を work-os 側へ移した日に
+# 「判定基準が無い」と言って2つの検査ファイルが黙ってスキップした（2026-09-26）。
+CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
+
+
 def require(*names: str) -> None:
     """判定基準のファイルが揃っていなければ、理由を出して exit 3。"""
     root = registry_root()
-    missing = [n for n in names if not (root / n).is_file()]
+    missing = [n for n in names
+               if not (root / n).is_file() and not (CONFIG_DIR / n).is_file()]
     if not missing:
         return
     print(f"  -- この検査は走っていません（判定基準が見つかりません）\n"

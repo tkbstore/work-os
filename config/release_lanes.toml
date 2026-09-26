@@ -1,0 +1,702 @@
+# release_lanes.toml — 「公開して恥ずかしくないか」の判定基準。config 層。
+#
+# engine/release_gate.py は観測の *種類* だけを知っている。何が公開の条件かは
+# 組織が決めることなので、ここに宣言する。基準を変えたい現場はコードを触らない。
+#
+# 観測の種類（engine が実装している語彙。これ以外は書けない）:
+#   file_present      any_of のいずれかのファイルが存在する
+#   doc_section       file の中に any_of の正規表現のいずれかが現れる
+#   runnable_block    file の中の実行可能なコードブロックが min 個以上ある
+#   pattern_absent    globs のファイル群に patterns のどれも現れない
+#   pattern_max       globs のファイル群で pattern の出現が max 個以下
+#   declared_command  work.toml の [publish.commands] に name が宣言されている
+#   command_exit_zero 宣言されたコマンド name が exit 0 で終わる（--execute 時のみ）
+#   first_block_max_lines  file の最初の実行ブロックが max 行以下
+#
+# 共通オプション:
+#   except_globs      globs から差し引く（テスト用の見本など、あって当然のもの）
+#   except_presets    [presets] に名前を付けた除外の塊を差し引く
+#   except_within     この正規表現に当たった範囲の中の一致は数えない（文脈の宣言）
+#   categories        patterns_from のうち、どのテーブルだけを使うか
+#   within_lines      file の先頭 N 行だけを見る（位置に意味がある観測）
+#   only_when_owned   自組織のリポにだけ当てる（--owned / --scan で主張する）
+#   optional          command_exit_zero で、宣言が無ければ skip にする。無いこと
+#                     自体は欠陥ではない観測に使う（e2e を持たない形のリポは在る）
+#
+# severity: block = 1つでもあればそのレーンは落ちる / warn = 記録するが落とさない
+
+[gate]
+# 累積の2段ラダー。段ごとに基準を作るのではなく、1本の梯子を途中で区切る。
+# 第1段を通れば社内で共有でき、外販物にそのまま同梱できる。
+# 第2段まで通れば public リポジトリとして切り出せる。
+# 第1段のレーンは第2段でも当たる（累積）。落ちたら第2段は見るまでもない。
+stages = ["internal", "public"]
+# ゲートの対象になるのは work.toml で [publish] intent を宣言したリポだけ。
+target_intents = ["public", "internal"]
+# 宣言が無いリポをどの段に載せるか。ここを書かないと、宣言していないリポは
+# 採点前に抜けて「何も言わずに exit 0」になる。沈黙と通過が見分けられない。
+# 実測 2026-09-26: 82 本のうち 77 本がこの状態で、顧客向けのリポについて
+# ゲートは「社内用だと分かった」とも「検査していない」とも答えていなかった。
+#
+# internal にする。第1段は「社内で共有できる／外販物に同梱できる」で、顧客向けの
+# リポが置かれるべき段はここである。public を既定にすると、社内用のリポが毎回
+# 落ちて読まれなくなる。
+#
+# 既定で載せたことは宣言ではない。出力は「未宣言。判定基準の既定を当てた」と
+# 明記する（engine 側の intent_source）。自組織のものかは fleet_policy.toml の
+# 統治クラスから読む。ここで所有者を二重に宣言しない。
+default_intent = "internal"
+
+[stages.internal]
+title = "社内で共有する"
+question = "秘密が混ざっていないか。自分の machine を離れても動くか"
+# ここで **止める** のは「出した瞬間に取り返しがつかないもの」だけ。
+# README が無くても同僚には渡せる。鍵が入っていたら渡せない。
+# 顧客名は同僚にとって在って当然なので、報告はするが止めない（warn）。
+#
+# correctness がここに居るのは、止めるためではなく **走らせるため** である。
+# 実行を伴う観測（test_passes / tutorial_runs / e2e_passes）は、レーンが配られた
+# 段でしか当たらない。correctness を第2段だけに置いていたとき、intent="internal"
+# のリポは評価が第1段で止まるので、test を宣言していても --execute で1件も走らな
+# かった。実測: あるリポは test と smoke の両方を宣言しながら、第1段の3レーンだけを
+# 見て「社内で共有できる」と出ていた。宣言が在るのに一度も
+# 走らないのは、落ちるのではなく **通ってしまう** 種類の壊れ方である。
+#
+# 走らせても止めはしない。各 check の severity が internal=warn / public=block なので、
+# 落ちているテストが社内共有まで止めることにはならない。第1段の「取り返しが
+# つかないものだけを止める」は保ったまま、事実だけを先に観測する。
+lanes = ["safety", "portability", "provenance", "correctness"]
+
+[stages.public]
+title = "public リポジトリとして切り出す"
+question = "clone してインストールした他人が、誰にも聞かずに動かせるか"
+# 「他人が動かせるか」に加えて、safety と provenance を **もう一度** 当てる。
+# 同じ観測でも、受け手が同僚から世間に変われば結果が変わってよいからである。
+# 顧客名は同僚には配りたい（第1段 warn）が、public には出せない（第2段 block）。
+# 段ごとの差は各 check の severity テーブルが持つ（engine の check_severity）。
+#
+# 2回走らせるのは無駄に見えるが、1回にすると「第1段では通り第2段では落ちる」が
+# 表現できない。第1段を block で落とすと、社内共有までできなくなる。
+#
+# ただし **コマンドの実行だけは2度しない**。同じコマンドを2回走らせても分かることは
+# 増えない一方、pnpm e2e のような宣言では実測で倍の時間がかかる。段が違っても走った
+# 事実は1つなので、engine が段をまたいで結果を再利用する（obs_command_exit_zero）。
+lanes = ["safety", "provenance", "history", "entry", "usability", "agent_ready",
+         "correctness", "robustness"]
+
+
+# --------------------------------------------------------------------------- #
+# 引退した観測
+# --------------------------------------------------------------------------- #
+# 観測を消したり名前を変えたりすると、過去の校正結果（calibration/results/）が
+# 宙に浮く。黙って消すと測った事実まで消え、名前を移すと「その名前で測った」
+# ことになる。どちらも歴史の書き換えなので、引退したことのほうを宣言して残す。
+# ここに在る id は「かつて在った観測」であって、今は誰も評価しない。
+[retired]
+"correctness.ci_defined" = """
+2026-08-28 に correctness.gate_runs_in_repo へ置き換えた。旧観測は workflow /
+Makefile などの置き場の *存在* を数えていたが、存在は「走ること」の証拠では
+なかった（経緯は gate_runs_in_repo の前書き）。
+
+2026-08-26 の校正では外部16本に対し 10/10 対 5/6、verdict は「分けていない」で、
+弁別力そのものが無かった。置き換え先は組織の規約（scripts/*-qa.py）を見るので、
+外部コーパスでは校正できない（全滅する）。弁別力の主張ではなく方針の検査であり、
+severity を warn に留めているのはそのためである。
+"""
+
+# 見本の置き場。ここに在る「悪いもの」は仕事であって欠陥ではない。
+# .env.example は推奨される作法そのものだし、linter のテスト fixture には
+# 壊れたコードが在って当然。実際に高star リポ3本がこれで落ちた。
+[presets]
+fixtures = ["**/tests/*", "**/test/*", "**/testdata/*", "**/fixtures/*",
+            "**/__tests__/*", "**/resources/test/*", "**/spec/*",
+            "**/examples/*", "**/*-examples/*", "**/example/*",
+            "*.example", "**/*.example", "*.sample", "**/*.sample",
+            "**/*.example.*", "**/.env.*",
+            # 置き場（ディレクトリ）だけを見ていると、テストを *隣に置く* 流儀を
+            # まるごと取りこぼす。実測: openclaw / cline / codex は src/ の中の
+            # *.test.ts と *_tests.rs のダミー値で safety レーンに落ちていた。
+            # ここは構造的な手がかりが無く、命名規約を数えるほかない。
+            # 網羅していないことを承知で並べる（増やす前にまず形で見られないか疑うこと）。
+            "**/*.test.*", "**/*_test.*", "**/*_tests.*", "**/*.spec.*",
+            "**/test_*.py", "**/*_test.go", "**/conftest.py"]
+
+# 自分が書いていないコードの置き場。依存を vendor した木・ビルド成果物・lock。
+# ここに在るものは著者が別人なので、こちらの品質でも安全でもない。
+# 実測: Website-LLMO は .aws-sam/build/ に取り込まれた botocore のサンプル JSON で
+# safety レーンが落ちていた。AWS が公式ドキュメントに載せている見本の鍵である。
+# 拡張子を足して個別に逃がすのではなく、「著者性」で一度に切る。
+vendored = ["**/node_modules/*", "**/vendor/*", "**/site-packages/*",
+            "**/.aws-sam/*", "**/.wrangler/*", "**/.next/*", "**/.nuxt/*",
+            "**/dist/*", "**/build/*", "**/target/*", "**/.venv/*",
+            "**/third_party/*", "**/vendored/*",
+            "*-lock.json", "**/*-lock.json", "**/*.lock", "**/*.min.js"]
+
+# --------------------------------------------------------------------------- #
+# Entry — 他人が自力で動かせるか
+# --------------------------------------------------------------------------- #
+[lanes.entry]
+title = "入口"
+question = "初めて来た他人が、誰にも聞かずに動かせるか"
+
+[[lanes.entry.checks]]
+id = "readme_exists"
+kind = "file_present"
+any_of = ["README.md", "README.rst", "README"]
+severity = "block"
+why = "入口が無ければ他人は始められない"
+
+[[lanes.entry.checks]]
+id = "license_exists"
+kind = "file_present"
+# ファイル名を並べると、並べなかった置き方が「ライセンス無し」になる。
+# 実測: astral-sh/uv と sharkdp/bat は LICENSE-MIT と LICENSE-APACHE の二重ライセンスで、
+# どちらも「ライセンスが無い」と判定されていた。Rust 界隈では標準的な置き方である。
+# 自分のライセンスは自分の根に在る。入れ子まで探すと vendor した依存のものを拾う。
+any_of = ["LICENSE*", "LICENCE*", "COPYING*"]
+except_presets = ["vendored"]
+severity = "block"
+why = "ライセンスの無いコードは、法的には誰も使えない。公開したことにならない"
+
+[[lanes.entry.checks]]
+id = "install_section"
+kind = "doc_section"
+file = "README.md"
+any_of = ["(?im)^#+.*(install|setup|getting started|requirement)",
+          "(?im)^#+.*(インストール|導入|セットアップ|必要なもの|前提)"]
+severity = "block"
+why = "動かす前に何が要るかが書かれていない README は、書いた本人にしか読めない"
+
+[[lanes.entry.checks]]
+id = "usage_section"
+kind = "doc_section"
+file = "README.md"
+any_of = ["(?im)^#+.*(usage|quick ?start|example|how to|getting started|basic)",
+          "(?im)^#+.*(使い方|使用例|クイックスタート|例|はじめ)"]
+severity = "warn"
+why = "見出しの言葉は流派が分かれる。高star リポでも表記が揃わないので警告に留める"
+
+[[lanes.entry.checks]]
+id = "runnable_example"
+kind = "runnable_block"
+file = "README.md"
+min = 1
+severity = "block"
+why = "コピーして貼れる行が1つも無いなら、それは説明であって手順ではない"
+
+[[lanes.entry.checks]]
+id = "contributing"
+kind = "file_present"
+any_of = ["CONTRIBUTING.md", ".github/CONTRIBUTING.md", "docs/CONTRIBUTING.md"]
+severity = "warn"
+why = "外から直したい人が、作法を推測せずに済む"
+
+[[lanes.entry.checks]]
+id = "issue_template"
+kind = "file_present"
+any_of = [".github/ISSUE_TEMPLATE", ".github/ISSUE_TEMPLATE.md",
+          ".github/issue_template.md", ".github/ISSUE_TEMPLATE/*"]
+severity = "warn"
+why = "再現手順の無いバグ報告を減らす。報告の質は様式で決まる"
+
+
+# --------------------------------------------------------------------------- #
+# Correctness — 動くと主張して本当に動くか
+# --------------------------------------------------------------------------- #
+[lanes.correctness]
+title = "正しさ"
+question = "動くという主張を、機械が確かめられるか"
+# このレーンは両方の段に当たる（第1段の宣言を読むこと）。severity が段で変わる。
+# 第1段: テストが落ちていても同僚には渡せる。事実は出すが止めない（warn）。
+# 第2段: 動くと言って動かないものを世間に出さない（block）。
+# 観測は1つ、consequence が2つ。engine の check_severity がこの差を持つ。
+
+[[lanes.correctness.checks]]
+id = "tests_exist"
+kind = "file_present"
+any_of = ["tests", "test", "spec", "__tests__", "src/test",
+          "**/tests/*", "**/test/*", "**/__tests__/*",
+          "**/test_*.py", "**/*_test.py", "**/*_test.go", "**/*_test.rs",
+          "**/*.test.ts", "**/*.test.js", "**/*.spec.ts"]
+# vendor した依存のテストを自分のテストとして数えない。
+# *在ること* を見る観測が除外を守らないと、偽陽性ではなく偽陰性になる。
+except_presets = ["vendored"]
+severity = { internal = "warn", public = "block" }
+why = "テストの無いリポは、壊れたことに誰も気づけない"
+
+[[lanes.correctness.checks]]
+id = "test_command_declared"
+kind = "declared_command"
+name = "test"
+severity = { internal = "warn", public = "block" }
+why = "テストがあっても、走らせ方が宣言されていなければ他人は走らせない"
+
+# 元は ci_defined という名前で .github/workflows / .gitlab-ci.yml /
+# .circleci/config.yml / Makefile / justfile の *存在* を数えていた。
+# 名前が「CI が定義されているか」を約束し、実装が見ていたのは置き場だけだった。
+#
+# 実測 2026-08-28、判定が反転していた:
+#   2リポ             .github/workflows が在るので pass。ところが一方の
+#                      workflow は同じ日に on: [push, pull_request] を外して
+#                      workflow_dispatch だけにした（課金でジョブが開始すら
+#                      しなかったため）。ファイルは在るまま、push では二度と
+#                      走らない。それでもこの観測は pass のままだった。
+#   company-os         scripts/deadlines-qa.py, scripts/tests-qa.py を持ちながら fail
+#   別の1リポ         scripts/*-qa.py を持ちながら fail
+# 方針として捨てた置き場を数え、実際に使っている置き場を数えていなかった。
+#
+# ファイルの存在は「走ること」の証拠にならない。workflow が走るかは on: が決め、
+# Makefile / justfile は人が打つまで走らない。存在で見てよいのは、存在そのものが
+# 登録である場合だけである。この組織でそれに当たるのは scripts/*-qa.py で、
+# 中央の Stop hook が名前で拾うためリポごとの配線が要らない。
+#
+# 見ているものを名前に合わせた。見ていないものも書いておく:
+#   - 走らせる主体（中央 hook）はリポの外に在るので、この観測では見えない。
+#     clone した他人の環境で何が拾うかは、その環境の配線の問題である。
+#   - ここが言えるのは「機械が拾える入口がリポの中に在る」までで、
+#     「毎回走っている」ではない。走った事実は fleet の観測が持つ。
+[[lanes.correctness.checks]]
+id = "gate_runs_in_repo"
+kind = "file_present"
+any_of = ["scripts/*-qa.py"]
+severity = "warn"
+why = "毎回機械が走らせる仕掛けは、リポの中に在って他人の手元にも付いていく必要がある"
+
+[[lanes.correctness.checks]]
+id = "test_passes"
+kind = "command_exit_zero"
+name = "test"
+severity = { internal = "warn", public = "block" }
+why = "テストがあることと通ることは別。通らないものを公開しない"
+
+[[lanes.correctness.checks]]
+id = "tutorial_runs"
+kind = "command_exit_zero"
+name = "smoke"
+severity = { internal = "warn", public = "block" }
+# smoke は README の手順の代役であって、e2e の置き場ではない。実測: あるリポは
+# smoke に e2e のコマンドを宣言していて、名前と中身がずれている。名前が約束したものと
+# 実際に走るものが違うと、この観測の pass は「手順が動く」を意味しなくなる。
+# e2e は下の観測が名前どおりに受ける（宣言を移すのは各リポ側の仕事）。
+why = "README の手順が実際に動くか。ここが star の多いリポと自称OSSの分かれ目"
+
+[[lanes.correctness.checks]]
+id = "e2e_passes"
+kind = "command_exit_zero"
+name = "e2e"
+# 宣言が無ければ問わない（skip）。CLI やライブラリに e2e が無いのは欠陥ではないので、
+# 「在るべきもの」として数えると、当たらないはずのリポを毎回叱ることになる。
+# 宣言した者にだけ、宣言どおりに動くことを求める。agent_ready を shape で絞るのと
+# 同じ考えだが、絞りの根拠が形ではなく宣言そのものなので、check 側の口で受ける。
+optional = true
+severity = { internal = "warn", public = "block" }
+why = "単体が通ることと通しで動くことは別。宣言した e2e は宣言どおりに走る必要がある"
+
+
+# --------------------------------------------------------------------------- #
+# Robustness — 想定外にどう振る舞うか
+# --------------------------------------------------------------------------- #
+[lanes.robustness]
+title = "壊れ方"
+question = "失敗したとき、黙って壊れるか、理由を言って止まるか"
+
+[[lanes.robustness.checks]]
+id = "no_bare_except"
+kind = "pattern_max"
+globs = ["**/*.py"]
+except_presets = ["fixtures", "vendored"]
+pattern = '(?m)^\s*except\s*:\s*$'
+max = 0
+severity = "block"
+why = "裸の except は KeyboardInterrupt まで飲み込む。原因が永久に分からなくなる"
+
+[[lanes.robustness.checks]]
+id = "no_silent_pass"
+kind = "pattern_max"
+globs = ["**/*.py"]
+except_presets = ["fixtures", "vendored"]
+pattern = '(?m)except[^\n]*:\s*\n\s*pass\s*$'
+max = 0
+severity = "warn"
+why = "握りつぶしは、後から来た人にとって存在しないバグになる"
+
+[[lanes.robustness.checks]]
+id = "no_empty_catch_js"
+kind = "pattern_max"
+globs = ["**/*.ts", "**/*.tsx", "**/*.js"]
+except_presets = ["fixtures", "vendored"]
+pattern = 'catch\s*\([^)]*\)\s*\{\s*\}'
+max = 0
+severity = "warn"
+why = "同上。言語が変わっても握りつぶしは握りつぶし"
+
+[[lanes.robustness.checks]]
+id = "no_debug_print_left"
+kind = "pattern_max"
+globs = ["**/*.ts", "**/*.tsx", "**/*.js"]
+except_presets = ["fixtures", "vendored"]
+pattern = '(?m)^\s*console\.log\('
+max = 0
+severity = "warn"
+why = "消し忘れた出力は、他人の環境では意味不明なノイズになる"
+
+
+# --------------------------------------------------------------------------- #
+# Safety — 出して危なくないか
+# --------------------------------------------------------------------------- #
+[lanes.safety]
+title = "安全"
+question = "出した瞬間に取り返しがつかないものが混ざっていないか"
+
+# 宣言と実態の突き合わせ。列挙ではないので当て推量にならない。
+# `exclude` が言えるのは「観測しない」だけで「公開物に入れない」ではない。
+# git は work.toml を読まないので、追跡下にあれば公開の瞬間に一緒に出る。
+#
+# 第1段は warn。社内共有に支障は無いし、非公開層が追跡されていること自体は
+# 運用として正しいこともある。第2段は block。公開すればそのまま出るため。
+[[lanes.safety.checks]]
+id = "excluded_paths_not_tracked"
+kind = "exclude_not_tracked"
+severity = { internal = "warn", public = "block" }
+# 直し方が一意に決まる: .gitignore に足して git rm --cached する。
+# ただし **それでも履歴は消えない**。この観測が緑になっても意味するのは
+# 「これから増やさない」であって「もう出ていない」ではない。既に push 済みなら
+# 履歴の書き換えか、そのパスを別リポへ切り出すかのどちらかが要る。
+why = "exclude は観測を止めるだけで公開を止めない。追跡下にあれば公開時に一緒に出る"
+
+[[lanes.safety.checks]]
+id = "no_secrets"
+kind = "pattern_absent"
+globs = ["**/*"]
+# テスト用の証明書や、認証の解説記事に載る見本まで漏洩として数えると、
+# 手本にすべきリポほど落ちる。実際に高star リポ4本がこれで落ちた。
+# 除外は「宣言された例外」であって、見逃しではない。docs は下の観測で警告する。
+except_presets = ["fixtures", "vendored"]
+except_globs = ["docs/*", "**/*.md"]
+# テストが本番のソースファイルの中に同居する言語がある（Rust の #[cfg(test)] mod tests）。
+# 置き場では分けられないので、文脈で分ける。慣例どおりファイル末尾に置かれる前提。
+# 実測: openai/codex は sanitizer の伏せ字テスト表・テスト用 JWT・テスト用 RSA 鍵の
+# 3箇所で落ちていた。どれもテストモジュールの中である。
+except_within = ['(?s)#\[cfg\(test\)\].*', '(?s)#\[cfg\(all\(test.*']
+patterns_from = "secret_patterns.toml"
+severity = "block"
+why = "秘密は出した瞬間に漏洩が確定する。git から消しても遅い"
+
+[[lanes.safety.checks]]
+id = "no_secrets_in_docs"
+kind = "pattern_absent"
+globs = ["docs/*", "**/*.md"]
+except_presets = ["fixtures", "vendored"]
+patterns_from = "secret_patterns.toml"
+severity = "warn"
+why = "解説の見本と本物を機械は見分けられない。止めはしないが、目で見る必要はある"
+
+[[lanes.safety.checks]]
+id = "env_example_not_real"
+kind = "pattern_absent"
+globs = [".env", ".env.local", ".env.production"]
+patterns = ["(?s).+"]
+severity = "block"
+why = "実体の .env が追跡されていること自体が事故。.env.example だけを置く"
+
+[[lanes.safety.checks]]
+id = "gitignore_exists"
+kind = "file_present"
+any_of = [".gitignore"]
+severity = "block"
+why = "何を追跡しないかの宣言が無いリポは、いつか秘密を追跡する"
+
+
+# --------------------------------------------------------------------------- #
+# Provenance — 出す資格があるか
+# --------------------------------------------------------------------------- #
+[lanes.provenance]
+title = "素性"
+question = "自分のものとして出せるか。他人のものが混ざっていないか"
+
+[[lanes.provenance.checks]]
+id = "no_private_terms"
+kind = "pattern_absent"
+globs = ["**/*"]
+except_presets = ["fixtures", "vendored"]
+patterns_from = "private_terms.toml"
+# private_terms.toml は2つの仕事を兼ねている。work-os の公開層を抽象に保つ仕事
+# （products / org / metrics）と、他人の顧客名を持ち出さない仕事（clients）である。
+# 前者は work-os だけの都合なので、フリート全体に当てると自社製品名が漏洩扱いになる。
+# 実測: 自社製品名が1リポに1877回、LICENSE の著作権者名、lockfile に指標名の略称。
+# ここが見るべきは後者だけ。前者は engine/abstraction_gate.py の管轄。
+categories = ["clients"]
+only_when_owned = true
+# 人の判定（audit.toml）を受け付けるかは、観測ごとに **上書き側で** 宣言する。
+# 骨格の既定は false である。一律に受け付ける形にすると、抑制を導入していない
+# 組織にも「cleared と書けば通る」経路が生まれる。何を人の判断に委ねるかは、
+# 仕組みが決めることではない。
+#   registry 側に書く例: auditable = true
+# block ではなく warn。第1段の受け手は **同僚** であり、同僚にとって顧客名は
+# 在って当然のもの——むしろ共有したい中身そのものである。「どのリポがどの顧客の
+# ものか」の一覧を社内に配れないなら、社内共有に意味が無い。
+#
+# 一方「外販物にそのまま同梱してよいか」は本当に他の顧客名が入っていてはいけない。
+# ただしその問いの単位はリポジトリではなく **成果物 × 宛先** で、リポ全体に
+# 顧客を1つ宣言する形にすると、複数顧客を横断するリポで必ず破綻する。
+# ここでは一覧を出すだけにして、渡す判断は人がする。
+#
+# public は別である。世間に対して顧客名を出すのは、取り返しがつかない。
+# 同じ観測のまま、段が上がったところで consequence だけを変える。
+severity = { internal = "warn", public = "block" }
+why = "同僚には配ってよい。public には出せない（履歴に残るので取り返しがつかない）"
+
+
+# --------------------------------------------------------------------------- #
+# History — 出す前に、出せない過去が残っていないか
+# --------------------------------------------------------------------------- #
+# 他の全レーンは作業ツリー（git ls-files）だけを見ている。「今の木から消したもの」
+# は履歴に残っていても素通りする。2026-08-31 に work-os で実際に起きた: registry/
+# （顧客名276件・12社）を消したコミットを積んだ時点で、過去版の README・
+# docs/ADOPTION.md・engine/adopt.py・hooks/install.sh・engine/knowhow.py と
+# コミットメッセージ3件に顧客名が7箇所残ったまま、第2段は OK と出た。
+# work.toml には「第2段が通らない理由は履歴だ」と書いてあった。宣言のほうは
+# 現実を正しく述べていて、判定する側にその軸が無かった。
+#
+# 第2段にだけ置く。社内共有（第1段）の受け手は同僚で、履歴に顧客名が在ることは
+# 問題ではない——それはむしろ共有したい中身である。取り返しがつかなくなるのは
+# 世間に出した瞬間だけなので、段が上がったところで初めて当てる。
+[lanes.history]
+title = "履歴"
+question = "出せない過去が履歴に残っていないか"
+
+[[lanes.history.checks]]
+id = "history_erased"
+kind = "history_erased"
+# 止めるのは **形** のほうである。走査（下）は private_terms.toml に書いた語しか
+# 見つけられないので、書き忘れた1社は素通りする。「履歴が1コミットである」は
+# 中身に依存しないので、その弱点が無い。列挙で検査を書かない、という規律の
+# 履歴版である。
+#
+# 通る道は squash（git checkout --orphan → 全部入れて1コミット）か、
+# work.toml の [publish] released_at に **root の sha** を宣言するかの2つ。
+# 後者は 2026-09-02 に engine 側（work-os 878c22a）で足された。それまでは
+# 「今ある root を宣言すれば必ず通るので逃げ道にしかならない」として作っていない。
+# 覆した理由は、この観測が公開の一度きりで寿命を終えるのに当たり続けるため、
+# 公開の次の1コミットで必ず落ちるようになるからである。
+#
+# **released_at は観測ではなく宣言である。**「本当に公開したのか」を手元から
+# 確かめる方法は無い（private と public の remote は区別できない）ので、
+# 宣言した時点で通る。引き換えに、宣言した以後ずっと効き続ける中身の観測が付く
+# （no_private_terms_since_release、block）。
+#
+# **この取り替えで block が見なくなる範囲を実測した（2026-09-02、registry セッション）。**
+# released_at は root と一致しないと fail するので、履歴の途中を起点だと偽って
+# 前半を隠すことはできない。root..HEAD は since 側が block で走査する。
+# **block から外れるのは root コミットの木そのものだけ**である。そこにだけ顧客名を
+# 置いた fixture では history レーンが NG ではなく WARN になり、気づくのは
+# no_private_terms_in_history（warn）1本だけだった。
+#
+# 宣言したリポでは、形の検査が1本消えて代わりが列挙の検査になる。上の段落で
+# 「列挙で検査を書かない」と書いた当のものが入れ替わる。**work-os はこの道を
+# 使わない** — 2026-09-02 に TK が「予定通り squash していい」と決めた。列挙で
+# 通せる（全履歴で該当なし）が、通せることと形で確かめたことは別だからである。
+# released_at を宣言するリポは現在 0 本で、work-os もそこに加わらない。
+# 最初に宣言するリポが出たときは、ここを読み直すこと。
+severity = { internal = "skip", public = "block" }
+why = "公開は取り返しがつかない。今の木から消しても、履歴に残っていれば clone した相手には渡っている"
+
+[[lanes.history.checks]]
+id = "no_private_terms_in_history"
+kind = "history_pattern_absent"
+patterns_from = "private_terms.toml"
+categories = ["clients"]
+only_when_owned = true
+# warn である。これは「無い」の証明ではなく、見つかったときにだけ意味がある観測。
+# block を任せると「走査が通った＝安全」という嘘が立つ。止めるのは形のほう。
+severity = { internal = "skip", public = "warn" }
+why = "見つかったら確実に困る。見つからなくても安全とは言えない（列挙した語しか見ていない）"
+
+[[lanes.history.checks]]
+id = "no_private_terms_since_release"
+kind = "history_pattern_absent"
+since = "released_at"
+patterns_from = "private_terms.toml"
+categories = ["clients"]
+only_when_owned = true
+# 上の2本と時間で分かれている。history_erased は「出せない過去を消したか」で、
+# 消したことの証明を与えるのは squash だけなので公開の一度きりで寿命を終える。
+# 公開した後は消せる過去がもう無く、同じ観測を当て続けると次の1コミットで必ず落ちる。
+# こちらは「起点より後に積んだ分が基準を満たすか」を以後ずっと見る。
+#
+# `since = "released_at"` は各リポの work.toml `[publish] released_at` を読む。
+# 宣言が無ければ skip なので、宣言しているリポが0本の現在、どの判定も変わらない
+# （2026-09-02 に --scan で前後を突き合わせて確認した）。
+#
+# **上の no_private_terms_in_history は warn なのに、こちらが block なのは意図的である。**
+# あちらが warn なのは「止めるのは形（history_erased）のほう」だからだが、公開後は
+# その形の観測が退役しており、代わりに止めるものが無い。中身の観測が block を持たないと
+# 公開後は何も止まらなくなる。走査が通っても安全の証明にならないのは同じだが、
+# それは pass の意味の話で、hit したときに止めるかどうかとは別の問い。
+# 公開後に該当が出たということは、それはもう外に渡っている。次を止める以外に打つ手が無い。
+#
+# internal = "skip" は上と揃えた。categories = ["clients"] で見ているのは顧客名で、
+# 社内で共有する段では問わない。
+severity = { internal = "skip", public = "block" }
+why = "公開したあとに積んだ分は消せない。入る前に止めるしかない"
+
+# --------------------------------------------------------------------------- #
+# Portability — 他人のマシンで動くか
+# --------------------------------------------------------------------------- #
+# 「自分のものとして出せるか」（provenance）と「他人の手元で動くか」は別の問い。
+# 以前この観測は provenance の中に居たが、素性の話ではないので独立させた。
+# 社内で渡すときに唯一致命的なのはここで、README が無いことではない。
+[lanes.portability]
+title = "可搬性"
+question = "自分の machine を離れても動くか"
+
+[[lanes.portability.checks]]
+id = "no_absolute_home_paths"
+kind = "pattern_max"
+# 拡張子を列挙すると、列挙しなかった場所が黙って素通りする。
+# 実測: globs がコードの拡張子だけだった頃、実際に絶対パスを含む 23 リポのうち
+# 16 リポを pass にしていた（見逃し 70%）。漏れは .md / .json / .yaml にあった。
+# 「自分が書いたテキスト全部」に当て、他人が書いた木だけを引く形が正しい。
+globs = ["**/*"]
+except_presets = ["fixtures", "vendored"]
+only_when_owned = true
+# 同じ文字列でも、web の URL の中の /home/ は誰かのホームではなく web のパスである。
+# 実測: 手元の 275 件のうち 27 件がこれで、2 リポジトリは誤検出だけで落ちていた。
+# file:// は本物のホームパスなので、除くのは http(s) だけ。
+except_within = ['https?://[^\s\x27"]*']
+pattern = '/(Users|home)/[a-zA-Z0-9_.-]+/'
+max = 0
+severity = "block"
+why = "自分の machine でしか動かないものは、他人にとって動かないものと同じ"
+
+
+# --------------------------------------------------------------------------- #
+# Usability — 最初の成功までの距離
+# --------------------------------------------------------------------------- #
+# 校正で分かったこと: 整備の痕跡（LICENSE / CI / CONTRIBUTING）は高star と低star を
+# 分けるが、それは必要条件にすぎない。2 star のリポにも LICENSE は置ける。
+# 高star リポが共通して持っていたのは「最初の成功までが近い」ことだった。
+# entry レーンは *在るか* を見る。このレーンは *どこに在るか・何手か* を見る。
+[lanes.usability]
+title = "使い心地"
+question = "初めて来た人が、最初の成功に何手で辿り着くか"
+
+[[lanes.usability.checks]]
+id = "command_appears_early"
+kind = "runnable_block"
+file = "README.md"
+# 実測: 高star リポの最初のコマンドは README の 6〜25%、低star は 28〜73% に現れた。
+# 絶対行数ではなく割合。短い README では割合が意味を失うので 40 行を下限にする。
+#
+# 2026-08-26 の再測定で、この主張は再現しなかった。別の母集団（calibration/corpus.toml）
+# では 6/10 対 5/6 = -0.23 と、むしろ逆向きに出ている。上の数字は最初に測ったときの
+# 事実として残すが、**現時点で block の根拠は立っていない**。
+# 経緯と限界は calibration/README.md を読むこと。severity をどうするかは未決。
+within_ratio = 0.30
+within_lines = 40
+min = 1
+severity = "block"
+why = "最初のコマンドまでの距離。読ませてから試させる順序は人を落とす"
+
+[[lanes.usability.checks]]
+id = "zero_config_start"
+kind = "pattern_max"
+globs = ["README.md"]
+within_ratio = 0.30
+within_lines = 40
+pattern = '(?i)(api[_-]?key|secret[_-]?key|access[_-]?token|credentials|\.env\b)'
+max = 0
+severity = "warn"
+why = "最初の例が鍵の取得を要求すると、そこで大半が離脱する。鍵は後段に置く"
+
+[[lanes.usability.checks]]
+id = "help_available"
+kind = "command_exit_zero"
+name = "help"
+severity = "block"
+why = "詰まった人が最初に打つのは help。ここが無いと、読みに戻るしかなくなる"
+
+
+# --------------------------------------------------------------------------- #
+# Agent-ready — エージェントが人手なしで最初の成功に到達できるか
+# --------------------------------------------------------------------------- #
+# 「登録画面が無いのに登録される」体験は魔法ではなく、4つの部品の組み合わせだった。
+# flyctl / stripe-cli / gh / railway / supabase の実装を読んで確かめた形を置く。
+#
+#   1. 登録と認証が CLI のサブコマンドにある（fly auth signup は Web フォームではない）
+#   2. デバイスコード(RFC 8628)か PKCE + ローカル callback で、フォームを介さない
+#   3. ブラウザを開けない環境の逃げ道がある（flyctl の貼り付け、gh の --with-token）
+#   4. 出力が機械可読（stripe-cli は browser_url と verification_code に加えて
+#      「次に打つコマンド」を JSON で返す。エージェントが読んで実行するための設計）
+#
+# 実測 (agent-native 6本 vs 低star 6本): CLI登録 6/6 対 0/6、device 5/6 対 1/6、
+# 逃げ道 5/6 対 2/6、--json 5/6 対 2/6、AGENTS.md 等の面は 3/6 対 2/6 で判別しない。
+#
+# 2026-08-26、別の母集団で再測定して再現した（calibration/corpus.toml）。
+# CLI登録 6/6 対 1/6、フォーム非経由 6/6 対 1/6、逃げ道 5/6 対 2/6、--json 6/6 対 3/6。
+# agent_surface と install_free_start は 3/6 対 3/6 で分けない。warn のままが正しい。
+#
+# このレーンは shape = "service" を宣言したリポにだけ当てる。requests も fastapi も
+# 全項目 0 だったが、それが正しい。ライブラリに登録動線が無いのは欠陥ではない。
+[lanes.agent_ready]
+title = "エージェント対応"
+question = "人間が画面を触らずに、最初の成功まで到達できるか"
+applies_to_shapes = ["service"]
+
+[[lanes.agent_ready.checks]]
+id = "cli_entry_point"
+kind = "pattern_present"
+globs = ["**/*.go", "**/*.ts", "**/*.rs", "**/*.py", "README.md"]
+except_presets = ["fixtures", "vendored"]
+patterns = ['(?m)\b(auth\s+)?(signup|login)\b.*(command|cmd|subcommand)',
+            '(?m)^\s*(func|fn|def|export function)\s+\w*(Signup|SignUp|Login|runLogin|runSignup)',
+            '(?m)`?\w+ auth (login|signup)`?']
+severity = "block"
+why = "登録がWebフォームにしかないと、そこでエージェントは止まる。動線はコマンド側に要る"
+
+[[lanes.agent_ready.checks]]
+id = "no_form_auth"
+kind = "pattern_present"
+globs = ["**/*.go", "**/*.ts", "**/*.rs", "**/*.py"]
+except_presets = ["fixtures", "vendored"]
+patterns = ['device[_ -]?code', 'verification_uri', 'RFC ?8628', 'code_challenge']
+severity = "block"
+why = "デバイスコードかPKCEなら、人はURLを開いて承認するだけで済む。フォーム入力が消える"
+
+[[lanes.agent_ready.checks]]
+id = "headless_escape"
+kind = "pattern_present"
+globs = ["**/*.go", "**/*.ts", "**/*.rs", "**/*.py", "README.md"]
+except_presets = ["fixtures", "vendored"]
+patterns = ['--with-token', 'readPastedCodes', 'paste the code',
+            '--non-?interactive', '--headless', '--token[ =]']
+severity = "block"
+why = "ブラウザを開けない場所で動くのがエージェント。逃げ道が無いと全部が無駄になる"
+
+[[lanes.agent_ready.checks]]
+id = "machine_readable_output"
+kind = "pattern_present"
+globs = ["**/*.go", "**/*.ts", "**/*.rs", "**/*.py"]
+except_presets = ["fixtures", "vendored"]
+patterns = ['"--json"', '--format[= ]json', 'json_output', 'OutputJSON', "'--json'"]
+severity = "warn"
+why = "結果を読めなければ次の手が打てない。人間向けの整形出力だけでは進めない"
+
+[[lanes.agent_ready.checks]]
+id = "install_free_start"
+kind = "doc_section"
+file = "README.md"
+any_of = ['\b(npx|uvx|bunx|pipx run)\b', 'curl [^\n|]*\|\s*(sh|bash)',
+          '\b(brew install|go install|cargo install)\b']
+severity = "warn"
+why = "環境構築はエージェントが最も詰まる場所。1行で起動できると越えられる"
+
+[[lanes.agent_ready.checks]]
+id = "agent_surface"
+kind = "file_present"
+any_of = ["AGENTS.md", "llms.txt", "llms-full.txt", ".mcp.json", "mcp.json",
+          ".well-known/*", "**/AGENTS.md", "SKILL.md"]
+severity = "warn"
+# 実測では 3/6 対 2/6 で判別しなかった。まだ普及の途中なので、
+# 落とす根拠にはせず、在るか無いかだけ記録する。
+why = "エージェントが読む面。人間向けドキュメントとは別に、機械が従える手順が要る"
