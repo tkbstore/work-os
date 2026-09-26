@@ -113,9 +113,21 @@ def main() -> int:
         check("role も宣言が無ければ推測に委ねる", delta == "site", f"→ {delta}")
         check("宣言された role は残る", role_of(out, "acme-gamma") == "tool")
 
-        # 「宣言済み」の数は work.toml の有無で数える。[repo] の有無ではない。
-        check("work.toml を持つ数は 3 と数える", "宣言済み 3 / 4" in out,
-              [ln for ln in out.splitlines() if "宣言済み" in ln])
+        print("\n台帳 — 推測で埋めた欄を、値と同じ粒度で出す")
+        # ✓ は「work.toml を持つ」であって「分類を宣言した」ではない。2つを1つの
+        # 数に畳むと、何も分類を宣言していないリポが採用率の分子に入ったまま見えなくなる。
+        check("work.toml を持つ数は 3", "work.toml を持つ 3 / 4" in out,
+              [ln for ln in out.splitlines() if "work.toml を持つ" in ln])
+        check("[repo] まで宣言した数は 1", "[repo] まで宣言 1 / 4" in out,
+              [ln for ln in out.splitlines() if "まで宣言" in ln])
+        alpha_line = next(ln for ln in out.splitlines() if '"acme-alpha"' in ln)
+        check("推測で埋めた欄を名指しする",
+              "domain=推測" in alpha_line and "role=推測" in alpha_line, alpha_line)
+        gamma_line = next(ln for ln in out.splitlines() if '"acme-gamma"' in ln)
+        check("宣言された欄には推測と書かない", "推測" not in gamma_line, gamma_line)
+        beta_line = next(ln for ln in out.splitlines() if '"acme-beta"' in ln)
+        check("work.toml が無いリポは ✓ も推測注記も付けない",
+              "✓" not in beta_line and "推測" not in beta_line, beta_line)
 
     print()
     if failed:

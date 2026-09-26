@@ -41,7 +41,7 @@ def main() -> int:
     root = args.root.expanduser().resolve()
     repos = iter_repo_dirs(root)
 
-    by_domain: dict[str, list[tuple[Path, str, str, bool]]] = defaultdict(list)
+    by_domain: dict[str, list[tuple[Path, str, str, bool, list[str]]]] = defaultdict(list)
     for repo in repos:
         declared = load_repo(repo)
         # 宣言が **在る** ときだけ宣言を採る。work.toml は在るが [repo] が無い、
@@ -49,7 +49,13 @@ def main() -> int:
         # 宣言していない欄まで「宣言済み」として扱ってしまう。
         domain = declared.domain if (declared and declared.domain) else guess_domain(repo.name)
         role = declared.role if (declared and declared.role) else guess_role(repo, domain)
-        by_domain[domain].append((repo, role, last_commit(repo), declared is not None))
+        # どの欄を推測で埋めたかを、値と同じ粒度で残す。ここを落とすと、✓ の隣の
+        # role が宣言なのか推測なのかが出力から分からない。分類の結果だけを出して
+        # 根拠を出さない形は、このリポジトリが他所で潰してきた欠陥と同じものである。
+        guessed = [f for f, v in (("domain", declared and declared.domain),
+                                  ("role", declared and declared.role)) if not v]
+        by_domain[domain].append(
+            (repo, role, last_commit(repo), declared is not None, guessed))
 
     print("# engine/registry.py で生成。推測を含むので手で直してよい。")
     print(f"# root = {root}")
@@ -58,19 +64,28 @@ def main() -> int:
     for domain in sorted(by_domain, key=lambda d: (d == "unknown", -len(by_domain[d]), d)):
         items = sorted(by_domain[domain], key=lambda x: (x[1] != "domain", x[0].name))
         declared_n = sum(1 for i in items if i[3])
+        classified_n = sum(1 for i in items if i[3] and not i[4])
         print(f"[domain.{domain.replace('-', '_')}]")
         print(f"count    = {len(items)}")
         print(f"declared = {declared_n}   # work.toml を持つ数。ここを増やすのが導入作業")
+        print(f"classified = {classified_n}   # そのうち [repo] で domain と role を宣言した数")
         print("repos = [")
-        for repo, role, date, declared in items:
+        for repo, role, date, declared, guessed in items:
             mark = "✓" if declared else " "
+            note = f" {' '.join(g + '=推測' for g in guessed)}" if declared and guessed else ""
             print(f'  {{ name = "{repo.name}", role = "{role}", last = "{date}" }},'
-                  f"  # {mark}")
+                  f"  # {mark}{note}")
         print("]\n")
 
     total_declared = sum(1 for items in by_domain.values() for i in items if i[3])
-    print(f"# 宣言済み {total_declared} / {len(repos)}"
-          f"（Compatibility = {total_declared / max(len(repos), 1):.0%}）")
+    total_classified = sum(1 for items in by_domain.values() for i in items if i[3] and not i[4])
+    n = max(len(repos), 1)
+    print(f"# work.toml を持つ {total_declared} / {len(repos)}"
+          f"（Compatibility = {total_declared / n:.0%}）")
+    # 2つ出す。1つに畳むと、何も分類を宣言していないリポが採用率の分子に入ったまま
+    # 見えなくなる（2026-09-26、work-os-registry のセッションからの指摘）。
+    print(f"# うち [repo] まで宣言 {total_classified} / {len(repos)}"
+          f"（{total_classified / n:.0%}）")
     return 0
 
 
