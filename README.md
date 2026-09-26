@@ -6,12 +6,24 @@
 その宣言を機械が検証する。protocol と gate の最小セットです。
 プロダクトではありません。外部依存はゼロ、Python 標準ライブラリだけで動きます。
 
-## 必要なもの
+## 入れる
 
-Python 3.11 以上。それだけです。インストールも設定ファイルの記入も要りません。
+ゲート（`release_gate`）だけを使うなら 1 行です。
 
 ```bash
-git clone <this-repo-url> work-os
+curl -fsSL https://raw.githubusercontent.com/tkbstore/work-os/main/install.sh | sh
+workos-gate <path-to-a-repo>        # そのリポジトリを外に出せるかを見る
+```
+
+`~/.local/share/workos-gate` に展開して `~/.local/bin/workos-gate` を置くだけです。
+pip も npm も使いません。入れた直後は work-os が持つ**判定基準の骨格**だけで動きます
+（顧客名のような組織固有の事実は同梱しないので、その分の観測は skip と出ます。
+自分の registry を持たせるときは `WORKOS_REGISTRY` でそこを指します）。
+
+work-os 全体（`scan` / `adopt` / `promote`）を使うなら clone します。
+
+```bash
+git clone https://github.com/tkbstore/work-os work-os
 cd work-os
 
 # 何ができるかを見る
@@ -20,6 +32,15 @@ python3 engine/release_gate.py --help
 # 自分の git 群を実測する（既存には一切触れない読み取り専用）
 python3 engine/scan.py ~/src --group my-domain
 ```
+
+## 必要なもの
+
+Python 3.9 以上。それだけです。インストールも設定ファイルの記入も要りません。
+
+3.11 未満には `tomllib` が無いので、work-os が持つ TOML の部分集合パーサで読みます。
+`tests/test_toml_fallback.py` が実データで `tomllib` と同値であることと、表せない形では
+推測せずに落ちることを突き合わせています（実測 2026-09-26: 3.9.6 と 3.13.5 で
+このリポジトリへの判定が byte 単位で一致）。
 
 `scan.py` は書き込みを一切しません。まずこれだけ回して、出てきた表を見てください。
 
