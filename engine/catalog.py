@@ -50,7 +50,12 @@ PURPOSE_MAX = 120
 # 空欄ではないので gate も --verify も通る）。
 # 箇条書きの印は「印＋空白」で初めて箇条書きである。印だけでは強調と区別できない。
 SKIP_BULLET = ("-", "*", "+")
-SKIP_PREFIX = ("#", "<!--", "|", "`", ">", "[")
+HTML_TAG = re.compile(r"</?[a-zA-Z][^>]*>")
+# "!" はリンク記法を外した跡に残る画像だけの行（![badge](url) → !badge）。
+# 生の HTML で始まる行は**飛ばさない**。<p align="center">本文… のように、
+# 説明そのものがタグの後ろに書かれていることがある（実測: cmux の README 2行目が
+# 唯一の説明文だった）。タグは plain() が落とし、飾りしか無い行だけを下で捨てる。
+SKIP_PREFIX = ("#", "<!--", "|", "`", ">", "[", "!")
 PURPOSE_SCAN = 40
 
 
@@ -69,6 +74,17 @@ def skip_reason(line: str) -> str:
     for pre in SKIP_PREFIX:
         if t.startswith(pre):
             return f"前置き {pre!r}"
+    # 行頭でなくても、生のタグが入っている行は散文ではない
+    # （実測: cmux の README 先頭は "English | <a href=...>日本語</a> | ..." で、
+    #  文の終わりが無いため 120 字ぶんのタグが purpose になっていた）。
+    m = HTML_TAG.search(t)
+    if m and not HTML_TAG.sub(" ", t).strip():
+        return f"タグだけの行 {m.group(0)[:12]!r}"
+    # 表の行と、言語切替のような案内の行。行頭が "|" でなくても区切りが並ぶ
+    # （実測: cmux の README 先頭は "English | 日本語 | Tiếng Việt | ..." が
+    #  17 言語ぶん続き、文の終わりが無いので 120 字ぶんが purpose になっていた）。
+    if HTML_TAG.sub(" ", t).count("|") >= 3:
+        return "区切り '|' が3つ以上（表か案内の行）"
     return ""
 
 
@@ -91,6 +107,82 @@ def purpose_trace(repo: Path) -> list[tuple[str, int, str, str]]:
     return trace
 
 
+# 文の終わり。日本語の句点と、英文のピリオド（後ろが空白か行末のもの）。
+SENTENCE_END = re.compile(r"。|[.!?](?=\s|$)")
+# 強調と inline code。**対になっているものだけ**を外す。片方しか無い記号は
+# 文が行をまたいでいる印なので、外すと壊れたまま固定される。
+MARKUP = (re.compile(r"\*\*(.+?)\*\*", re.S), re.compile(r"__(.+?)__", re.S),
+          re.compile(r"\*(.+?)\*", re.S), re.compile(r"`(.+?)`", re.S))
+JOIN_LINES = 6
+
+
+def _join(parts: list[str]) -> str:
+    """折り返された行を繋ぐ。日本語は空白を入れずに繋ぐ。
+
+    " ".join だと「…を診断し、 そのまま…」のように、原文に無い空白が文中に入る。
+    日本語は行末で改行しても語が切れないので、空白は英文の側だけに要る。
+    """
+    out = parts[0].strip()
+    for nxt in parts[1:]:
+        nxt = nxt.strip()
+        if not nxt:
+            continue
+        sep = "" if (out and ord(out[-1]) > 0x2E7F and ord(nxt[0]) > 0x2E7F) else " "
+        out = f"{out}{sep}{nxt}"
+    return out
+
+
+def plain(text: str) -> str:
+    """Markdown の飾りを落として、TOML の値として読める1文にする。
+
+    purpose は TOML の文字列であって Markdown ではない。`**` や `` ` `` は
+    そこでは意味を持たないのに、抽出側が落としていなかった。落とすのを台帳側の
+    手作業にすると、下書きと台帳が永久に食い違い、--build の「下書きと違う」が
+    鳴り続けて**本物のズレが埋もれる**（2026-09-27、work-os-registry-1e の指摘）。
+    鳴り続ける検知器は検知していないのと同じである。
+    """
+    t = HTML_TAG.sub(" ", text)
+    t = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", t)
+    for pat in MARKUP:
+        t = pat.sub(r"\1", t)
+    t = re.sub(r"\s+", " ", t)
+    # 「**収集専任の層。** 各ファイル…」から ** を外すと「層。 各」になる。
+    # 原文の空白は記号の外側にあったもので、文中の空白ではない。
+    t = re.sub(r"(?<=[^\x00-\x7F])\s+(?=[^\x00-\x7F])", "", t)
+    return re.sub(r"(?<=[。、」）])\s+", "", t).strip()
+
+
+def first_sentences(lines: list[str]) -> str:
+    """飛ばさない行から段落を1つ拾い、120字に収まるぶんを**文単位で**返す。
+
+    docstring は「最初の意味のある1文」と宣言していたが、実装は「飛ばさない
+    最初の1行」を返していた。この2つは README の書き方次第で食い違う。
+
+      行で折られた1文  → 断片になる（sales-tel「…APIを呼び出し、」で切れていた）
+      1行に2文          → 1文に削ると中身が落ちる（「X monorepo. AEO product.」が
+                        「X monorepo.」だけになり、何の repo かが消える）
+
+    どちらも「行」を単位にしたことに由来する。文を単位にし、欄の予算（120字）に
+    収まるだけ詰める。**文の途中では切らない。** 切ると何をする物か読めなくなる。
+    """
+    for i, line in enumerate(lines):
+        if skip_reason(line):
+            continue
+        buf = [line.strip()]
+        for nxt in lines[i + 1:i + JOIN_LINES]:
+            if skip_reason(nxt):
+                break
+            buf.append(nxt.strip())
+        t = plain(_join(buf))
+        ends = [m.end() for m in SENTENCE_END.finditer(t)]
+        fit = [e for e in ends if e <= PURPOSE_MAX]
+        if fit:
+            return t[:fit[-1]]
+        # 1文目すら収まらない。ここだけは途中で切る（欄の上限のほうが硬い）
+        return t[:PURPOSE_MAX]
+    return ""
+
+
 def read_purpose(repo: Path) -> str:
     """README / CLAUDE.md の最初の意味のある1文を purpose の下書きにする。"""
     for name in ("README.md", "CLAUDE.md", "README.rst"):
@@ -101,11 +193,9 @@ def read_purpose(repo: Path) -> str:
             lines = f.read_text(encoding="utf-8", errors="ignore").splitlines()
         except OSError:
             continue
-        for line in lines[:PURPOSE_SCAN]:
-            if skip_reason(line):
-                continue
-            t = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", line.strip())
-            return t[:PURPOSE_MAX]
+        got = first_sentences(lines[:PURPOSE_SCAN])
+        if got:
+            return got
     return ""
 
 

@@ -201,33 +201,64 @@ with tempfile.TemporaryDirectory() as td:
 
 
 with tempfile.TemporaryDirectory() as td:
-    # 太字の ** を箇条書きの * と取り違えていた。飛ばす印は「印＋空白」で初めて印である。
-    # 実測 2026-09-27: scrapers の README で先頭の1文が飛ばされ、次の行
-    # 「分析・スコアリングは別リポの仕事」——何を"しない"物かの説明——が purpose になった。
-    # 空欄ではないので gate も --verify も通る。台帳は静かに間違ったまま通る。
+    # purpose は「飛ばさない最初の1行」ではなく「最初の意味のある文」である。
+    # docstring はずっとそう宣言していたのに、実装は行を返していた。行を単位にすると
+    # README の書き方次第で2通りに壊れる（実測 2026-09-27、82 本を照合）。
+    #   行で折られた1文 → 断片（sales-tel「…APIを呼び出し、」で切れていた）
+    #   1行に2文        → 2文目が落ちる（「X monorepo. AEO product.」が前半だけになる）
+    # さらに Markdown の飾りが値に残っていた。purpose は TOML の値であって
+    # Markdown ではないので、飾りを落とすのは抽出側の仕事である。台帳側で手で
+    # 落とすと、下書きと台帳が永久に食い違い「下書きと違う」が鳴り続けて
+    # 本物のズレが埋もれる（work-os-registry-1e の指摘）。
     tmp = Path(td)
     fleet, reg = tmp / "fleet", tmp / "registry"
     repo(fleet, "bold-lead",
-         "# bold-lead\n\n**収集専任の層。** 各ファイルが単体の CLI である。\n"
-         "分析は別リポの仕事。\n")
+         "# bold-lead\n\n**収集専任の層。** 各ファイルが単体の CLI である。\n")
+    repo(fleet, "wrapped", "# wrapped\n\n**電話営業の入口。** API を呼び出し、\n発信と着信を実装する。\n")
+    repo(fleet, "two-sentences", "# two\n\nAlpha monorepo. Beta product.\n")
     repo(fleet, "real-bullet", "# real-bullet\n\n- one\n* two\n+ three\n本文の1文。\n")
     repo(fleet, "italic-lead", "# italic-lead\n\n*斜体で始まる1文である。*\n")
+    repo(fleet, "inline-code", "# c\n\n各ファイルが `import` して使う層は持たない。\n")
     repo(fleet, "quote-and-table", "# q\n\n> 引用。\n| 表 | 組 |\n`コード`\n[link]: x\n本文の1文。\n")
+    # 飾りしか無い行（<p align="center"> だけの行と閉じタグ）。中身のあるタグ行は
+    # 別の検査（prose-after-tag）で拾う。
+    repo(fleet, "tag-only", "<p align=\"center\">\n</p>\n<br>\n本文の1文。\n")
+    repo(fleet, "prose-after-tag", "<p align=\"center\">A terminal for agents.</p>\n")
+    repo(fleet, "nav-row", "# n\n\nEnglish | 日本語 | 한국어 | Deutsch\n本文の1文。\n")
+    repo(fleet, "badge-only", "# b\n\n![platform](https://x/y.svg)\n本文の1文。\n")
+    repo(fleet, "long-first",
+         "# l\n\n" + "あ" * 130 + "。\n")
+    repo(fleet, "budget", "# b\n\n" + "あ" * 60 + "。" + "い" * 40 + "。" + "う" * 40 + "。\n")
     build(reg, fleet)
     catalog = reg / "catalog.toml"
 
-    check("太字で始まる先頭文を採る",
-          purpose_of_toml(catalog, "bold-lead") == "**収集専任の層。** 各ファイルが単体の CLI である。",
-          purpose_of_toml(catalog, "bold-lead"))
-    check("本当の箇条書きは飛ばす",
-          purpose_of_toml(catalog, "real-bullet") == "本文の1文。",
-          purpose_of_toml(catalog, "real-bullet"))
-    check("斜体で始まる1文も採る",
-          purpose_of_toml(catalog, "italic-lead") == "*斜体で始まる1文である。*",
-          purpose_of_toml(catalog, "italic-lead"))
+    def got(name: str) -> str:
+        return purpose_of_toml(catalog, name)
+
+    check("太字で始まる文を採り、飾りは落とす",
+          got("bold-lead") == "収集専任の層。各ファイルが単体の CLI である。", got("bold-lead"))
+    check("行で折られた文を繋ぐ",
+          got("wrapped") == "電話営業の入口。API を呼び出し、発信と着信を実装する。", got("wrapped"))
+    check("1行に2文あれば2文とも採る",
+          got("two-sentences") == "Alpha monorepo. Beta product.", got("two-sentences"))
+    check("本当の箇条書きは飛ばす", got("real-bullet") == "本文の1文。", got("real-bullet"))
+    check("斜体の記号も落とす", got("italic-lead") == "斜体で始まる1文である。", got("italic-lead"))
+    check("inline code の ` を落とす",
+          got("inline-code") == "各ファイルが import して使う層は持たない。", got("inline-code"))
     check("引用・表・コード・リンク定義は飛ばす",
-          purpose_of_toml(catalog, "quote-and-table") == "本文の1文。",
-          purpose_of_toml(catalog, "quote-and-table"))
+          got("quote-and-table") == "本文の1文。", got("quote-and-table"))
+    check("飾りしか無い行は飛ばす", got("tag-only") == "本文の1文。", got("tag-only"))
+    check("タグの後ろの散文は拾う",
+          got("prose-after-tag") == "A terminal for agents.", got("prose-after-tag"))
+    check("言語切替のような区切りの行は飛ばす", got("nav-row") == "本文の1文。", got("nav-row"))
+    check("画像だけの行は飛ばす", got("badge-only") == "本文の1文。", got("badge-only"))
+
+    # 予算（120字）の扱い。文の途中で切らない
+    check("1文目が予算を超えるときだけ途中で切る",
+          len(got("long-first")) == 120, f"{len(got('long-first'))}")
+    b = got("budget")
+    check("予算に収まるぶんを文単位で詰める",
+          b.endswith("。") and len(b) <= 120 and b.count("。") == 2, f"{len(b)} / {b[:40]}")
 
     # 何が当たって飛ばしたかを言えること。言えない分類器は間違いが見えない
     env = {**os.environ, "WORKOS_REGISTRY": str(reg)}
@@ -236,8 +267,6 @@ with tempfile.TemporaryDirectory() as td:
                        cwd=ROOT, capture_output=True, text=True, timeout=60, env=env)
     check("--why-purpose が 0 を返す", r.returncode == 0, r.stderr[:200])
     check("採った行を出す", "採用" in r.stdout, r.stdout[:300])
-    # 当たった印そのものを出していること。行の中身に同じ語が混ざっても
-    # 通らないよう、印の表記まで含めて見る。
     check("飛ばした印を名指しする",
           "箇条書き '-'+空白" in r.stdout and "箇条書き '*'+空白" in r.stdout
           and "前置き '#'" in r.stdout, r.stdout[:400])
