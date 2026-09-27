@@ -279,10 +279,30 @@ with tempfile.TemporaryDirectory() as td:
                         str(fleet / "real-bullet")],
                        cwd=ROOT, capture_output=True, text=True, timeout=60, env=env)
     check("--why-purpose が 0 を返す", r.returncode == 0, r.stderr[:200])
-    check("採った行を出す", "採用" in r.stdout, r.stdout[:300])
+    check("採った行を出す", "先頭行" in r.stdout, r.stdout[:300])
     check("飛ばした印を名指しする",
           "箇条書き '-'+空白" in r.stdout and "箇条書き '*'+空白" in r.stdout
           and "前置き '#'" in r.stdout, r.stdout[:400])
+
+    # 道具と本体が食い違わないこと。診断が「組み上げる前の生の行」を採用として
+    # 出していたため、それを下書きだと思って飾り付きのまま台帳に入れた事故が
+    # 起きた（2026-09-27）。道具が本体と違う答えを出すなら無いほうがましである。
+    sys.path.insert(0, str(ROOT / "engine"))
+    from catalog import purpose_trace, read_purpose  # noqa: PLC0415
+    for name in ("bold-lead", "wrapped", "two-sentences", "real-bullet", "nav-joined",
+                 "em-dash", "inline-code", "tag-only", "prose-after-tag", "badge-only"):
+        rows = purpose_trace(fleet / name)
+        shown = [t for _, _, why, t in rows if why == "値"]
+        check(f"診断の値が本体と一致する（{name}）",
+              shown == [read_purpose(fleet / name)], f"{shown} != {read_purpose(fleet / name)!r}")
+
+    # 繋いだ行と、段落ごと捨てたことが記録に出る
+    rows = purpose_trace(fleet / "wrapped")
+    check("繋いだ行を記録に出す", any(why == "繋いだ" for _, _, why, _ in rows),
+          str(rows))
+    rows = purpose_trace(fleet / "nav-joined")
+    check("段落ごと捨てたことを記録に出す",
+          sum(1 for _, _, why, _ in rows if why.startswith("段落ごと捨てた")) >= 4, str(rows))
 
     # 空欄・下書き差分の一覧を打ち切らない（件数だけ出して中身を隠すと穴が見えない）
     for i in range(10):

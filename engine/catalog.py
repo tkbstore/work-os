@@ -96,25 +96,6 @@ def skip_reason(line: str) -> str:
     return ""
 
 
-def purpose_trace(repo: Path) -> list[tuple[str, int, str, str]]:
-    """どのファイルの何行目を採り、他をなぜ飛ばしたかを並べて返す（診断用）。"""
-    trace: list[tuple[str, int, str, str]] = []
-    for name in ("README.md", "CLAUDE.md", "README.rst"):
-        f = repo / name
-        if not f.is_file():
-            continue
-        try:
-            lines = f.read_text(encoding="utf-8", errors="ignore").splitlines()
-        except OSError:
-            continue
-        for i, line in enumerate(lines[:PURPOSE_SCAN], 1):
-            why = skip_reason(line)
-            trace.append((name, i, why or "採用", line.strip()[:80]))
-            if not why:
-                return trace
-    return trace
-
-
 # 文の終わり。日本語の句点と、英文のピリオド（後ろが空白か行末のもの）。
 SENTENCE_END = re.compile(r"。|[.!?](?=\s|$)")
 # 強調と inline code。**対になっているものだけ**を外す。片方しか無い記号は
@@ -160,9 +141,10 @@ def plain(text: str) -> str:
     return re.sub(r"(?<=[。、」）])\s+", "", t).strip()
 
 
-def first_sentences(lines: list[str]) -> str:
-    """飛ばさない行から段落を1つ拾い、120字に収まるぶんを**文単位で**返す。
+def scan_lines(lines: list[str]) -> tuple[str, list[tuple[int, str, str]]]:
+    """段落を拾って値を作り、**その過程の記録も一緒に**返す。
 
+    飛ばさない行から段落を1つ拾い、120字に収まるぶんを文単位で返す。
     docstring は「最初の意味のある1文」と宣言していたが、実装は「飛ばさない
     最初の1行」を返していた。この2つは README の書き方次第で食い違う。
 
@@ -175,30 +157,66 @@ def first_sentences(lines: list[str]) -> str:
 
     飛ばす判定は行だけでなく**組み上げた結果にも**当てる。1行ずつ見ると
     散文に見えて、繋ぐと案内の行になるものがある（実測 2026-09-27: リンクが
-    1行に1つずつ、行末に中黒が1つずつ置かれた README。行ごとには区切りが
-    1つしか無いので通り、繋ぐと "A → · B · C · D" になっていた）。
-    捨てるときは**その段落ごと**飛ばす。先頭行だけ落とすと、残りが同じ形で通る。
+    1行に1つずつ、行末に中黒が1つずつ置かれた README）。捨てるときは**その段落
+    ごと**飛ばす。先頭行だけ落とすと、残りが同じ形で通る。
+
+    値と記録を1本の走査から返すのは、道具が本体と違う答えを出さないためである。
+    以前は診断用の関数を別に持っていて、そちらは**組み上げる前の生の行**を
+    「採用」として出していた。実測 2026-09-27: それを下書きだと思って飾り付きの
+    まま台帳に入れた事故が起きた（work-os-registry-1e の報告）。
+    追跡の道具が本体と食い違うなら、無いほうがましである。
     """
+    log: list[tuple[int, str, str]] = []
     i = 0
     while i < len(lines):
-        if skip_reason(lines[i]):
+        if why := skip_reason(lines[i]):
+            log.append((i + 1, why, lines[i].strip()))
             i += 1
             continue
-        buf, j = [lines[i].strip()], i + 1
+        buf, j, block = [lines[i].strip()], i + 1, [len(log)]
+        log.append((i + 1, "先頭行", lines[i].strip()))
         while j < min(i + JOIN_LINES, len(lines)) and not skip_reason(lines[j]):
             buf.append(lines[j].strip())
+            block.append(len(log))
+            log.append((j + 1, "繋いだ", lines[j].strip()))
             j += 1
         t = plain(_join(buf))
-        if not t or skip_reason(t):
+        why = skip_reason(t) if t else "組み上げたら空"
+        if why:
+            for k in block:
+                log[k] = (log[k][0], f"段落ごと捨てた（{why}）", log[k][2])
             i = j
             continue
         ends = [m.end() for m in SENTENCE_END.finditer(t)]
         fit = [e for e in ends if e <= PURPOSE_MAX]
-        if fit:
-            return t[:fit[-1]]
-        # 1文目すら収まらない。ここだけは途中で切る（欄の上限のほうが硬い）
-        return t[:PURPOSE_MAX]
-    return ""
+        # 1文目すら収まらないときだけ途中で切る（欄の上限のほうが硬い）
+        return (t[:fit[-1]] if fit else t[:PURPOSE_MAX]), log
+    return "", log
+
+
+def purpose_trace(repo: Path) -> list[tuple[str, int, str, str]]:
+    """どの行を採り、他をなぜ飛ばしたかの記録。最後に**返る値そのもの**を置く。
+
+    記録は scan_lines が本体の走査中に作ったものである。道具のためにもう一度
+    走査し直すと、本体と食い違ったときに道具のほうを信じてしまう。
+    """
+    out: list[tuple[str, int, str, str]] = []
+    for name in ("README.md", "CLAUDE.md", "README.rst"):
+        f = repo / name
+        if not f.is_file():
+            continue
+        try:
+            lines = f.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except OSError:
+            continue
+        got, log = scan_lines(lines[:PURPOSE_SCAN])
+        out.extend((name, i, why, text[:80]) for i, why, text in log)
+        if got:
+            out.append((name, 0, "値", got))
+            return out
+    if out:
+        out.append(("", 0, "値", "(空)"))
+    return out
 
 
 def read_purpose(repo: Path) -> str:
@@ -211,7 +229,7 @@ def read_purpose(repo: Path) -> str:
             lines = f.read_text(encoding="utf-8", errors="ignore").splitlines()
         except OSError:
             continue
-        got = first_sentences(lines[:PURPOSE_SCAN])
+        got, _ = scan_lines(lines[:PURPOSE_SCAN])
         if got:
             return got
     return ""
@@ -621,7 +639,10 @@ def main() -> int:
             print("README も CLAUDE.md も無いので下書きは空です")
             return 0
         for name, i, why, text in rows:
-            print(f"  {name}:{i}  {why}  {text}")
+            if why == "値":
+                print(f"  → 返る値: {text}")
+            else:
+                print(f"  {name}:{i}  {why}  {text}")
         return 0
     if args.set_purpose:
         return set_purpose(args.set_purpose)
