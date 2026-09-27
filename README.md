@@ -21,18 +21,35 @@ pip も npm も使いません。入れた直後は work-os が持つ**判定基
 （顧客名のような組織固有の事実は同梱しないので、その分の観測は skip と出ます。
 自分の registry を持たせるときは `WORKOS_REGISTRY` でそこを指します）。
 
-work-os 全体（`scan` / `adopt` / `promote`）を使うなら clone します。
+work-os 全体（`scan` / `adopt` / `promote` など十数個の入口）を使うなら clone します。
 
 ```bash
 git clone https://github.com/tkbstore/work-os work-os
 cd work-os
 
-# 何ができるかを見る
-python3 engine/release_gate.py --help
+# 何が呼べるかを一覧する（入口を1本にまとめた傘）
+python3 engine/cli.py
 
-# 自分の git 群を実測する（既存には一切触れない読み取り専用）
+# 個別に呼ぶ。傘を通しても、直接叩いても同じ
+python3 engine/cli.py scan ~/src --group my-domain
 python3 engine/scan.py ~/src --group my-domain
 ```
+
+一覧は `engine/*.py` を実際に見て `if __name__ == "__main__":` を持つものを拾います。
+名前の表を別に持たないので、入口を足した時点で一覧に出ます。
+
+フルパスを書かずにどこからでも呼びたいときは、作業ツリーを指す shim を置きます。
+
+```bash
+printf '#!/bin/sh\nexec python3 "%s/engine/cli.py" "$@"\n' "$PWD" > ~/.local/bin/workos
+chmod +x ~/.local/bin/workos
+workos                      # 一覧
+workos release-gate --checks
+```
+
+shim は作業ツリーを直に指します。複製を置くと、repo を直したあとも古い版が黙って走り、
+直したはずの挙動が返ってきません（上の `install.sh` が意図的に複製を置くのは、
+repo を持たない利用者向けだからです）。
 
 ## 必要なもの
 

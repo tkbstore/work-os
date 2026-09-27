@@ -21,6 +21,19 @@ invariant = ["work.toml のスキーマ", "layer_of() の解決規則"]
 configurable = []
 
 [[capability]]
+id        = "cli"
+path      = "engine/cli.py"
+layer     = "golden_path"
+status    = "experimental"
+summary   = "engine の入口を1本にまとめた傘。一覧は実体の __main__ ガードから拾う"
+used_by   = ["work-os"]
+# status: 昇格ラダーの local → experimental は「1つのリポジトリで実際に動き、
+# capabilities.toml に登録されている」。両方満たしたのでここに置く。proposed は
+# 3リポジトリで必要になってからで、まだ主張できない。
+invariant = []
+configurable = []
+
+[[capability]]
 id        = "validate"
 path      = "engine/validate.py"
 layer     = "golden_path"

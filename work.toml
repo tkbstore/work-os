@@ -17,6 +17,7 @@ kernel      = [
   "engine/workos.py",
 ]
 golden_path = [
+  "engine/cli.py",
   "engine/validate.py",
   "engine/scan.py",
   "engine/fleet.py",
@@ -42,6 +43,7 @@ golden_path = [
   "tests/test_release_gate.py",
   "tests/test_deliverable_gate.py",
   "tests/test_audit.py",
+  "tests/test_cli.py",
 ]
 # config 層は別リポジトリ（work-os-registry）にある。組織固有の事実を
 # 本体の履歴に残さないため 2026-08-31 に切り出した。所在は engine/workos.py の
