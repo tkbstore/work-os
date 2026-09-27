@@ -9,7 +9,7 @@ enforcement = "warn"
 
 [extends]
 domain_repo    = ""
-kernel_version = "0.3.0"
+kernel_version = "0.4.0"
 
 [layers]
 kernel      = [
