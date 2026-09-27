@@ -70,12 +70,6 @@ if ! "$PY" "$WORKOS/tests/test_release_gate.py" >/dev/null 2>&1; then
   add "[公開ゲート検査] 失敗。ゲートに穴が開いています: python3 $WORKOS/tests/test_release_gate.py"
 fi
 
-# 21日を超えた inbox は捨てる候補として毎日出す。溜まらないための唯一の規則。
-stale="$("$PY" "$WORKOS/engine/inbox.py" --stale 2>/dev/null)"
-case "$stale" in
-  *候補*) add "[inbox] $stale" ;;
-esac
-
 # 記録と通知は、すべての検査が終わってから。ここが検査の途中にあると、後ろの
 # 検査は out に足されるだけで誰にも届かない（実測 2026-08-31: 5つがそうだった）。
 if [ $code -ne 0 ]; then

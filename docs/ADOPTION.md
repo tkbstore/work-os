@@ -67,12 +67,9 @@ python3 engine/scan.py <repos> --group <domain-prefix> --emit \
 
 ```bash
 python3 engine/validate.py <repos>/<a-domain-repo>
-python3 engine/render.py <repos>/<a-domain-repo> \
-  > <repos>/<a-domain-repo>/CAPABILITIES.md
 ```
 
-既存の `CAPABILITIES.md` は手書きなので、生成物に置き換わります。
-（元の内容は git 履歴に残るので、消えません。）
+人が読む一覧は `capabilities.toml` をそのまま読みます。
 
 ---
 

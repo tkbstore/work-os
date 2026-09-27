@@ -16,7 +16,7 @@ path      = "engine/workos.py"
 layer     = "kernel"
 status    = "kernel"
 summary   = "work.toml / capabilities.toml の読み込みと層判定"
-used_by   = ["validate", "scan", "adopt", "promote", "render"]
+used_by   = ["validate", "scan", "adopt", "promote"]
 invariant = ["work.toml のスキーマ", "layer_of() の解決規則"]
 configurable = []
 
@@ -74,16 +74,6 @@ invariant = []
 configurable = []
 
 [[capability]]
-id        = "render"
-path      = "engine/render.py"
-layer     = "golden_path"
-status    = "experimental"
-summary   = "capabilities.toml から CAPABILITIES.md を生成する"
-used_by   = ["marketing"]
-invariant = []
-configurable = []
-
-[[capability]]
 id        = "claude-guard"
 path      = "hooks/claude_guard.py"
 layer     = "golden_path"
@@ -135,22 +125,6 @@ invariant = ["読み取り専用であること", "新しい規約を足さず�
 configurable = ["FRONT_KEYS", "ATTENTION", "NOISE_PREFIXES"]
 
 [[capability]]
-id        = "knowhow"
-path      = "engine/knowhow.py"
-layer     = "golden_path"
-status    = "local"
-summary   = "意思決定ログ(ADR)の front-matter から繰り返されたノウハウを収穫し、rule of three を満たした昇格候補を出す"
-used_by   = ["*"]
-# used_by は表示用ではなく validate.py の3社ルール判定に効く（"*" は全称扱いで免除）。
-# ここが "*" なのは「全ドメインが使う」と主張したからではなく、実際の適用先が
-# 組織固有の事実で公開層に書けないため。正は ADR front-matter の sources 側。
-# status=local の間は3社ルールの検査が走らないので無害だが、proposed に上げるときは
-# 全称主張が実態と合うかを必ず見ること。記憶ではなくここに残す。
-note      = "実際の適用先は各リポの ADR front-matter が正。proposed 昇格時に要再検討"
-invariant = ["読み取り専用であること", "数える単位は distinct な適用先(sources)であること", "RULE_OF_THREE を workos から共有し二重定義しないこと"]
-configurable = ["LIST_KEYS", "SCALAR_KEYS", "DECISIONS_DIR"]
-
-[[capability]]
 id        = "abstraction_gate"
 path      = "engine/abstraction_gate.py"
 layer     = "golden_path"
@@ -179,16 +153,6 @@ summary   = "main を直接編集しようとしたときに警告する。憲�
 used_by   = ["*"]
 invariant = ["何も止めないこと（warn の間）", "sessions/ .claude/ registry/ は素通りさせること"]
 configurable = ["PROTECTED", "ALWAYS_FREE"]
-
-[[capability]]
-id        = "inbox"
-path      = "engine/inbox.py"
-layer     = "golden_path"
-status    = "experimental"
-summary   = "投げ先を決めずに受け取る緩衝地帯。21日残ったら捨てる"
-used_by   = ["*"]
-invariant = ["投げる時点で投げ先を要求しないこと"]
-configurable = ["DROP_DAYS"]
 
 [[capability]]
 id        = "catalog"
