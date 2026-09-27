@@ -43,6 +43,54 @@ MAX_DEPTH = 3
 PURPOSE_MAX = 120
 
 
+# 飛ばす行の見分け。**印だけ**を持たせる。prefix の集合を素で書くと、
+# 太字の ** が箇条書きの * に当たる（実測 2026-09-27: scrapers の README で
+# 3行目「**収集専任の層。** ...」が箇条書きと判定され、4行目「分析・スコアリングは
+# 別リポの仕事」が purpose になった。何を"しない"物かの説明が台帳に載り、
+# 空欄ではないので gate も --verify も通る）。
+# 箇条書きの印は「印＋空白」で初めて箇条書きである。印だけでは強調と区別できない。
+SKIP_BULLET = ("-", "*", "+")
+SKIP_PREFIX = ("#", "<!--", "|", "`", ">", "[")
+PURPOSE_SCAN = 40
+
+
+def skip_reason(line: str) -> str:
+    """飛ばす理由。飛ばさないなら空文字。何が当たったかを呼び側に返す。
+
+    当たった印を返さない分類器は、間違えたことが出力から分からない。
+    この穴は実際に、当たった印を出していなかったために目視でしか見つからなかった。
+    """
+    t = line.strip()
+    if not t:
+        return "空行"
+    for b in SKIP_BULLET:
+        if t.startswith(b) and t[len(b):len(b) + 1] in (" ", "\t"):
+            return f"箇条書き {b!r}+空白"
+    for pre in SKIP_PREFIX:
+        if t.startswith(pre):
+            return f"前置き {pre!r}"
+    return ""
+
+
+def purpose_trace(repo: Path) -> list[tuple[str, int, str, str]]:
+    """どのファイルの何行目を採り、他をなぜ飛ばしたかを並べて返す（診断用）。"""
+    trace: list[tuple[str, int, str, str]] = []
+    for name in ("README.md", "CLAUDE.md", "README.rst"):
+        f = repo / name
+        if not f.is_file():
+            continue
+        try:
+            lines = f.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except OSError:
+            continue
+        for i, line in enumerate(lines[:PURPOSE_SCAN], 1):
+            why = skip_reason(line)
+            trace.append((name, i, why or "採用", line.strip()[:80]))
+            if not why:
+                return trace
+    return trace
+
+
 def read_purpose(repo: Path) -> str:
     """README / CLAUDE.md の最初の意味のある1文を purpose の下書きにする。"""
     for name in ("README.md", "CLAUDE.md", "README.rst"):
@@ -53,11 +101,10 @@ def read_purpose(repo: Path) -> str:
             lines = f.read_text(encoding="utf-8", errors="ignore").splitlines()
         except OSError:
             continue
-        for line in lines[:40]:
-            t = line.strip()
-            if not t or t.startswith(("#", "<!--", "-", "*", "|", "`", ">", "[")):
+        for line in lines[:PURPOSE_SCAN]:
+            if skip_reason(line):
                 continue
-            t = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", t)
+            t = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", line.strip())
             return t[:PURPOSE_MAX]
     return ""
 
@@ -179,13 +226,16 @@ def build(root: Path) -> int:
     missing = [n for n, p, _ in rows if not p]
     if missing:
         print(f"purpose が空 {len(missing)} 件（README も CLAUDE.md も無い）: "
-              f"{', '.join(missing[:8])}")
+              f"{', '.join(missing)}")
     if drafts:
         # 黙って人の側を残すと、README が育っても台帳が古い説明を持ち続ける。
         # 採るかどうかは人が決めるので、下書きとの差を毎回出す。
         print(f"purpose は残しました。README 側の下書きと違うもの {len(drafts)} 件："
               "採るなら手で書き換えてください。")
-        for name, purpose, draft in drafts[:8]:
+        # 先頭 8 件だけ出していた。件数は出るが中身が出ないので、下書き側の
+        # 取り違えは目視でしか見つからない（実測 2026-09-27: 13 件のうち 5 件が
+        # 隠れていた）。数えたものは全部出す。
+        for name, purpose, draft in drafts:
             print(f"  {name}\n    台帳: {purpose[:70]}\n    下書き: {draft[:70]}")
     return 0
 
@@ -442,6 +492,8 @@ def main() -> int:
                     help="宣言と実在のズレを出す（root 省略時は出自から読む）")
     ap.add_argument("--set-purpose", nargs="+", metavar="ARG",
                     help="名前 本文 の2つずつ。purpose だけを書き換える")
+    ap.add_argument("--why-purpose", metavar="REPO_PATH",
+                    help="purpose の下書きがどの行から来たかを出す")
     ap.add_argument("--find", metavar="TERM", help="能力語で引く")
     ap.add_argument("--why", action="store_true", help="一致の根拠を出す")
     ap.add_argument("--compare", nargs="+", metavar="REPO",
@@ -451,6 +503,18 @@ def main() -> int:
 
     if args.verify:
         return verify(args.root.expanduser().resolve() if args.root else None)
+    if args.why_purpose:
+        d = Path(args.why_purpose).expanduser().resolve()
+        if not d.is_dir():
+            print(f"ディレクトリがありません: {d}", file=sys.stderr)
+            return 2
+        rows = purpose_trace(d)
+        if not rows:
+            print("README も CLAUDE.md も無いので下書きは空です")
+            return 0
+        for name, i, why, text in rows:
+            print(f"  {name}:{i}  {why}  {text}")
+        return 0
     if args.set_purpose:
         return set_purpose(args.set_purpose)
     if args.build:

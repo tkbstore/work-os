@@ -200,6 +200,56 @@ with tempfile.TemporaryDirectory() as td:
     check("カタログが無ければ 1", r.returncode == 1, f"{r.returncode} / {r.stderr[:200]}")
 
 
+with tempfile.TemporaryDirectory() as td:
+    # 太字の ** を箇条書きの * と取り違えていた。飛ばす印は「印＋空白」で初めて印である。
+    # 実測 2026-09-27: scrapers の README で先頭の1文が飛ばされ、次の行
+    # 「分析・スコアリングは別リポの仕事」——何を"しない"物かの説明——が purpose になった。
+    # 空欄ではないので gate も --verify も通る。台帳は静かに間違ったまま通る。
+    tmp = Path(td)
+    fleet, reg = tmp / "fleet", tmp / "registry"
+    repo(fleet, "bold-lead",
+         "# bold-lead\n\n**収集専任の層。** 各ファイルが単体の CLI である。\n"
+         "分析は別リポの仕事。\n")
+    repo(fleet, "real-bullet", "# real-bullet\n\n- one\n* two\n+ three\n本文の1文。\n")
+    repo(fleet, "italic-lead", "# italic-lead\n\n*斜体で始まる1文である。*\n")
+    repo(fleet, "quote-and-table", "# q\n\n> 引用。\n| 表 | 組 |\n`コード`\n[link]: x\n本文の1文。\n")
+    build(reg, fleet)
+    catalog = reg / "catalog.toml"
+
+    check("太字で始まる先頭文を採る",
+          purpose_of_toml(catalog, "bold-lead") == "**収集専任の層。** 各ファイルが単体の CLI である。",
+          purpose_of_toml(catalog, "bold-lead"))
+    check("本当の箇条書きは飛ばす",
+          purpose_of_toml(catalog, "real-bullet") == "本文の1文。",
+          purpose_of_toml(catalog, "real-bullet"))
+    check("斜体で始まる1文も採る",
+          purpose_of_toml(catalog, "italic-lead") == "*斜体で始まる1文である。*",
+          purpose_of_toml(catalog, "italic-lead"))
+    check("引用・表・コード・リンク定義は飛ばす",
+          purpose_of_toml(catalog, "quote-and-table") == "本文の1文。",
+          purpose_of_toml(catalog, "quote-and-table"))
+
+    # 何が当たって飛ばしたかを言えること。言えない分類器は間違いが見えない
+    env = {**os.environ, "WORKOS_REGISTRY": str(reg)}
+    r = subprocess.run([sys.executable, str(CATALOG_PY), "--why-purpose",
+                        str(fleet / "real-bullet")],
+                       cwd=ROOT, capture_output=True, text=True, timeout=60, env=env)
+    check("--why-purpose が 0 を返す", r.returncode == 0, r.stderr[:200])
+    check("採った行を出す", "採用" in r.stdout, r.stdout[:300])
+    # 当たった印そのものを出していること。行の中身に同じ語が混ざっても
+    # 通らないよう、印の表記まで含めて見る。
+    check("飛ばした印を名指しする",
+          "箇条書き '-'+空白" in r.stdout and "箇条書き '*'+空白" in r.stdout
+          and "前置き '#'" in r.stdout, r.stdout[:400])
+
+    # 空欄・下書き差分の一覧を打ち切らない（件数だけ出して中身を隠すと穴が見えない）
+    for i in range(10):
+        repo(fleet, f"noreadme{i}", "# 見出しだけ\n")
+    p3 = build(reg, fleet)
+    check("空欄を10件以上でも全部名指しする",
+          all(f"noreadme{i}" in p3.stdout for i in range(10)), p3.stdout[:500])
+
+
 print(f"[test_catalog_purpose] {checked} 件検査")
 if failures:
     for f in failures:
