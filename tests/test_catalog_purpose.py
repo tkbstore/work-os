@@ -225,6 +225,12 @@ with tempfile.TemporaryDirectory() as td:
     repo(fleet, "tag-only", "<p align=\"center\">\n</p>\n<br>\n本文の1文。\n")
     repo(fleet, "prose-after-tag", "<p align=\"center\">A terminal for agents.</p>\n")
     repo(fleet, "nav-row", "# n\n\nEnglish | 日本語 | 한국어 | Deutsch\n本文の1文。\n")
+    # 1行ずつ見ると散文、繋ぐと案内の行になるもの。行末に区切りが1つずつ置かれた形。
+    repo(fleet, "nav-joined",
+         "# nj\n\nHosted for teams →·\nDocs ·\nDiscord ·\nContact\n\n本文の1文。\n")
+    # 全角の空白畳みが em dash まで食っていた
+    repo(fleet, "em-dash", "# e\n\nMarketing AI MVP — 仮説検証の基盤である。\n")
+    repo(fleet, "em-dash-jp", "# e\n\nプラットフォーム — 特定顧客向けの実装。\n")
     repo(fleet, "badge-only", "# b\n\n![platform](https://x/y.svg)\n本文の1文。\n")
     repo(fleet, "long-first",
          "# l\n\n" + "あ" * 130 + "。\n")
@@ -251,6 +257,13 @@ with tempfile.TemporaryDirectory() as td:
     check("タグの後ろの散文は拾う",
           got("prose-after-tag") == "A terminal for agents.", got("prose-after-tag"))
     check("言語切替のような区切りの行は飛ばす", got("nav-row") == "本文の1文。", got("nav-row"))
+    # 捨てるのは段落ごと。先頭行だけ落とすと、残りが同じ形で通る
+    check("繋ぐと案内の行になるものは段落ごと飛ばす",
+          got("nav-joined") == "本文の1文。", got("nav-joined"))
+    check("em dash の前後の空白を食わない（英文側）",
+          got("em-dash") == "Marketing AI MVP — 仮説検証の基盤である。", got("em-dash"))
+    check("em dash の前後の空白を食わない（全角側）",
+          got("em-dash-jp") == "プラットフォーム — 特定顧客向けの実装。", got("em-dash-jp"))
     check("画像だけの行は飛ばす", got("badge-only") == "本文の1文。", got("badge-only"))
 
     # 予算（120字）の扱い。文の途中で切らない

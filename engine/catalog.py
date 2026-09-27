@@ -51,6 +51,12 @@ PURPOSE_MAX = 120
 # 箇条書きの印は「印＋空白」で初めて箇条書きである。印だけでは強調と区別できない。
 SKIP_BULLET = ("-", "*", "+")
 HTML_TAG = re.compile(r"</?[a-zA-Z][^>]*>")
+# 全角のあいだの空白だけを畳む。「非 ASCII」で判定すると em dash（—）や
+# 曲がった引用符まで全角に入り、原文の空白を片側だけ食う
+# （実測 2026-09-27: 「X — 仮説検証」が「X —仮説検証」になり、
+#  「プラットフォーム — Y 向け」が「プラットフォーム— Y 向け」になった。5 本で発生）。
+CJK = r"\u3000-\u303F\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF"
+CJK_GAP = re.compile(f"(?<=[{CJK}])\\s+(?=[{CJK}])")
 # "!" はリンク記法を外した跡に残る画像だけの行（![badge](url) → !badge）。
 # 生の HTML で始まる行は**飛ばさない**。<p align="center">本文… のように、
 # 説明そのものがタグの後ろに書かれていることがある（実測: cmux の README 2行目が
@@ -83,8 +89,10 @@ def skip_reason(line: str) -> str:
     # 表の行と、言語切替のような案内の行。行頭が "|" でなくても区切りが並ぶ
     # （実測: cmux の README 先頭は "English | 日本語 | Tiếng Việt | ..." が
     #  17 言語ぶん続き、文の終わりが無いので 120 字ぶんが purpose になっていた）。
-    if HTML_TAG.sub(" ", t).count("|") >= 3:
-        return "区切り '|' が3つ以上（表か案内の行）"
+    bare = HTML_TAG.sub(" ", t)
+    for sep in ("|", "·", "•", "／"):
+        if bare.count(sep) >= 3:
+            return f"区切り {sep!r} が3つ以上（表か案内の行）"
     return ""
 
 
@@ -148,7 +156,7 @@ def plain(text: str) -> str:
     t = re.sub(r"\s+", " ", t)
     # 「**収集専任の層。** 各ファイル…」から ** を外すと「層。 各」になる。
     # 原文の空白は記号の外側にあったもので、文中の空白ではない。
-    t = re.sub(r"(?<=[^\x00-\x7F])\s+(?=[^\x00-\x7F])", "", t)
+    t = CJK_GAP.sub("", t)
     return re.sub(r"(?<=[。、」）])\s+", "", t).strip()
 
 
@@ -158,22 +166,32 @@ def first_sentences(lines: list[str]) -> str:
     docstring は「最初の意味のある1文」と宣言していたが、実装は「飛ばさない
     最初の1行」を返していた。この2つは README の書き方次第で食い違う。
 
-      行で折られた1文  → 断片になる（sales-tel「…APIを呼び出し、」で切れていた）
+      行で折られた1文  → 断片になる（「…APIを呼び出し、」で切れて意味が反転する）
       1行に2文          → 1文に削ると中身が落ちる（「X monorepo. AEO product.」が
                         「X monorepo.」だけになり、何の repo かが消える）
 
     どちらも「行」を単位にしたことに由来する。文を単位にし、欄の予算（120字）に
     収まるだけ詰める。**文の途中では切らない。** 切ると何をする物か読めなくなる。
+
+    飛ばす判定は行だけでなく**組み上げた結果にも**当てる。1行ずつ見ると
+    散文に見えて、繋ぐと案内の行になるものがある（実測 2026-09-27: リンクが
+    1行に1つずつ、行末に中黒が1つずつ置かれた README。行ごとには区切りが
+    1つしか無いので通り、繋ぐと "A → · B · C · D" になっていた）。
+    捨てるときは**その段落ごと**飛ばす。先頭行だけ落とすと、残りが同じ形で通る。
     """
-    for i, line in enumerate(lines):
-        if skip_reason(line):
+    i = 0
+    while i < len(lines):
+        if skip_reason(lines[i]):
+            i += 1
             continue
-        buf = [line.strip()]
-        for nxt in lines[i + 1:i + JOIN_LINES]:
-            if skip_reason(nxt):
-                break
-            buf.append(nxt.strip())
+        buf, j = [lines[i].strip()], i + 1
+        while j < min(i + JOIN_LINES, len(lines)) and not skip_reason(lines[j]):
+            buf.append(lines[j].strip())
+            j += 1
         t = plain(_join(buf))
+        if not t or skip_reason(t):
+            i = j
+            continue
         ends = [m.end() for m in SENTENCE_END.finditer(t)]
         fit = [e for e in ends if e <= PURPOSE_MAX]
         if fit:
