@@ -9,6 +9,7 @@ registry/repos.toml は**存在**を漏れなく持っているが、**能力**�
 
   python3 engine/catalog.py <repos> --build     # registry/catalog.toml を生成
   python3 engine/catalog.py --verify            # 宣言と実在のズレを出す
+  python3 engine/catalog.py --set-purpose <名前> <本文>   # purpose を手で直す
   python3 engine/catalog.py --find pdf          # どのリポが持っているか
   python3 engine/catalog.py --find pdf --why    # 何を根拠にそう言うか
 
@@ -39,6 +40,7 @@ STOP = {"src", "lib", "app", "test", "tests", "main", "index", "utils", "util",
         "config", "types", "core", "common", "scripts", "tools", "api", "cli",
         "init", "setup", "run", "helpers", "models", "schemas", "base"}
 MAX_DEPTH = 3
+PURPOSE_MAX = 120
 
 
 def read_purpose(repo: Path) -> str:
@@ -56,7 +58,7 @@ def read_purpose(repo: Path) -> str:
             if not t or t.startswith(("#", "<!--", "-", "*", "|", "`", ">", "[")):
                 continue
             t = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", t)
-            return t[:120]
+            return t[:PURPOSE_MAX]
     return ""
 
 
@@ -380,12 +382,66 @@ def find(term: str, why: bool) -> int:
     return 0
 
 
+def set_purpose(pairs: list[str]) -> int:
+    """purpose だけを名前で書き換える。terms と meta は触らない。
+
+    ヘッダは「purpose は目視で直してよい」と宣言しているのに、直す手段が
+    「エディタで catalog.toml を開く」しかなかった。台帳は生成物なので、
+    手で開く運びだと --build との順序次第で消える（2026-09-26 に実際に消えた）。
+    直してよいと書いてある欄には、直すための操作を持たせる。
+
+    2つずつ（名前, 本文）で受ける。1つでも当たらなければ何も書かない。
+    """
+    if len(pairs) % 2:
+        print("--set-purpose は 名前 本文 の2つずつです", file=sys.stderr)
+        return 2
+    if not CATALOG.exists():
+        print(f"{CATALOG} がありません。先に --build してください。", file=sys.stderr)
+        return 1
+    want = list(zip(pairs[::2], pairs[1::2]))
+    known = {str(r.get("name") or "") for r in load()}
+    unknown = [n for n, _ in want if n not in known]
+    if unknown:
+        print(f"カタログに無い名前: {', '.join(unknown)}。--build が先です。", file=sys.stderr)
+        return 2
+    too_long = [n for n, t in want if len(t) > PURPOSE_MAX]
+    if too_long:
+        print(f"purpose が {PURPOSE_MAX} 字を超えています: {', '.join(too_long)}", file=sys.stderr)
+        return 2
+
+    lines = CATALOG.read_text(encoding="utf-8").splitlines()
+    new = list(lines)
+    current = ""
+    done = []
+    for i, line in enumerate(lines):
+        m = re.match(r'^name\s*=\s*"(.*)"$', line)
+        if m:
+            current = m.group(1).replace('\\"', '"')
+            continue
+        if not line.startswith("purpose"):
+            continue
+        for name, text in want:
+            if name != current:
+                continue
+            before = re.sub(r'^purpose\s*=\s*"(.*)"$', r"\1", line)
+            esc = text.replace("\\", "\\\\").replace('"', '\\"')
+            new[i] = f'purpose = "{esc}"'
+            done.append((name, before, text))
+    CATALOG.write_text("\n".join(new) + "\n", encoding="utf-8")
+    for name, before, after in done:
+        print(f"{name}\n  旧: {before or '(空)'}\n  新: {after}")
+    print(f"{len(done)} 件を書き換えました: {CATALOG}")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="能力で引けるカタログ")
     ap.add_argument("root", nargs="?", type=Path, help="--build のとき必要")
     ap.add_argument("--build", action="store_true", help="カタログを生成する")
     ap.add_argument("--verify", action="store_true",
                     help="宣言と実在のズレを出す（root 省略時は出自から読む）")
+    ap.add_argument("--set-purpose", nargs="+", metavar="ARG",
+                    help="名前 本文 の2つずつ。purpose だけを書き換える")
     ap.add_argument("--find", metavar="TERM", help="能力語で引く")
     ap.add_argument("--why", action="store_true", help="一致の根拠を出す")
     ap.add_argument("--compare", nargs="+", metavar="REPO",
@@ -395,6 +451,8 @@ def main() -> int:
 
     if args.verify:
         return verify(args.root.expanduser().resolve() if args.root else None)
+    if args.set_purpose:
+        return set_purpose(args.set_purpose)
     if args.build:
         if not args.root:
             print("--build には root が必要です", file=sys.stderr)
