@@ -28,6 +28,21 @@ engine には走る入口が十数個あり、どれも `python3 <この repo>/e
 
 `--checks` が「ゲートは何を見ているか」に答えるのと同じ位置に、この一覧は
 「work-os は何を呼べるか」に答える。どちらも走らせる前に読める。
+
+  workos --callers            各入口を「誰が呼んでいるか」で並べる
+
+**呼べることと呼ばれていることは別である。** 2026-09-28 に入口17本のうち3本を消した
+が、見つけ方が「傘を作ったので数えられた」という偶然だった。次の1本は同じ偶然が
+起きないと見つからない。だから呼び出し元の数え方を道具側に置く。
+
+数えるのは**実行される書き方**（`python3 …/<名前>.py` の形）だけで、名前の言及は
+数えない。そのうえで code（.py / .sh = 自動で走る経路）と docs（.md = 人が手で叩く
+案内）を分けて出す。混ぜると、README に書いてあるだけの入口が「呼ばれている」に見える。
+
+**これで見つかるのは「呼び出し元ゼロ」までである。** 呼ばれていて何もしていない入口は
+ここでは分からない（消した3本のうち inbox は毎日走っていて、毎日空を返していた）。
+「走った」と「測れた」は別の欄であり、後者は人が見る。道具が答える範囲を、答えられる
+範囲より広く書かない。
 """
 
 from __future__ import annotations
@@ -94,6 +109,65 @@ def entries() -> dict[str, Path]:
     return found
 
 
+# 実行される書き方。名前の言及（「engine/render.py を消した」等）と区別する。
+def invocation(name: str) -> re.Pattern:
+    return re.compile(
+        r"(?:python3?|sys\.executable|\$PY|\$\{PY\}|\$WORKOS)"
+        r"[^\n]{0,80}?\b" + re.escape(name) + r"\.py\b")
+
+
+CODE_SUFFIX = (".py", ".sh")
+DOC_SUFFIX = (".md",)
+
+
+def callers(name: str, path: Path) -> tuple[list[str], list[str]]:
+    """(自動で走る経路, 人が手で叩く案内)。自分自身は数えない。"""
+    pat = invocation(name)
+    code, docs = [], []
+    for f in sorted(ROOT.rglob("*")):
+        if not f.is_file() or f == path:
+            continue
+        rel = f.relative_to(ROOT)
+        if any(part in (".git", "__pycache__") for part in rel.parts):
+            continue
+        bucket = code if f.suffix in CODE_SUFFIX else docs if f.suffix in DOC_SUFFIX else None
+        if bucket is None:
+            continue
+        try:
+            text = f.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if pat.search(text):
+            bucket.append(str(rel))
+    return code, docs
+
+
+def callers_report(found: dict[str, Path]) -> str:
+    width = max((len(n) for n in found), default=4)
+    lines = ["入口ごとの呼び出し元（実行される書き方だけを数えます）", ""]
+    orphans = []
+    for name, path in found.items():
+        code, docs = callers(name, path)
+        mark = "  " if code else "★ "
+        if not code:
+            orphans.append(name)
+        lines.append(f"{mark}{name.replace('_', '-'):<{width}}  "
+                     f"自動 {len(code)}  案内 {len(docs)}"
+                     + (f"  ← {', '.join(code[:3])}" if code else ""))
+    lines.append("")
+    if orphans:
+        lines.append(f"★ = 自動で走る経路が無い（{len(orphans)} 本）: "
+                     + ", ".join(n.replace('_', '-') for n in orphans))
+    else:
+        lines.append("自動で走る経路が無い入口はありません。")
+    lines += [
+        "",
+        "  ここで分かるのは「呼び出し元ゼロ」までです。呼ばれていて何もしていない入口は",
+        "  分かりません（走ったことと、何かを測ったことは別の欄です）。",
+    ]
+    return "\n".join(lines)
+
+
 def normalize(name: str) -> str:
     """`release-gate` と `release_gate` を同じものとして扱う。"""
     return name.strip().replace("-", "_")
@@ -120,6 +194,10 @@ def listing(found: dict[str, Path]) -> str:
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     found = entries()
+
+    if args and args[0] in ("--callers", "callers"):
+        print(callers_report(found))
+        return 0
 
     if not args or args[0] in ("-h", "--help", "help", "list", "--list"):
         print(listing(found))

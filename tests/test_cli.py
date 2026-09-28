@@ -167,6 +167,62 @@ u = run("scan", BAD_FLAG)
 check("0 以外の終了コードを潰さない", u.returncode == d.returncode,
       f"傘={u.returncode} 直接={d.returncode}")
 
+# --------------------------------------------------------------------------- #
+# 呼び出し元の数え方: 実行される書き方だけを数え、名前の言及は数えない
+# --------------------------------------------------------------------------- #
+
+RUNS = [
+    "python3 engine/scan.py ~/src",
+    'python3 "$WORKOS/engine/scan.py" --stale',
+    "$PY $WORKOS/engine/scan.py",
+    'subprocess.run([sys.executable, str(ENGINE / "scan.py")])',
+    "python engine/scan.py",
+]
+MENTIONS = [
+    "# 過去版の engine/scan.py に顧客名が残っていた",
+    "engine/scan.py を消した",
+    "`engine/scan.py` は読み取り専用です",
+    "scan.py",
+]
+for text in RUNS:
+    check(f"実行の書き方を数える: {text[:40]}", bool(cli.invocation("scan").search(text)), text)
+for text in MENTIONS:
+    check(f"言及は数えない: {text[:40]}", not cli.invocation("scan").search(text), text)
+
+# 別の入口の名前に当たらない（部分一致で巻き込まない）
+check("release_gate を scan と数えない",
+      not cli.invocation("scan").search("python3 engine/release_gate.py"))
+check("gate を deliverable_gate と数えない",
+      not cli.invocation("deliverable_gate").search("python3 engine/release_gate.py"))
+
+# 実測: ゲートが走らせる入口には自動の呼び出し元が在る
+for name in ("validate", "release_gate", "abstraction_gate", "catalog"):
+    code, _ = cli.callers(name, cli.entries()[name])
+    check(f"{name} に自動の呼び出し元が在る", len(code) > 0, str(code))
+
+# 自分自身は数えない
+code, docs = cli.callers("scan", cli.entries()["scan"])
+check("自分自身を呼び出し元に数えない",
+      "engine/scan.py" not in code and "engine/scan.py" not in docs, str(code + docs))
+
+rep = run("--callers")
+check("--callers が終了コード0", rep.returncode == 0, rep.stderr[:200])
+check("--callers が答えられる範囲の限界を書く",
+      "呼ばれていて何もしていない" in rep.stdout
+      and "走ったことと、何かを測ったことは別" in rep.stdout, rep.stdout[-400:])
+
+# code（自動で走る経路）と docs（人が叩く案内）を混ぜない。
+# calibrate は README / CONTRIBUTING に手順として書かれているが、自動で走る経路が無い。
+# 混ぜると「書いてあるだけの入口」が「呼ばれている」に見える。
+cal_code, cal_docs = cli.callers("calibrate", cli.entries()["calibrate"])
+check("案内だけの入口を自動に数えない（calibrate の自動は0）", cal_code == [], str(cal_code))
+check("その入口に案内は在る（この検査が空回りしていない）", len(cal_docs) > 0, str(cal_docs))
+check("--callers が案内だけの入口に印をつける",
+      "★" in rep.stdout and "calibrate" in rep.stdout.split("★ = ")[-1],
+      rep.stdout[-400:])
+for name in cli.entries():
+    check(f"--callers に {name} が出る", name.replace("_", "-") in rep.stdout)
+
 print(f"[test_cli] {checked} 件検査")
 if failures:
     for f in failures:
