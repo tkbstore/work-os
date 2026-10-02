@@ -935,6 +935,32 @@ def obs_history_erased(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list
     return "fail", f"履歴が {n} コミットある。公開の起点より前が残っている", first
 
 
+def _excluded_blobs(root: Path, scope: list[str], except_globs: list[str]) -> set[str]:
+    """範囲内で、置かれた場所が **すべて** 除外に当たる blob。
+
+    rev-list --objects のパスでは決められない。同じ中身の blob は最初に見えた
+    パスで1度しか出ないので、tests/ と src/ に同じ鍵を置くと、tests/ 側の名前で
+    まとめて外れる（2026-10-02、単体テストで実際に素通りした）。全パスを知るには
+    コミットごとの差分を読むしかない。読めなければ何も外さない（落とす側に倒す）。
+    """
+    if not except_globs:
+        return set()
+    raw = _git_out(root, ["log", *scope, "--raw", "--no-abbrev", "-m", "--format="],
+                   timeout=120)
+    if raw is None:
+        return set()
+    paths: dict[str, set[str]] = {}
+    for line in raw.splitlines():
+        meta, _, rest = line.partition("\t")
+        fields = meta.split()
+        if not line.startswith(":") or len(fields) < 5 or not rest:
+            continue
+        # 改名は「元\t先」で並ぶ。中身が置かれているのは先のほう。
+        paths.setdefault(fields[3], set()).add(rest.split("\t")[-1])
+    return {blob for blob, ps in paths.items()
+            if all(any(_match_glob(p, g) for g in except_globs) for p in ps)}
+
+
 def obs_history_pattern_absent(root: Path, chk: dict,
                                ctx: dict) -> tuple[str, str, list[str]]:
     """履歴の中身（blob ＋ コミットメッセージ）にパターンが無いか。
@@ -973,10 +999,11 @@ def obs_history_pattern_absent(root: Path, chk: dict,
     listing = _git_out(root, ["rev-list", "--objects", *scope], timeout=120)
     if listing is None:
         return "skip", "git リポジトリではない", []
+    skip = _excluded_blobs(root, scope, _except_globs(chk, ctx.get("lanes_cfg", {})))
     names: dict[str, str] = {}
     for line in listing.splitlines():
         parts = line.split(maxsplit=1)
-        if parts:
+        if parts and parts[0] not in skip:
             names[parts[0]] = parts[1] if len(parts) == 2 else "<commit/tree>"
     if not names:
         return "pass", ("公開の起点より後にコミットが無い" if since else "履歴が空"), []

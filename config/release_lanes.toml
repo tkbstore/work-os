@@ -120,7 +120,13 @@ fixtures = ["**/tests/*", "**/test/*", "**/testdata/*", "**/fixtures/*",
             "**/__tests__/*", "**/resources/test/*", "**/spec/*",
             "**/examples/*", "**/*-examples/*", "**/example/*",
             "*.example", "**/*.example", "*.sample", "**/*.sample",
-            "**/*.example.*", "**/.env.*",
+            "**/*.example.*",
+            # .env の見本は上の *.example / *.sample で拾える。以前ここに "**/.env.*" が
+            # 在ったが、それは .env.local・.env.production（実体）まで見本扱いにして、
+            # no_secrets からも env_example_not_real からも外していた（2026-10-02）。
+            # 見本の名前だけを足す。実体の名前を足してはいけない。
+            "**/.env.template", "**/.env.*.template", "**/.env.dist",
+            "**/.env.defaults", "**/.env.vault",
             # 置き場（ディレクトリ）だけを見ていると、テストを *隣に置く* 流儀を
             # まるごと取りこぼす。実測: openclaw / cline / codex は src/ の中の
             # *.test.ts と *_tests.rs のダミー値で safety レーンに落ちていた。
@@ -402,7 +408,17 @@ why = "解説の見本と本物を機械は見分けられない。止めはし�
 [[lanes.safety.checks]]
 id = "env_example_not_real"
 kind = "pattern_absent"
-globs = [".env", ".env.local", ".env.production"]
+globs = ["**/.env", "**/.env.*"]
+# 以前は直下の3名（.env / .env.local / .env.production）だけを見ていた。
+# apps/web/.env も .env.development も .env.staging も素通りしていた（2026-10-02）。
+# 見本（.env.example 等）と、追跡するのが作法のもの（.env.vault は暗号化済み、
+# .env.defaults は秘密を入れない既定値）は presets.fixtures が外す。
+# テスト・examples 置き場の .env も外す。dotenv を扱う道具は偽の .env を追跡する。
+#   実測: vercel/vercel は test/fixtures/ と examples/ に .env 系を 30 件追跡している。
+# .envrc は入れない。direnv のスクリプトで、追跡するのが普通である。
+#   実測: 校正コーパスの stripe/stripe-cli と NousResearch/hermes-agent は .envrc を
+#   追跡しており、中身は `use flake` や GH_HOST の export だった。
+except_presets = ["fixtures", "vendored"]
 patterns = ["(?s).+"]
 severity = "block"
 why = "実体の .env が追跡されていること自体が事故。.env.example だけを置く"
@@ -547,6 +563,22 @@ only_when_owned = true
 # 社内で共有する段では問わない。
 severity = { internal = "skip", public = "block" }
 why = "公開したあとに積んだ分は消せない。入る前に止めるしかない"
+
+[[lanes.history.checks]]
+id = "no_secrets_since_release"
+kind = "history_pattern_absent"
+since = "released_at"
+patterns_from = "secret_patterns.toml"
+# 作業ツリーの no_secrets と同じ除外。公開後に鍵を入れて次のコミットで消すと、
+# no_secrets は通るが履歴には残る。公開前は history_erased（squash）が過去を消すので、
+# 穴は公開後だけにある（2026-10-02）。
+# 除外を揃えないと、公開後に tests/ へ偽の鍵を足しただけで block する。
+# no_secrets の except_within（Rust の #[cfg(test)]）は履歴には効かない。blob を
+# まとめて走査するので、ファイル内の位置で切れないためである。
+except_presets = ["fixtures", "vendored"]
+except_globs = ["docs/*", "**/*.md"]
+severity = { internal = "skip", public = "block" }
+why = "公開したあとに積んだ秘密は、消しても clone した相手に渡っている"
 
 # --------------------------------------------------------------------------- #
 # Portability — 他人のマシンで動くか

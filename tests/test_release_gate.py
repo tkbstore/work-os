@@ -34,6 +34,8 @@ sys.path.insert(0, str(ROOT / "engine"))
 # E402（import が先頭に無い）は、上で engine/ を sys.path に挿してから import する
 # ためで、抑制しているのは順序の指摘だけである。動かない理由を隠してはいない。
 from release_gate import _match_glob, check_severity  # noqa: E402
+# 理由は上と同じ（engine/ を sys.path に挿したあとでしか import できない）。
+from release_gate import load_lanes, obs_pattern_absent  # noqa: E402
 from workos import _load_toml, registry_root  # noqa: E402
 
 
@@ -771,6 +773,59 @@ def main() -> int:
         state, _, _ = obs_history_pattern_absent(
             early, {**chk, "since": ""}, {"released_at": cut, "lanes_cfg": {}})
         check("全履歴を見る観測のほうは、同じ語で落ちる", state == "fail")
+
+        # --- 公開したあとの秘密 ---------------------------------------------
+        # 作業ツリーの no_secrets は「今の木」しか見ない。公開後に鍵を入れて
+        # 次のコミットで消すと、木は通るが履歴には残る（2026-10-02 まで穴だった）。
+        # 宣言そのもの（config の観測）を当てる。写しを当てると宣言が腐っても通る。
+        print("\n公開したあとの秘密")
+        cfg = load_lanes()
+        sec = next(c for c in cfg["lanes"]["history"]["checks"]
+                   if c["id"] == "no_secrets_since_release")
+        leaked = build(Path(td) / "leaked", HEALTHY_FILES)
+        pub_sha = subprocess.run(["git", "-C", str(leaked), "rev-parse", "HEAD"],
+                                 capture_output=True, text=True, timeout=30).stdout.strip()
+        ctx_pub = {"released_at": pub_sha, "lanes_cfg": cfg}
+        (leaked / "tests" / "keys.py").write_text(f'k = "{FAKE_KEY}"\n', encoding="utf-8")
+        commit(leaked, "test: 偽の鍵を fixture に置く")
+        state, _, _ = obs_history_pattern_absent(leaked, sec, ctx_pub)
+        check("公開後に tests/ へ置いた偽の鍵では落ちない", state == "pass")
+        (leaked / "src" / "cfg.py").write_text(f'k = "{FAKE_KEY}"\n', encoding="utf-8")
+        commit(leaked, "feat: 鍵を入れてしまう")
+        (leaked / "src" / "cfg.py").unlink()
+        commit(leaked, "fix: 木からは消した")
+        _, res = run(leaked)
+        check("木から消せば作業ツリーの no_secrets は通る（だから履歴を見る）",
+              states(res).get("no_secrets") == "pass")
+        state, _, _ = obs_history_pattern_absent(leaked, sec, ctx_pub)
+        check("公開後に入れて消した鍵は、履歴で落ちる", state == "fail")
+        state, _, _ = obs_history_pattern_absent(
+            leaked, sec, {"released_at": "", "lanes_cfg": cfg})
+        check("公開の起点が無ければ当たらない（公開前は squash が消す）", state == "skip")
+
+        # --- 追跡された .env の実体 -------------------------------------------
+        # 以前は直下の3名しか見ておらず、入れ子と別名が素通りしていた。
+        print("\n追跡された .env")
+        env_chk = next(c for c in cfg["lanes"]["safety"]["checks"]
+                       if c["id"] == "env_example_not_real")
+        envs = Path(td) / "envs"
+
+        def env_state(rel: str) -> str:
+            path = envs / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("TOKEN=x\n", encoding="utf-8")
+            st, _, _ = obs_pattern_absent(
+                envs, env_chk, {"files": [(rel, path)], "lanes_cfg": cfg})
+            return st
+
+        for rel in (".env", "apps/web/.env", ".env.development", ".env.staging",
+                    ".env.local", ".env.production", "apps/web/.env.production.local"):
+            check(f"{rel} の実体は落ちる", env_state(rel) == "fail")
+        for rel in (".env.example", "apps/web/.env.local.example", ".env.sample",
+                    ".env.template", ".env.vault", ".env.defaults", ".envrc",
+                    "tests/fixtures/.env", "examples/next/.env.production",
+                    "node_modules/pkg/.env"):
+            check(f"{rel} は見本・作法・他人の木なので通る", env_state(rel) == "pass")
 
         # --- 走らせていない観測を、通ったことにしない ----------------------
         # skip の理由は1つではない。「当たらない」（e2e を持たない形のリポ、
