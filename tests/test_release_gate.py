@@ -803,6 +803,36 @@ def main() -> int:
             leaked, sec, {"released_at": "", "lanes_cfg": cfg})
         check("公開の起点が無ければ当たらない（公開前は squash が消す）", state == "skip")
 
+        # docs は上の block が外している。外した分を warn で拾う観測が要る。
+        # 無いと、公開後に README へ貼って消した鍵は何も出なかった（2026-10-03）。
+        docs_sec = next(c for c in cfg["lanes"]["history"]["checks"]
+                        if c["id"] == "no_secrets_in_docs_since_release")
+        check("docs の観測は warn（見本と本物を機械は見分けられない）",
+              check_severity(docs_sec, "public") == "warn")
+        pasted = build(Path(td) / "pasted", HEALTHY_FILES)
+        ctx_pasted = {"released_at": subprocess.run(
+            ["git", "-C", str(pasted), "rev-parse", "HEAD"],
+            capture_output=True, text=True, timeout=30).stdout.strip(), "lanes_cfg": cfg}
+        readme = pasted / "README.md"
+        original = readme.read_text(encoding="utf-8")
+        readme.write_text(original + f'\nkey = "{FAKE_KEY}"\n', encoding="utf-8")
+        commit(pasted, "docs: 鍵を貼ってしまう")
+        readme.write_text(original, encoding="utf-8")
+        commit(pasted, "docs: 消した")
+        state, _, _ = obs_history_pattern_absent(pasted, docs_sec, ctx_pasted)
+        check("公開後に README へ貼って消した鍵は、docs の観測で出る", state == "fail")
+        state, _, _ = obs_history_pattern_absent(pasted, sec, ctx_pasted)
+        check("同じ鍵で block 側は止めない（docs は block の対象外）", state == "pass")
+
+        # 場所で絞った観測が、場所を持たないものを拾わないこと。拾うと docs の外の
+        # 鍵やコミットメッセージで当たり、block と同じものを二重に報告する。
+        state, _, _ = obs_history_pattern_absent(leaked, docs_sec, ctx_pub)
+        check("docs の外に入れて消した鍵では、docs の観測は当たらない", state == "pass")
+        (leaked / "NOTES.txt").write_text("memo\n", encoding="utf-8")
+        commit(leaked, f"chore: 鍵 {FAKE_KEY} をメッセージに書いてしまう")
+        state, _, _ = obs_history_pattern_absent(leaked, docs_sec, ctx_pub)
+        check("コミットメッセージは docs の観測では見ない", state == "pass")
+
         # --- 追跡された .env の実体 -------------------------------------------
         # 以前は直下の3名しか見ておらず、入れ子と別名が素通りしていた。
         print("\n追跡された .env")

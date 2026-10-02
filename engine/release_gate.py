@@ -935,20 +935,18 @@ def obs_history_erased(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list
     return "fail", f"履歴が {n} コミットある。公開の起点より前が残っている", first
 
 
-def _excluded_blobs(root: Path, scope: list[str], except_globs: list[str]) -> set[str]:
-    """範囲内で、置かれた場所が **すべて** 除外に当たる blob。
+def _blob_paths(root: Path, scope: list[str]) -> dict[str, set[str]] | None:
+    """範囲内の各 blob が置かれた **すべての** パス。読めなければ None。
 
     rev-list --objects のパスでは決められない。同じ中身の blob は最初に見えた
     パスで1度しか出ないので、tests/ と src/ に同じ鍵を置くと、tests/ 側の名前で
     まとめて外れる（2026-10-02、単体テストで実際に素通りした）。全パスを知るには
-    コミットごとの差分を読むしかない。読めなければ何も外さない（落とす側に倒す）。
+    コミットごとの差分を読むしかない。
     """
-    if not except_globs:
-        return set()
     raw = _git_out(root, ["log", *scope, "--raw", "--no-abbrev", "-m", "--format="],
                    timeout=120)
     if raw is None:
-        return set()
+        return None
     paths: dict[str, set[str]] = {}
     for line in raw.splitlines():
         meta, _, rest = line.partition("\t")
@@ -957,8 +955,41 @@ def _excluded_blobs(root: Path, scope: list[str], except_globs: list[str]) -> se
             continue
         # 改名は「元\t先」で並ぶ。中身が置かれているのは先のほう。
         paths.setdefault(fields[3], set()).add(rest.split("\t")[-1])
-    return {blob for blob, ps in paths.items()
-            if all(any(_match_glob(p, g) for g in except_globs) for p in ps)}
+    return paths
+
+
+def _history_targets(root: Path, scope: list[str], listing: str, chk: dict,
+                     lanes_cfg: dict) -> dict[str, str] | None:
+    """走査するオブジェクト（sha → 名前）。globs の範囲を読めなければ None。
+
+    globs を宣言しない観測は、置かれた場所がすべて除外に当たる blob だけを外し、
+    コミットと木はそのまま見る（以前と同じ）。読めなければ何も外さない（落とす側）。
+    globs を宣言した観測は、範囲のパスに一度でも置かれた blob **だけ** を見る。
+    コミットと木は場所を持たないので外す。外さないと、docs だけを見るはずの観測が
+    コミットメッセージで当たり、全体を見る観測と同じものを二重に報告する。
+    """
+    globs = list(chk.get("globs", []))
+    skip = _except_globs(chk, lanes_cfg)
+
+    def in_scope(path: str) -> bool:
+        return ((not globs or any(_match_glob(path, g) for g in globs))
+                and not any(_match_glob(path, g) for g in skip))
+
+    paths = _blob_paths(root, scope) if (globs or skip) else {}
+    if globs and paths is None:
+        return None
+    paths = paths or {}
+    if globs:
+        keep = {b for b, ps in paths.items() if any(in_scope(p) for p in ps)}
+    else:
+        drop = {b for b, ps in paths.items() if not any(in_scope(p) for p in ps)}
+    names: dict[str, str] = {}
+    for line in listing.splitlines():
+        parts = line.split(maxsplit=1)
+        if not parts or (parts[0] not in keep if globs else parts[0] in drop):
+            continue
+        names[parts[0]] = parts[1] if len(parts) == 2 else "<commit/tree>"
+    return names
 
 
 def obs_history_pattern_absent(root: Path, chk: dict,
@@ -999,14 +1030,11 @@ def obs_history_pattern_absent(root: Path, chk: dict,
     listing = _git_out(root, ["rev-list", "--objects", *scope], timeout=120)
     if listing is None:
         return "skip", "git リポジトリではない", []
-    skip = _excluded_blobs(root, scope, _except_globs(chk, ctx.get("lanes_cfg", {})))
-    names: dict[str, str] = {}
-    for line in listing.splitlines():
-        parts = line.split(maxsplit=1)
-        if parts and parts[0] not in skip:
-            names[parts[0]] = parts[1] if len(parts) == 2 else "<commit/tree>"
+    names = _history_targets(root, scope, listing, chk, ctx.get("lanes_cfg", {}))
+    if names is None:
+        return "skip", "履歴の差分を読めなかった（globs の範囲を決められない）", []
     if not names:
-        return "pass", ("公開の起点より後にコミットが無い" if since else "履歴が空"), []
+        return "pass", ("公開の起点より後に対象が無い" if since else "履歴が空"), []
 
     try:
         batch = subprocess.run(["git", "-C", str(root), "cat-file", "--batch"],
@@ -1014,7 +1042,9 @@ def obs_history_pattern_absent(root: Path, chk: dict,
                                text=True, timeout=300, errors="replace").stdout
     except (OSError, subprocess.SubprocessError):
         return "skip", "履歴を読めなかった", []
-    messages = _git_out(root, ["log", *scope, "--format=%H%n%B"], timeout=120) or ""
+    # globs で場所を絞った観測はメッセージを見ない（_history_targets の docstring）。
+    messages = "" if chk.get("globs") else (
+        _git_out(root, ["log", *scope, "--format=%H%n%B"], timeout=120) or "")
 
     hits: list[str] = []
     for label, raw in specs:
@@ -1033,7 +1063,8 @@ def obs_history_pattern_absent(root: Path, chk: dict,
     where = "公開の起点より後の " if since else ""
     if hits:
         return "fail", f"{len(hits)} 件該当（{where}{len(names)} オブジェクト走査）", hits[:MAX_EXAMPLES]
-    return "pass", f"{where}{len(names)} オブジェクトとコミットメッセージに該当なし", []
+    tail = "に該当なし" if chk.get("globs") else "とコミットメッセージに該当なし"
+    return "pass", f"{where}{len(names)} オブジェクト{tail}", []
 
 
 OBSERVERS = {

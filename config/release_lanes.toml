@@ -580,6 +580,20 @@ except_globs = ["docs/*", "**/*.md"]
 severity = { internal = "skip", public = "block" }
 why = "公開したあとに積んだ秘密は、消しても clone した相手に渡っている"
 
+[[lanes.history.checks]]
+id = "no_secrets_in_docs_since_release"
+kind = "history_pattern_absent"
+since = "released_at"
+patterns_from = "secret_patterns.toml"
+# 上の観測が外した docs の分を、作業ツリーの no_secrets_in_docs と同じ warn で拾う。
+# これが無いと、公開後に README へ貼って消した鍵は何も出なかった（2026-10-03）。
+# 見本と本物を機械は見分けられないので止めはしない。目で見る。
+# globs で場所を絞ると、コミットメッセージは見ない（上の観測が block で見ている）。
+globs = ["docs/*", "**/*.md"]
+except_presets = ["fixtures", "vendored"]
+severity = { internal = "skip", public = "warn" }
+why = "公開後に解説へ貼った鍵は、消しても履歴に残る。見本か本物かは人が見る"
+
 # --------------------------------------------------------------------------- #
 # Portability — 他人のマシンで動くか
 # --------------------------------------------------------------------------- #
