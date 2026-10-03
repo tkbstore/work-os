@@ -36,6 +36,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from workos import _load_toml, iter_repo_dirs, registry_root  # noqa: E402
 # E402 は「import が先頭に無い」の指摘。sys.path を挿した後でしか解決しない。
 import audit  # noqa: E402
+# 理由は上と同じ（engine/ を sys.path に挿したあとでしか import できない）。
+import doc_refs  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 REGISTRY = registry_root()
@@ -1067,12 +1069,44 @@ def obs_history_pattern_absent(root: Path, chk: dict,
     return "pass", f"{where}{len(names)} オブジェクト{tail}", []
 
 
+def obs_doc_refs_resolve(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list[str]]:
+    """README が名指しする道が、公開する木に在るか。何を見るかは doc_refs の前書き。
+
+    「在る」は公開する木（[publish] exclude を引いた追跡ファイル）で測る。exclude した
+    道を README が案内していれば、公開した先では無いので、それも外れとして数える。
+    """
+    rel = chk.get("file", "README.md")
+    target = root / rel
+    if not target.is_file():
+        return "skip", f"{rel} が無い（在るかは readme_exists が見る）", []
+    files = {r for r, _ in ctx["files"]}
+    dirs = {str(p) for r in files for p in Path(r).parents if str(p) != "."}
+    present = (files | dirs).__contains__
+    erased_log = _git_out(root, ["log", "--no-renames", "--diff-filter=D",
+                                 "--name-only", "--format="])
+    erased = {ln for ln in (erased_log or "").splitlines() if ln.strip()}
+    lines = (read_text(target) or "").splitlines()
+    base = str(Path(rel).parent) if "/" in rel else ""
+
+    def beside(p: str) -> bool:
+        return (root.parent / p).is_dir()
+
+    hits = (doc_refs.command_refs(lines, base, present, beside)
+            + doc_refs.erased_refs(lines, base, present, erased))
+    history = "" if erased_log is not None else "（履歴を読めず、消した道は見ていない）"
+    if hits:
+        return "fail", f"{rel} の {len(hits)} 箇所が木に無い道を指す{history}", \
+            [f"{rel}:{h}" for h in hits[:MAX_EXAMPLES]]
+    return "pass", f"{rel} が指す道は木に在る{history}", []
+
+
 OBSERVERS = {
     "exclude_not_tracked": obs_exclude_not_tracked,
     "pattern_present": obs_pattern_present,
     "file_present": obs_file_present,
     "doc_section": obs_doc_section,
     "runnable_block": obs_runnable_block,
+    "doc_refs_resolve": obs_doc_refs_resolve,
     "pattern_absent": obs_pattern_absent,
     "pattern_max": obs_pattern_max,
     "declared_command": obs_declared_command,
