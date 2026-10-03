@@ -312,6 +312,57 @@ with tempfile.TemporaryDirectory() as td:
           all(f"noreadme{i}" in p3.stdout for i in range(10)), p3.stdout[:500])
 
 
+with tempfile.TemporaryDirectory() as td:
+    # worktree は clone と同じ作業ツリーを写している。README から下書きを作ると
+    # 本体と一字一句同じ purpose が2行並び、台帳は「別のプロダクトが2つある」と
+    # 読める（実測 2026-09-27: worktree が1本できただけでリポジトリ数が 82→83 になり、
+    # --verify も gate も通った。通ることが問題だった）。
+    # 枝であることは機械が読み取れる事実なので、terms と同じ機械の欄にする。
+    tmp = Path(td)
+    fleet, reg = tmp / "fleet", tmp / "registry"
+    repo(fleet, "main-repo", "本体の説明である。\n")
+    # worktree を手で作る（git を呼ばない。.git がファイルで gitdir: を指す形）
+    wt = fleet / "main-repo-topic"
+    wt.mkdir(parents=True)
+    (wt / "README.md").write_text("本体の説明である。\n", encoding="utf-8")
+    gitdir = fleet / "main-repo" / ".git" / "worktrees" / "main-repo-topic"
+    gitdir.mkdir(parents=True)
+    (gitdir / "HEAD").write_text("ref: refs/heads/feat/topic\n", encoding="utf-8")
+    (wt / ".git").write_text(f"gitdir: {gitdir}\n", encoding="utf-8")
+    p4 = build(reg, fleet)
+    catalog = reg / "catalog.toml"
+
+    v = purpose_of_toml(catalog, "main-repo-topic")
+    check("worktree は本体の説明を写さない", v != "本体の説明である。", v)
+    check("どの clone の枝かを言う", "main-repo" in v and "feat/topic" in v, v)
+    check("worktree と名指しする", "worktree" in v, v)
+    check("本体のほうは普通に README から入る",
+          purpose_of_toml(catalog, "main-repo") == "本体の説明である。",
+          purpose_of_toml(catalog, "main-repo"))
+    check("数から消さない（存在は数える）", "main-repo-topic" in catalog.read_text(encoding="utf-8"))
+    check("worktree であることを報告に出す", "git worktree" in p4.stdout, p4.stdout[:400])
+
+    # 機械の欄なので、人が書き換えても再生成で戻る（terms と同じ向き）
+    body = catalog.read_text(encoding="utf-8").replace(v, "人が書いた別の説明。")
+    catalog.write_text(body, encoding="utf-8")
+    build(reg, fleet)
+    check("worktree の purpose は再生成で上書きされる",
+          purpose_of_toml(catalog, "main-repo-topic") == v,
+          purpose_of_toml(catalog, "main-repo-topic"))
+
+    # submodule は worktree ではない（同じ .git ファイル形式だが別物）
+    sm = fleet / "sub"
+    sm.mkdir()
+    (sm / "README.md").write_text("submodule の説明。\n", encoding="utf-8")
+    smdir = fleet / "main-repo" / ".git" / "modules" / "sub"
+    smdir.mkdir(parents=True)
+    (sm / ".git").write_text(f"gitdir: {smdir}\n", encoding="utf-8")
+    build(reg, fleet)
+    check("submodule は worktree として扱わない",
+          purpose_of_toml(catalog, "sub") == "submodule の説明。",
+          purpose_of_toml(catalog, "sub"))
+
+
 print(f"[test_catalog_purpose] {checked} 件検査")
 if failures:
     for f in failures:
