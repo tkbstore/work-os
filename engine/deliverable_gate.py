@@ -45,6 +45,7 @@ import argparse
 import fnmatch
 import json
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -247,12 +248,47 @@ def as_json(results: list[tuple[Path, list[Deliverable]]]) -> str:
     } for root, items in results], ensure_ascii=False, indent=2)
 
 
+def check_text(src: str) -> int:
+    """公開先に出すテキスト（PR の本文など）を1つの成果物として見る。
+
+    宛先は公開なので、ここでは1社でも在れば止める（宣言リポの「1社なら宛先」とは違う）。
+    PR の本文・タイトル・コメントは git の外にあり、release_gate からは見えない。
+    実測 2026-10-03: 公開リポの PR 本文に顧客名が入ったまま6日間公開されていた。
+    push の前に止める hook はこれを呼ぶ。語の一覧を hook 側に写すと宣言が2つになる。
+
+    exit: 0 = 顧客名なし / 1 = 在る（公開できない）/ 3 = 読めない・判定できない
+    """
+    with tempfile.TemporaryDirectory() as td:
+        target = Path(td) / "text"
+        try:
+            body = sys.stdin.read() if src == "-" else Path(src).read_text(
+                encoding="utf-8", errors="replace")
+        except OSError as exc:
+            print(f"  NG  読めません: {src}（{exc}）")
+            return 3
+        target.write_text(body, encoding="utf-8")
+        item = observe(Path(td), Deliverable(path="text", title=src))
+    if item.unread:
+        print(f"  --  判定できません: {', '.join(item.unread[:MAX_EXAMPLES])}")
+        return 3
+    if item.clients:
+        named = ", ".join(f"{t}（{item.clients[t]}件）" for t in item.recipients)
+        print(f"  NG  公開先に出せません。顧客名: {named}")
+        return 1
+    print("  OK  顧客名なし")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="その成果物を誰に渡せるかを観測する")
     ap.add_argument("repos", nargs="*", help="検査するリポジトリ")
     ap.add_argument("--scan", metavar="ROOT", help="配下で成果物を宣言した全リポを検査")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--text", metavar="FILE",
+                    help="公開先に出すテキストを見る（- で標準入力）。顧客名が在れば exit 1")
     args = ap.parse_args()
+    if args.text:
+        return check_text(args.text)
 
     roots = [Path(r).resolve() for r in args.repos] or [Path.cwd()]
     if args.scan:

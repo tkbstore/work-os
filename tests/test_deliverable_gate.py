@@ -180,6 +180,31 @@ def main() -> int:
         check("ファイルが無いことを判定にしない", item.get("verdict") == "unknown")
         check("判定できていないと返す（exit 3）", code == UNSETTLED)
 
+
+    # --- 公開先に出すテキスト ---------------------------------------------
+    # PR の本文・タイトル・コメントは git の外にあり、release_gate からは見えない。
+    # 実測 2026-10-03: 公開リポの PR 本文に顧客名が入ったまま6日間公開されていた。
+    # push の前に止める hook が呼べるよう、テキストを1つの成果物として見る口を持つ。
+    print("\n公開先に出すテキスト（--text）")
+    with tempfile.TemporaryDirectory() as td:
+        body = Path(td) / "pr.md"
+        body.write_text(f"他ドメイン: atrium-{one}, atrium-x\n", encoding="utf-8")
+        proc = subprocess.run([sys.executable, str(GATE), "--text", str(body)],
+                              capture_output=True, text=True, timeout=60)
+        check("顧客名が1社でも在れば止める（exit 1）", proc.returncode == 1)
+        check("当たった語を名指しする", one in proc.stdout)
+        proc = subprocess.run([sys.executable, str(GATE), "--text", "-"],
+                              input=f"{two} 向けの数え分け", capture_output=True,
+                              text=True, timeout=60)
+        check("標準入力からも読む", proc.returncode == 1 and two in proc.stdout)
+        proc = subprocess.run([sys.executable, str(GATE), "--text", "-"],
+                              input="worktree を clone と数え分ける", capture_output=True,
+                              text=True, timeout=60)
+        check("顧客名が無ければ通す（exit 0）", proc.returncode == 0)
+        proc = subprocess.run([sys.executable, str(GATE), "--text", str(Path(td) / "nope")],
+                              capture_output=True, text=True, timeout=60)
+        check("読めないものは通さない（exit 3）", proc.returncode == UNSETTLED)
+
     print()
     if failed:
         print(f"NG {len(failed)} 件")
