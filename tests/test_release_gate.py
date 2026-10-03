@@ -756,6 +756,30 @@ def main() -> int:
         check("since が無ければ全履歴を見る（今までどおり）",
               state == "fail" and "起点より後" not in detail)
 
+        # 公開されるのは HEAD ではなく push した ref 全部である。起点以降を
+        # `起点..HEAD` で切ると、チェックアウトしていないブランチは見えない。
+        # 実測 2026-10-03: 別ブランチのコミットメッセージに顧客名が入って push され、
+        # その間ずっと HEAD 側の観測は「該当なし」を返していた。
+        side = build(Path(td) / "side", HEALTHY_FILES)
+        cut = subprocess.run(["git", "-C", str(side), "rev-parse", "HEAD"],
+                             capture_output=True, text=True, timeout=30).stdout.strip()
+        here = subprocess.run(["git", "-C", str(side), "branch", "--show-current"],
+                              capture_output=True, text=True, timeout=30).stdout.strip()
+        subprocess.run(["git", "-C", str(side), "checkout", "-qb", "topic"],
+                       check=True, timeout=30)
+        (side / "src" / "topic.py").write_text("ok = 1\n", encoding="utf-8")
+        commit(side, "feat: ZZQQ-Client 向けの数え分け")
+        subprocess.run(["git", "-C", str(side), "checkout", "-q", here],
+                       check=True, timeout=30)
+        topic_sha = subprocess.run(["git", "-C", str(side), "rev-parse", "--short", "topic"],
+                                   capture_output=True, text=True, timeout=30).stdout.strip()
+        state, detail, ex = obs_history_pattern_absent(
+            side, chk, {"released_at": cut, "lanes_cfg": {}})
+        check("チェックアウトしていないブランチの起点以降も見る", state == "fail")
+        # 「コミットメッセージに該当」だけでは、どれを直せばいいか分からない。
+        # 実測では 4 件と出て、場所を探すのに別の走査を書く必要があった。
+        check("当たったコミットを名指しする", any(topic_sha in e for e in ex))
+
         # 範囲を切る理由そのもの。公開**前**に入っていた分は、公開した時点で
         # もう出ている。消せないものを毎回数え直すと、直しようのない過去で
         # 永久に落ち続け、公開後のゲートが誰にも使われなくなる。
