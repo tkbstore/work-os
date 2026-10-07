@@ -188,7 +188,7 @@ def main() -> int:
     print("\n公開先に出すテキスト（--text）")
     with tempfile.TemporaryDirectory() as td:
         body = Path(td) / "pr.md"
-        body.write_text(f"他ドメイン: atrium-{one}, atrium-x\n", encoding="utf-8")
+        body.write_text(f"他ドメイン: example-{one}, example-x\n", encoding="utf-8")
         proc = subprocess.run([sys.executable, str(GATE), "--text", str(body)],
                               capture_output=True, text=True, timeout=60)
         check("顧客名が1社でも在れば止める（exit 1）", proc.returncode == 1)
