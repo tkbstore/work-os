@@ -84,6 +84,12 @@ class ClientTermsTests(unittest.TestCase):
             with self.subTest(body=body):
                 self.assertEqual(self.scan(body), [])
 
+    def test_digit_prefix_is_not_a_word_boundary(self) -> None:
+        # 数字も ASCII 英数字に含む。番号と直結する顧客識別子は names に明示する。
+        self.assertEqual(self.scan("12acme"), [])
+        self.assertEqual(self.scan("第12acmeビル"), [])
+        self.assert_hit("12-acme", "clients.words:acme")
+
     def test_words_match_domains_and_uppercase(self) -> None:
         for body in ("acme.co.jp", "ACME", "acme"):
             with self.subTest(body=body):
