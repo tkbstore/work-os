@@ -9,7 +9,7 @@
 # 固まっていた。動いていない自動化を残すより実態に合わせる（2026-08-31）。
 set -u
 WORKOS="$(cd "$(dirname "$0")/.." && pwd)"
-ROOT="${1:-$HOME/Documents/GitHub}"
+ROOT="${1:-$(dirname "$(cd -P "$WORKOS" && pwd)")}"
 # 走らせる python はここでしか決めない。各行に絶対パスを直に書いていた
 # （launchd に PATH が無かった頃の名残）。launchd を畳んだ後も残っていたため、
 # 唯一の自動観測だけが常に 3.9 で回っていた。2026-09-02 まで 3.9 の TOML

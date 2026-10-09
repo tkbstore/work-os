@@ -5,11 +5,11 @@ work-os の他のエンジンが「リポジトリの中身」を見るのに対
 「リポジトリ群の状態」を見る。ゴミの定義を宣言ではなく観測で置き換える。
 
 使い方:
-    python3 engine/fleet.py ~/Documents/GitHub
-    python3 engine/fleet.py ~/Documents/GitHub --json
-    python3 engine/fleet.py ~/Documents/GitHub --risk-only
-    python3 engine/fleet.py ~/Documents/GitHub --snapshot   # 履歴に1行追記
-    python3 engine/fleet.py ~/Documents/GitHub --diff       # 前回からの悪化のみ出力
+    python3 engine/fleet.py ~/Documents/GitHub/<org>
+    python3 engine/fleet.py ~/Documents/GitHub/<org> --json
+    python3 engine/fleet.py ~/Documents/GitHub/<org> --risk-only
+    python3 engine/fleet.py ~/Documents/GitHub/<org> --snapshot   # 履歴に1行追記
+    python3 engine/fleet.py ~/Documents/GitHub/<org> --diff       # 前回からの悪化のみ出力
 
 外部依存なし。観測は読み取りのみ。--snapshot だけが履歴ファイルに追記する。
 --diff は悪化を検出したとき exit 1 を返すので cron / CI から使える。
