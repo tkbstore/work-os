@@ -992,6 +992,44 @@ def _history_targets(root: Path, scope: list[str], listing: str, chk: dict,
     return names
 
 
+def _read_objects(root: Path, oids: list[str]) -> list[tuple[str, str, str]] | None:
+    """(oid, 種類, 本文) の並び。cat-file --batch の出力を大きさで切る。
+
+    本文を1本の文字列に連結して検索すると、当たったことは分かってもどこに
+    当たったかが分からない。直す場所を名指しできない観測は、直されない。
+    """
+    try:
+        data = subprocess.run(["git", "-C", str(root), "cat-file", "--batch"],
+                              input="\n".join(oids).encode(), capture_output=True,
+                              timeout=300).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    out: list[tuple[str, str, str]] = []
+    i = 0
+    while i < len(data):
+        nl = data.find(b"\n", i)
+        if nl < 0:
+            break
+        head = data[i:nl].decode(errors="replace").split()
+        if len(head) < 3 or not head[2].isdigit():   # "<oid> missing"
+            i = nl + 1
+            continue
+        size = int(head[2])
+        out.append((head[0], head[1],
+                    data[nl + 1:nl + 1 + size].decode(errors="replace")))
+        i = nl + 1 + size + 1
+    return out
+
+
+def _where(kind: str, oid: str, path: str) -> str:
+    short = oid[:8]
+    if kind == "commit":
+        return f"コミット {short} "
+    if kind == "tree":
+        return f"ファイル名（tree {short}）"
+    return f"{path or '?'}（blob {short}）"
+
+
 def obs_history_pattern_absent(root: Path, chk: dict,
                                ctx: dict) -> tuple[str, str, list[str]]:
     """履歴の中身（blob ＋ コミットメッセージ）にパターンが無いか。
@@ -1025,7 +1063,11 @@ def obs_history_pattern_absent(root: Path, chk: dict,
         head = _git_out(root, ["rev-parse", "--verify", f"{since}^{{commit}}"])
         if head is None:
             return "skip", f"[publish] released_at のコミットが無い: {since}", []
-        scope = [f"{head.strip()}..HEAD"]
+        # 公開されるのは HEAD ではなく、push した（これから push する）ref 全部である。
+        # 以前は `起点..HEAD` で切っていて、チェックアウトしていないブランチを見て
+        # いなかった。実測 2026-10-03: 別ブランチのコミットメッセージに顧客名が入って
+        # push され、6日間、HEAD 側のこの観測は「該当なし」を返し続けた。
+        scope = ["--branches", "--remotes", "--tags", "--not", head.strip()]
 
     listing = _git_out(root, ["rev-list", "--objects", *scope], timeout=120)
     if listing is None:
@@ -1036,17 +1078,15 @@ def obs_history_pattern_absent(root: Path, chk: dict,
     if not names:
         return "pass", ("公開の起点より後に対象が無い" if since else "履歴が空"), []
 
-    try:
-        batch = subprocess.run(["git", "-C", str(root), "cat-file", "--batch"],
-                               input="\n".join(names), capture_output=True,
-                               text=True, timeout=300, errors="replace").stdout
-    except (OSError, subprocess.SubprocessError):
+    objects = _read_objects(root, list(names))
+    if objects is None:
         return "skip", "履歴を読めなかった", []
-    # globs で場所を絞った観測はメッセージを見ない（_history_targets の docstring）。
-    messages = "" if chk.get("globs") else (
-        _git_out(root, ["log", *scope, "--format=%H%n%B"], timeout=120) or "")
+    # コミットオブジェクトは本文にメッセージを持つので、メッセージを別に読まない。
+    # 以前は両方を走査していて、1つのメッセージが「ファイル」と「メッセージ」の
+    # 2件に数えられていた（実測 2026-10-03: 1コミットが 4 件と出た）。
 
     hits: list[str] = []
+    named: set[str] = set()
     for label, raw in specs:
         pat = re.escape(raw) if literal else raw
         try:
@@ -1054,10 +1094,13 @@ def obs_history_pattern_absent(root: Path, chk: dict,
         except re.error as exc:
             hits.append(f"<不正な正規表現 {label}: {exc}>")
             continue
-        if rx.search(batch):
-            hits.append(f"履歴のファイルに該当 [{label}]")
-        if rx.search(messages):
-            hits.append(f"コミットメッセージに該当 [{label}]")
+        for oid, kind, text in objects:
+            if oid in named or not rx.search(text):
+                continue
+            named.add(oid)
+            hits.append(f"{_where(kind, oid, names.get(oid, ''))}に該当 [{label}]")
+            if len(hits) >= MAX_EXAMPLES:
+                break
         if len(hits) >= MAX_EXAMPLES:
             break
     where = "公開の起点より後の " if since else ""
