@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from workos import iter_repo_dirs, registry_path  # noqa: E402
+from workos import git_link, iter_repo_dirs, registry_path  # noqa: E402
 
 CATALOG = registry_path("catalog.toml")
 SRC_EXT = {".py", ".ts", ".tsx", ".js", ".jsx", ".go", ".rs", ".rb", ".sh"}
@@ -219,8 +219,26 @@ def purpose_trace(repo: Path) -> list[tuple[str, int, str, str]]:
     return out
 
 
+def worktree_purpose(repo: Path) -> str:
+    """clone に生えた枝なら、それがどの clone の何という枝かを返す。clone なら空。
+
+    worktree は本体と同じ作業ツリーを写しているので、README から下書きを作ると
+    **本体と一字一句同じ purpose が2行並ぶ**。台帳はそれを「別のプロダクトが2つ
+    ある」と読める（実測 2026-09-27）。枝であることは機械が読み取れる事実なので、
+    ここは terms と同じ機械の欄として扱い、人の欄にしない。
+    """
+    link = git_link(repo)
+    if not link or link[0] != "worktree":
+        return ""
+    _, parent, branch = link
+    on = f"（ブランチ {branch}）" if branch else ""
+    return f"{parent} の git worktree{on}。別のリポジトリではなく、同じ remote の作業用の枝である。"
+
+
 def read_purpose(repo: Path) -> str:
     """README / CLAUDE.md の最初の意味のある1文を purpose の下書きにする。"""
+    if wt := worktree_purpose(repo):
+        return wt[:PURPOSE_MAX]
     for name in ("README.md", "CLAUDE.md", "README.rst"):
         f = repo / name
         if not f.is_file():
@@ -314,12 +332,16 @@ def build(root: Path) -> int:
     # 台帳のズレを直す操作そのものが手で直した purpose を壊していた（実測 2026-09-26: 2 本）。
     # 直せと言われている欄を、直しても消える置き場にしてはいけない。
     kept = {str(r.get("name") or ""): str(r.get("purpose") or "") for r in load()}
-    rows, drafts = [], []
+    rows, drafts, worktrees = [], [], []
     for repo in iter_repo_dirs(root):
         terms = sorted(capability_terms(repo))
         draft = read_purpose(repo)
-        purpose = kept.get(repo.name) or draft
-        if purpose != draft and draft:
+        machine = bool(worktree_purpose(repo))
+        if machine:
+            worktrees.append((repo.name, draft))
+        # worktree の purpose は機械が持つので、人の値より下書きを採る（terms と同じ）
+        purpose = draft if machine else (kept.get(repo.name) or draft)
+        if purpose != draft and draft and not machine:
             drafts.append((repo.name, purpose, draft))
         rows.append((repo.name, purpose, terms))
 
@@ -349,6 +371,12 @@ def build(root: Path) -> int:
     CATALOG.write_text("\n".join(out), encoding="utf-8")
     total = sum(len(t) for _, _, t in rows)
     print(f"生成: {CATALOG}（{len(rows)} リポジトリ / 能力語 {total} 件）")
+    if worktrees:
+        # 母数から消さない。消すと「ローカルに無い＝存在しない」と同じ形の
+        # 見落としが起きる（2026-09-26 に registry 側で実際に起きた）。
+        print(f"うち git worktree {len(worktrees)} 本（clone ではない。数には入れている）:")
+        for n, d in worktrees:
+            print(f"  {n} → {d}")
     missing = [n for n, p, _ in rows if not p]
     if missing:
         print(f"purpose が空 {len(missing)} 件（README も CLAUDE.md も無い）: "

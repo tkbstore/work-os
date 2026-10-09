@@ -472,6 +472,57 @@ def iter_repo_dirs(scan_root: Path, *, require_git: bool = True) -> list[Path]:
     return out
 
 
+def git_link(repo: Path) -> tuple[str, str, str] | None:
+    """`.git` がファイルなら、それが何へのポインタかを返す。clone なら None。
+
+    戻り値は (種類, 本体のディレクトリ名, 枝の名前)。種類は "worktree" か "module"。
+
+    「リポジトリとは何か」を答えるのが iter_repo_dirs である以上、「それは clone か、
+    既にある clone に生えた枝か」もここで答える。存在だけを見ると両者は区別できない
+    （worktree の `.git` はディレクトリではなくファイルだが、exists() は真になる）。
+
+    実測 2026-09-27: worktree が1本できただけで台帳のリポジトリ数が 82 → 83 になり、
+    remote も README も HEAD も同じ行が2つ並んだ。台帳は「別のプロダクトが2つある」と
+    読める状態になり、--verify も gate も通った。**通ることが問題だった。**
+    TK の git 規則は別ブランチでの作業に worktree を足すことを推奨しているので、
+    これは今後も増える。数えるのをやめるのではなく、何であるかを言えるようにする。
+
+    git を呼ばずに読む（work-os は標準ライブラリだけで動く）。worktree の
+    `.git` は "gitdir: <本体>/.git/worktrees/<名前>"、submodule は
+    ".../.git/modules/<名前>" を指す。
+    """
+    dot = repo / ".git"
+    if not dot.is_file():
+        return None
+    try:
+        text = dot.read_text(encoding="utf-8", errors="ignore").strip()
+    except OSError:
+        return None
+    if not text.startswith("gitdir:"):
+        return None
+    target = text.split(":", 1)[1].strip()
+    gitdir = Path(target) if Path(target).is_absolute() else (repo / target)
+    kind = ""
+    for marker, label in (("worktrees", "worktree"), ("modules", "module")):
+        if marker in gitdir.parts:
+            kind = label
+            break
+    if not kind:
+        return None
+    parts = list(gitdir.parts)
+    # <本体>/.git/<marker>/<名前> の <本体> を取り出す
+    idx = parts.index(".git") if ".git" in parts else -1
+    parent = parts[idx - 1] if idx > 0 else ""
+    branch = ""
+    try:
+        head = (gitdir / "HEAD").read_text(encoding="utf-8", errors="ignore").strip()
+        if head.startswith("ref: refs/heads/"):
+            branch = head[len("ref: refs/heads/"):]
+    except OSError:
+        pass
+    return (kind, parent, branch)
+
+
 def in_group(name: str, group: str | None) -> bool:
     """"<group>" と "<group>-*" に属するか。group が None なら全部が属する。
 
