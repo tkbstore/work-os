@@ -596,6 +596,23 @@ class Match:
         return f"{self.rel}:{self.line}"
 
 
+def _compile_spec(label: str, raw: str, literal: bool) -> re.Pattern:
+    r"""木と履歴で同じ照合規則を使う。語自体は常にリテラルとして保持する。
+
+    短い ASCII 語まで部分一致にすると、無関係な英単語の一部にも当たる。
+    clients.words / words_cs だけは前後の ASCII 英数字を境界とし、後者は大小文字も
+    区別する。\b はアンダースコアや日本語も単語扱いするので、ここでは使わない。
+    """
+    if not literal:
+        return re.compile(raw)
+    pattern, flags = re.escape(raw), re.I
+    if label in ("clients.words", "clients.words_cs"):
+        pattern = rf"(?<![A-Za-z0-9]){pattern}(?![A-Za-z0-9])"
+        # re.I 単独だと文字クラスに非 ASCII の大小文字対応まで含まれる。
+        flags = re.ASCII | (re.I if label == "clients.words" else 0)
+    return re.compile(pattern, flags)
+
+
 def _scan_specs(files: list[tuple[str, Path]], specs: list[tuple[str, str]],
                 literal: bool, chk: dict,
                 collect_all: bool = False) -> list[tuple[str, int, list[Match]]]:
@@ -626,8 +643,7 @@ def _scan_specs(files: list[tuple[str, Path]], specs: list[tuple[str, str]],
     for label, raw in specs:
         try:
             rxs.append((f"{label}:{raw}" if literal else label,
-                        re.compile(re.escape(raw) if literal else raw,
-                                   re.I if literal else 0)))
+                        _compile_spec(label, raw, literal)))
         except re.error as exc:
             broken.append((f"<不正な正規表現 {label}: {exc}>", 1, []))
     counts: dict[str, int] = {}
@@ -1088,9 +1104,8 @@ def obs_history_pattern_absent(root: Path, chk: dict,
     hits: list[str] = []
     named: set[str] = set()
     for label, raw in specs:
-        pat = re.escape(raw) if literal else raw
         try:
-            rx = re.compile(pat, re.I if literal else 0)
+            rx = _compile_spec(label, raw, literal)
         except re.error as exc:
             hits.append(f"<不正な正規表現 {label}: {exc}>")
             continue
