@@ -105,16 +105,6 @@ invariant = []
 configurable = []
 
 [[capability]]
-id        = "fleet"
-path      = "engine/fleet.py"
-layer     = "golden_path"
-status    = "experimental"
-summary   = "リポジトリ群の状態を観測する。未push・未コミット・放置・一斉変更・統治クラス"
-used_by   = ["*"]
-invariant = ["読み取り専用であること", "進行中の作業に commit を促さないこと"]
-configurable = ["RISK", "ACTIVE_MINUTES", "SWEEP_HOURS", "SWEEP_REPOS", "EXEMPT"]
-
-[[capability]]
 id        = "intent"
 path      = "engine/intent.py"
 layer     = "golden_path"
@@ -133,16 +123,6 @@ summary   = "公開層に固有名詞が漏れていないかを検査する。�
 used_by   = ["*"]
 invariant = ["読み取り専用であること"]
 configurable = ["PRIVATE_PREFIXES"]
-
-[[capability]]
-id        = "fleet_watch"
-path      = "hooks/fleet_watch.sh"
-layer     = "golden_path"
-status    = "experimental"
-summary   = "リポジトリ群の観測。悪化があったときだけ通知し、無ければ黙る"
-used_by   = ["*"]
-invariant = ["改善は報告しないこと（読むものは行動が要るものだけにする）"]
-configurable = ["通知手段"]
 
 [[capability]]
 id        = "branch_guard"
@@ -215,9 +195,10 @@ status    = "experimental"
 summary   = "公開を宣言したリポジトリが他人の手に渡せる状態かをレーン単位で観測する。主張ではなく実行で確かめる"
 used_by   = ["*"]
 invariant = ["--execute を付けない限り読み取り専用であること",
-             "判定基準を engine に直書きしないこと（work-os-registry/release_lanes.toml に置く）",
+             "判定基準を engine に直書きしないこと（config/release_lanes.toml に置き、組織の差分は registry に書く）",
              "1レーンでも欠けたら公開可としないこと"]
-configurable = ["work-os-registry/release_lanes.toml", "work-os-registry/secret_patterns.toml",
+configurable = ["config/release_lanes.toml", "config/secret_patterns.toml",
+                "registry の release_lanes.toml / private_terms.toml / governance.toml",
                 "work.toml の [publish]"]
 
 [[capability]]
@@ -267,16 +248,6 @@ summary   = "tests/test_*.py を発見して全部走らせる。宣言にファ
 used_by   = ["*"]
 invariant = ["対象をファイル名の列挙ではなく発見で決めること",
              "work.toml の [publish.commands] test がここを指すこと"]
-configurable = []
-
-[[capability]]
-id        = "fleet_tests"
-path      = "tests/test_fleet.py"
-layer     = "golden_path"
-status    = "experimental"
-summary   = "観測できなかったことが、観測できたことに化けないかを固定する"
-used_by   = ["*"]
-invariant = ["不明を表す値が、放置判定にも当日コミットにも化けないこと"]
 configurable = []
 
 [[capability]]
@@ -341,9 +312,9 @@ status    = "experimental"
 summary   = "症状だけを消す変更（抑制・テスト停止・閾値の緩和・列挙の追加）に理由を要求する"
 used_by   = ["*"]
 invariant = ["PreToolUse の入出力形式",
-             "痕跡の一覧は work-os-registry/patch_smells.toml が持つ（別リポ）"]
+             "痕跡の一覧は config/patch_smells.toml が持つ"]
 configurable = ["WORKOS_ROOT_CAUSE（block / warn / off）",
-                "work-os-registry/patch_smells.toml"]
+                "config/patch_smells.toml"]
 
-# patch_smells（痕跡の宣言そのもの）は config 層なので work-os-registry 側にある。
-# 宣言を持つリポジトリと、宣言を読む仕組みを分けたのが 2026-08-31 の切り出し。
+# patch_smells（痕跡の宣言そのもの）は config 層。組織によらないので work-os の config/ に在る。
+# 2026-08-31 に別リポへ切り出し、2026-10-13 にそのリポジトリを畳んで戻した。

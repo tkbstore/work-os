@@ -51,8 +51,8 @@ target_intents = ["public", "internal"]
 # 落ちて読まれなくなる。
 #
 # 既定で載せたことは宣言ではない。出力は「未宣言。判定基準の既定を当てた」と
-# 明記する（engine 側の intent_source）。自組織のものかは fleet_policy.toml の
-# 統治クラスから読む。ここで所有者を二重に宣言しない。
+# 明記する（engine 側の intent_source）。自組織のものかは registry の governance.toml
+# の統治クラスから読む。ここで所有者を二重に宣言しない。
 default_intent = "internal"
 
 [stages.internal]

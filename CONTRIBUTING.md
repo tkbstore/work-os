@@ -32,7 +32,7 @@ python3 engine/release_gate.py . --execute   # 公開ゲート（2段ラダー�
 | 触る層 | 追加でかかるもの |
 |--------|------------------|
 | `local`（宣言に無いパス） | 何も。自由に変えてください |
-| `config`（別リポの `work-os-registry/` など） | コードを変えずに直せるはずです。コードを変えたくなったら、それは層の選び方が違うサインです |
+| `config`（`config/` と、外に置く registry） | コードを変えずに直せるはずです。コードを変えたくなったら、それは層の選び方が違うサインです |
 | `extension` | テストを1つ足してください |
 | `golden_path`（`engine/` の大半） | テスト。既存の利用者が壊れないこと |
 | `kernel`（`CONSTITUTION.md`, `engine/workos.py`） | PR 必須。全ドメインの `kernel_version` を上げる。壊れると他リポジトリが壊れる理由を PR に書く |
@@ -99,7 +99,7 @@ value = compute()  # 抑制の注記  # 生成コードなので行長は直せ�
 ```
 
 理由が書けないなら、消しているのは報告のほうで、原因はまだ残っています。
-痕跡の一覧は `work-os-registry/patch_smells.toml`（別リポ）。切りたいときは `WORKOS_ROOT_CAUSE=off`。
+痕跡の一覧は `config/patch_smells.toml`。切りたいときは `WORKOS_ROOT_CAUSE=off`。
 
 とくに**列挙で逃がす**形は、逃がしそこねた場所が黙って素通りするので危険です。
 実測の例: 公開ゲートの絶対パス検査が拡張子5個の列挙だったため、実際に含んでいた
@@ -127,7 +127,7 @@ python3 engine/abstraction_gate.py
 
 ## 判定基準を変えたいとき
 
-`work-os-registry/release_lanes.toml` のチェックを足す・severity を動かすときは、
+`config/release_lanes.toml` のチェックを足す・severity を動かすときは、
 それが群を分けるという観測を添えてください。好みで人を落とさないための手順です。
 
 ```bash

@@ -31,13 +31,11 @@ SKIP = "@pytest." + "mark.skip"
 
 
 def call(tool: str, tool_input: dict, mode: str = "block",
-         registry: str | None = None) -> tuple[bool, str]:
-    """(拒否されたか, 理由) を返す。registry を渡すと痕跡の宣言の在り処を差し替える。"""
+         hook: Path = HOOK) -> tuple[bool, str]:
+    """(拒否されたか, 理由) を返す。hook を渡すと別の置き方のフックを走らせる。"""
     env = {**dict(__import__("os").environ), "WORKOS_ROOT_CAUSE": mode}
-    if registry is not None:
-        env["WORKOS_REGISTRY"] = registry
     proc = subprocess.run(
-        [sys.executable, str(HOOK)],
+        [sys.executable, str(hook)],
         input=json.dumps({"tool_name": tool, "tool_input": tool_input}),
         capture_output=True, text=True, timeout=60, env=env)
     out = (proc.stdout or "").strip()
@@ -144,13 +142,17 @@ def main() -> int:
     check("壊れた入力でも exit 0（フックは落ちてはいけない）", proc.returncode == 0)
 
     # 宣言が読めないとき、照合対象がゼロになるので **すべてが黙って通る**。
-    # 実測 2026-08-31: registry を別リポへ切り出した直後、WORKOS_REGISTRY を
-    # 持たない環境で抑制の追加が警告も出さずに通った。同居していた頃はこの経路に
-    # 入りようが無かったので、切り出しが作った穴である。止めはしないが黙らない。
+    # 実測 2026-08-31: 宣言を別リポへ切り出した直後、その在り処を持たない環境で
+    # 抑制の追加が警告も出さずに通った。宣言は 2026-10-13 に work-os の config/ へ
+    # 戻したが、config/ を欠いた置き方では同じ穴が開く。止めはしないが黙らない。
     with tempfile.TemporaryDirectory() as td:
-        missing = str(Path(td) / "no-registry")
+        bare = Path(td)
+        for rel in ("hooks/root_cause_guard.py", "engine/workos.py"):
+            (bare / rel).parent.mkdir(parents=True, exist_ok=True)
+            (bare / rel).write_text((ROOT / rel).read_text(encoding="utf-8"),
+                                    encoding="utf-8")
         denied, why = call("Edit", edit("x = f()\n", f"x = f()  {NOQA}\n"),
-                           registry=missing)
+                           hook=bare / "hooks" / "root_cause_guard.py")
         check("宣言が読めないとき止めはしない", not denied)
         check("宣言が読めないとき黙って通さない（stderr に出す）",
               "検査していません" in why)

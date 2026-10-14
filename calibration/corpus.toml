@@ -1,7 +1,7 @@
 # corpus.toml — レーンの閾値を裏づける観測対象。config 層。
 #
 # なぜ在るか
-#   work-os-registry/release_lanes.toml の閾値（within_ratio = 0.30 など）は「高star と
+#   config/release_lanes.toml の閾値（within_ratio = 0.30 など）は「高star と
 #   低star を実測して分けた」という主張の上に立っている。その主張を再現できなければ、
 #   閾値はただの好みになる。憲法 §1 は証拠で上げると決めているので、証拠の側を固定する。
 #

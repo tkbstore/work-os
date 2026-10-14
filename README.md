@@ -173,31 +173,31 @@ Stop hook（`repo-quality-gate`）が `scripts/*-qa.py` を拾って走らせま
 重要なのはパーソナライズできること自体ではなく、
 **何を変えても全体が壊れないかが定義されていること**です。
 
-### Configuration 層はこのリポジトリに在りません
+### Configuration 層は3か所に分かれます
 
-判定基準（レーンの閾値・秘密のパターン・痕跡の宣言）と組織固有の事実は、
-別のリポジトリ **`work-os-registry`** に置いています。組織の事実を、公開しうる
-リポジトリの履歴に残さないためです。
+置き場所は、中身が誰のものか、誰が書くかで決まります。
 
-所在を決めるのは `engine/workos.py` の `registry_root()` だけで、
-`WORKOS_REGISTRY` → `../work-os-registry` → `work-os/registry` の順に探します。
-
-registry が無くても各 hook は動きますが、**公開ゲートは判定基準そのものを失うので
-何も判定できません**（`判定基準が見つかりません: .../release_lanes.toml` で終わります）。
-自分の組織で使うときは、手で書くファイルを持つディレクトリを1つ作ってください。
-
-| | ファイル | 欠けたとき |
+| 置き場所 | 何を置くか | 誰が書くか |
 |---|---|---|
-| ゲートに必須 | `release_lanes.toml` `secret_patterns.toml` `patch_smells.toml` `private_terms.toml` `naming.toml` | 停止するか、検査が空になる |
-| 任意 | `fleet_policy.toml` `known_generators.toml` | 既定に落ちるだけ（全リポが owned 扱い／生成器がすべて「未宣言」に出る） |
+| `work-os/config/` | 判定基準の骨格（`release_lanes.toml` `secret_patterns.toml`）と、組織によらない宣言（`patch_smells.toml` `known_generators.toml`） | work-os（このリポジトリ） |
+| registry（`WORKOS_REGISTRY`、既定は `~/.config/work-os`） | 組織固有の宣言（下の表） | 組織の人 |
+| state（`WORKOS_STATE`、既定は `~/.local/state/work-os`） | engine が作る産物（`catalog.toml` / `sweep_events.jsonl`） | engine |
 
-`catalog.toml` / `repos.toml` / `github_state.json` / `fleet_history.jsonl` は engine が
-作るので、手では書きません。**雛形はまだ同梱していません**（`templates/` に在るのは
-work.toml と capabilities.toml の雛形だけです）。
+所在を決めるのは `engine/workos.py` の `registry_root()` と `state_root()` だけです。
+registry には顧客名のような事実が入るので、公開しうるリポジトリの履歴に残さないよう、
+このリポジトリの外に置きます。正本は組織が顧客・製品の一覧を持っている場所に置き、
+`WORKOS_REGISTRY` でそこを指すか、`~/.config/work-os` をそこへのリンクにしてください。
 
-日々の設計判断とその経緯（なぜその閾値なのか、どのガードがどう破られたか）は
-registry 側の `handoff_YYYY-MM-DD.md` に時系列で残しています。**このリポジトリの
-コミットだけを読んでも、なぜそうなっているかには届きません。**
+| | registry のファイル | 欠けたとき |
+|---|---|---|
+| 公開ゲートが使う | `private_terms.toml` | 固有名詞の観測が skip になる（通ったことにはならない） |
+| 任意 | `release_lanes.toml` | 骨格の既定のまま判定する（ここには骨格との差分だけを書く） |
+| 任意 | `governance.toml` | 全リポが owned 扱いになる（例外の統治クラスだけを名指しする） |
+| 任意 | `naming.toml` `audit.toml` | `adopt` の命名と、人の判定の記録が空になる |
+
+産物は手で書かず、commit もしません。台帳（`catalog.toml`）は `engine/catalog.py <repos> --build`
+で作り、`--find` は引く時点で手元の木とずれていれば作り直してから答えます。
+**雛形はまだ同梱していません**（`templates/` に在るのは work.toml と capabilities.toml の雛形だけです）。
 
 ## 昇格レーン
 
