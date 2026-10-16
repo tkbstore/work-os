@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""手元のリポジトリ全体を棚卸しして registry/repos.toml を生成する。
+"""手元のリポジトリ全体を棚卸しして repos.toml を標準出力に出す。
 
-  python3 engine/registry.py <repos> > "$(registry_root)"/repos.toml
-  # 置き場は engine/workos.py の registry_root() が決める（README の Configuration 層）
+  python3 engine/registry.py <repos> > repos.toml
+  # 手元の産物。どのリポジトリにも commit しない（README の Configuration 層）
 
 「今どのドメインに何本あって、どれが宣言済みで、どれが放置されているか」を1枚にする。
 推測なので、生成後に手で直す前提。読み取り専用で既存には触れない。

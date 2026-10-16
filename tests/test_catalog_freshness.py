@@ -52,7 +52,7 @@ def make_fleet(root: Path, names: list[str], *, without_git: tuple[str, ...] = (
 
 
 def run(registry: Path, *args: str) -> subprocess.CompletedProcess:
-    env = {**os.environ, "WORKOS_REGISTRY": str(registry)}
+    env = {**os.environ, "WORKOS_STATE": str(registry)}
     return subprocess.run([sys.executable, str(CATALOG_PY), *args],
                           cwd=ROOT, capture_output=True, text=True,
                           timeout=120, env=env)
@@ -192,6 +192,23 @@ with tempfile.TemporaryDirectory() as td:
     check("定義の外はズレに数えない", v.returncode == IN_SYNC, f"exit={v.returncode} {out(v)}")
     check("定義の外を黙らない", "loose" in out(v), out(v))
     check("定義の外だと言う", "定義の外" in out(v), out(v))
+
+# --------------------------------------------------------------------------- #
+# 9. 引く時点でズレていたら作り直してから答える（台帳は手元の産物）
+#    古い台帳で答えると、増えたリポの沈黙が「作っていない」と読まれる。
+# --------------------------------------------------------------------------- #
+with tempfile.TemporaryDirectory() as td:
+    tmp = Path(td)
+    fleet, reg = tmp / "fleet", tmp / "registry"
+    make_fleet(fleet, ["alpha"])
+    run(reg, str(fleet), "--build")
+    make_fleet(fleet, ["newcomer"])
+    f = run(reg, "--find", "newcomer")
+    check("増えたリポが引ける", f.returncode == 0 and "newcomer" in f.stdout, out(f))
+    check("作り直したと言う", "作り直します" in f.stderr, out(f))
+    check("作り直した台帳が残る", run(reg, "--verify").returncode == IN_SYNC)
+    f = run(reg, "--find", "alpha")
+    check("ズレていなければ作り直さない", "作り直します" not in f.stderr, out(f))
 
 
 print(f"[test_catalog_freshness] {checked} 件検査")

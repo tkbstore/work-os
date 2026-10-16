@@ -45,7 +45,7 @@ def repo(root: Path, name: str, readme: str, code: str = "") -> None:
 
 
 def build(registry: Path, fleet: Path) -> subprocess.CompletedProcess:
-    env = {**os.environ, "WORKOS_REGISTRY": str(registry)}
+    env = {**os.environ, "WORKOS_STATE": str(registry)}
     return subprocess.run([sys.executable, str(CATALOG_PY), str(fleet), "--build"],
                           cwd=ROOT, capture_output=True, text=True, timeout=120, env=env)
 
@@ -69,7 +69,7 @@ def purpose_of_toml(catalog: Path, name: str) -> str:
 
 
 def set_purpose(registry: Path, *args: str) -> subprocess.CompletedProcess:
-    env = {**os.environ, "WORKOS_REGISTRY": str(registry)}
+    env = {**os.environ, "WORKOS_STATE": str(registry)}
     return subprocess.run([sys.executable, str(CATALOG_PY), "--set-purpose", *args],
                           cwd=ROOT, capture_output=True, text=True, timeout=120, env=env)
 
@@ -274,7 +274,7 @@ with tempfile.TemporaryDirectory() as td:
           b.endswith("。") and len(b) <= 120 and b.count("。") == 2, f"{len(b)} / {b[:40]}")
 
     # 何が当たって飛ばしたかを言えること。言えない分類器は間違いが見えない
-    env = {**os.environ, "WORKOS_REGISTRY": str(reg)}
+    env = {**os.environ, "WORKOS_STATE": str(reg)}
     r = subprocess.run([sys.executable, str(CATALOG_PY), "--why-purpose",
                         str(fleet / "real-bullet")],
                        cwd=ROOT, capture_output=True, text=True, timeout=60, env=env)

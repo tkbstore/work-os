@@ -136,7 +136,7 @@ def temp_registry(td: Path, default_intent: str | None) -> Path:
     reg.mkdir(parents=True, exist_ok=True)
     src = registry_root()
     for name in ("private_terms.toml", "release_lanes.toml", "secret_patterns.toml",
-                 "fleet_policy.toml"):
+                 "governance.toml"):
         if (src / name).is_file():
             (reg / name).write_text((src / name).read_text(encoding="utf-8"),
                                     encoding="utf-8")
@@ -334,7 +334,7 @@ def main() -> int:
         _, res = run_in(reg_int, undeclared)
         check("統治クラスの根拠が出る",
               bool(res) and "統治クラス" in str(res[0]["owned_note"]))
-        check("宣言が無ければ owned として扱う（fleet.py と同じ既定）",
+        check("宣言が無ければ owned として扱う",
               bool(res) and "owned" in str(res[0]["owned_note"]))
         check("自組織の観測が当たる", states(res).get("no_private_terms") != "skip")
 
@@ -347,7 +347,7 @@ def main() -> int:
         # 宣言は追記ではなく書き直す。実物にも [third_party] が在るので追記すると
         # 表が重複して TOML が読めなくなる（最初にそれで engine を traceback させた）。
         # 仕掛けが実物の中身に依存しない形にもなる。
-        pol = reg_int / "fleet_policy.toml"
+        pol = reg_int / "governance.toml"
         pol.write_text('[third_party]\noutsider = "検査用。他者所有として宣言する"\n',
                        encoding="utf-8")
         _, res = run_in(reg_int, outsider)

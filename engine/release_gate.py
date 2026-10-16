@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """release_gate.py — そのリポジトリを外に出して恥ずかしくないかを機械が見る。
 
-fleet.py は「フリートが壊れていないか」を見る。こちらは「1つのリポジトリが
-他人の手に渡せる状態か」を見る。別の問いなので別のゲートにしてある。
+見る問いは「1つのリポジトリが他人の手に渡せる状態か」である。
 
 原理は1つ。**主張ではなく観測で決める**。
 「README がある」ではなく「README に実行できる行があるか」を見る。
 「テストがある」ではなく「宣言されたテストコマンドが exit 0 で終わるか」を見る。
 
 このファイルは観測の *種類* だけを持つ。何が公開の条件かは組織が決めることなので
-registry/release_lanes.toml に宣言する。基準を変える現場はコードを触らない。
+config/release_lanes.toml（骨格）と registry の差分に宣言する。基準を変える現場はコードを触らない。
 
   python3 engine/release_gate.py                  # カレントを検査（静的のみ）
   python3 engine/release_gate.py <repo> --execute # 宣言されたコマンドを実走させる
@@ -289,29 +288,38 @@ def load_lanes() -> dict:
     return _merge_cfg(base, over)
 
 
+GOVERNANCE_FILE = "governance.toml"
+# 統治クラス。owned が既定で、宣言するのは例外だけ。
+GOVERNANCE_CLASSES = ("owned", "archived", "external", "personal", "team", "third_party")
+
+
 @lru_cache(maxsize=1)
 def _policy() -> tuple[dict[str, tuple[str, str]], str]:
     """統治クラスの宣言を1度だけ読む。(宣言, 読めなかった理由) を返す。
 
-    所有者の一覧をここで新しく書かない。同じことを2箇所で宣言すると、片方だけが
-    更新されて食い違う。fleet_policy.toml は既に「既定は owned、例外だけ名指し」
-    という形を持っているので、それを借りる。
+    宣言は「既定は owned、例外だけ名指し」の形で registry の governance.toml に在る。
+    以前は日次観測（fleet.py）の宣言を借りていた。観測を退役させても、誰のものかの
+    宣言はゲートの判定に要るので、読む口だけをここに残した（2026-10-13）。
 
     読み込みの失敗を投げ返さない。宣言が壊れているだけでゲート全体が traceback で
     死ぬと、公開可否をひとつも答えられなくなる（実測 2026-09-26: 重複した表を
     1つ足しただけでそうなった）。読めなかったことは呼ぶ側に伝える。
     """
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    path = REGISTRY / GOVERNANCE_FILE
+    if not path.is_file():
+        return {}, ""
     try:
-        from fleet import load_policy  # noqa: PLC0415
-        return load_policy(), ""
+        data = _load_toml(path)
     # 壊れ方の種類で扱いは変わらない。どの例外でも「読めなかった」1つに落ちる。
     except Exception as exc:                                   # noqa: BLE001
         return {}, f"{type(exc).__name__}: {exc}"
+    return {name: (klass, str(note))
+            for klass in GOVERNANCE_CLASSES
+            for name, note in (data.get(klass) or {}).items()}, ""
 
 
 def _fleet_class(name: str) -> tuple[str, str]:
-    """リポ名から (統治クラス, 理由)。宣言が無ければ owned（fleet.py と同じ既定）。"""
+    """リポ名から (統治クラス, 理由)。宣言が無ければ owned。"""
     pol, err = _policy()
     if err:
         # 読めないことを「例外の宣言なし」と同じ扱いに畳まない。観測は当てたまま
@@ -1181,7 +1189,7 @@ def evaluate(root: Path, lanes_cfg: dict, execute: bool = False,
     owned = owned or declared
     if source == "default" and not owned:
         # 自組織のものかは、ここで新しく列挙しない。統治クラスの宣言
-        # （fleet_policy.toml）が既に「既定は owned、例外だけ名指し」の形で在る。
+        # （registry の governance.toml）が「既定は owned、例外だけ名指し」の形で在る。
         # 当たった宣言を出す。出さないと、外部のフォークを自組織として扱ったのか
         # どうかが出力から消える。
         klass, note = _fleet_class(root.name)

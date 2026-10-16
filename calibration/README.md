@@ -1,6 +1,6 @@
 # 校正
 
-`work-os-registry/release_lanes.toml` の閾値は「実測して決めた」という主張の上に立っています。
+`config/release_lanes.toml` の閾値は「実測して決めた」という主張の上に立っています。
 その主張を後から誰でも疑えるように、**測った対象と測った結果**をここに置いています。
 
 ```bash
@@ -108,7 +108,7 @@ python3 engine/calibrate.py --write      # 実際に clone して測り、result
 `ci_defined` はこの後 2026-08-28 に引退しました（`gate_runs_in_repo` へ置き換え）。
 理由は弁別力ではなく、**存在を数えていた置き場が、実際には走らない状態でも
 pass していた**ためです。上の数字は旧観測をその日に測った事実としてそのまま
-残しています。経緯は `work-os-registry/release_lanes.toml` の `[retired]` にあります。
+残しています。経緯は `config/release_lanes.toml` の `[retired]` にあります。
 
 ### 誤検出を1つ直した。それでも結論は変わらなかった
 
