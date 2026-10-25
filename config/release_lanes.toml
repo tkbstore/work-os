@@ -15,6 +15,7 @@
 #   command_exit_zero 宣言されたコマンド name が exit 0 で終わる（--execute 時のみ）
 #   history_erased         公開の起点より前の履歴が消してある
 #   history_pattern_absent 履歴の本文とコミットメッセージに patterns が現れない
+#   doc_refs_resolve  file の手順が呼ぶファイルと、履歴で消した道への言及が木に在る
 #
 # ここに無い kind を書くと、engine は skip にするだけで落とさない（走らないまま
 # 通る）。engine が実際に実装している一覧は release_gate.py --checks が出す。
@@ -197,6 +198,23 @@ file = "README.md"
 min = 1
 severity = "block"
 why = "コピーして貼れる行が1つも無いなら、それは説明であって手順ではない"
+
+[[lanes.entry.checks]]
+id = "readme_refs_resolve"
+kind = "doc_refs_resolve"
+file = "README.md"
+# warn から始める（憲法 §6-5）。2026-10-03 にフリート 67 リポへ当てた結果:
+# 当たったのは 4 リポ 5 箇所（同じファイルを7行で呼ぶものは1箇所と数える）。
+# うち 4 箇所が実際のずれ——一度も在ったことのないスクリプトを案内する手順が2本、
+# app/[locale]/ へ移したのに旧い道を書いた表が1本（2箇所）。
+# 残る 1 箇所は誤検知で、README が「.github/workflows/ を削除した」と経緯を
+# 過去形で語っていた。1件しか例が無いので、語で逃がす規則はまだ作らない。
+# 測る前の素朴な照合（バッククォートの道をすべて木と突き合わせる）では、同じ
+# フリートで 604 件が未解決になり、大半が出力先・生成物・別リポの道だった。
+# 見る主張を絞ったのはそのためで、block に上げるのは誤検知の型がもう一度出るか
+# 確かめてからにする。
+severity = "warn"
+why = "README の手順どおりに打って「そんなファイルは無い」と返るなら、README は実装を説明していない"
 
 [[lanes.entry.checks]]
 id = "contributing"
