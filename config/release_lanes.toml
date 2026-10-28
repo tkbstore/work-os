@@ -4,7 +4,8 @@
 # 組織が決めることなので、ここに宣言する。基準を変えたい現場はコードを触らない。
 #
 # 観測の種類（engine が実装している語彙。これ以外は書けない）:
-#   file_present      any_of のいずれかのファイルが存在する
+#   file_present      any_of のいずれかのファイルが存在する（also_by_content で中身でも、
+#                     per_workspace で全ワークスペースに在ることでも満たせる）
 #   pattern_present   globs のファイル群に patterns のいずれかが現れる（在ることを求める）
 #   exclude_not_tracked  [publish] exclude に挙げた道が、git の追跡下に残っていない
 #   doc_section       file の中に any_of の正規表現のいずれかが現れる
@@ -144,7 +145,16 @@ vendored = ["**/node_modules/*", "**/vendor/*", "**/site-packages/*",
             "**/.aws-sam/*", "**/.wrangler/*", "**/.next/*", "**/.nuxt/*",
             "**/dist/*", "**/build/*", "**/target/*", "**/.venv/*",
             "**/third_party/*", "**/vendored/*",
+            # Lean の lake が依存の取得とビルドに使う置き場（.lake/packages, .lake/build）。
+            "**/.lake/*",
             "*-lock.json", "**/*-lock.json", "**/*.lock", "**/*.min.js"]
+
+# ビルドの単位（ワークスペース）を示すマニフェストの名前。per_workspace が使う。
+# ここに無い名前のワークスペースは見つからないだけで、判定は直下を要求する側に倒れる。
+[workspaces]
+manifests = ["pyproject.toml", "setup.py", "setup.cfg", "package.json",
+             "go.mod", "Cargo.toml", "pom.xml", "build.gradle", "Gemfile",
+             "composer.json", "lakefile.lean", "lakefile.toml"]
 
 # --------------------------------------------------------------------------- #
 # Entry — 他人が自力で動かせるか
@@ -232,6 +242,13 @@ any_of = ["tests", "test", "spec", "__tests__", "src/test",
           "**/tests/*", "**/test/*", "**/__tests__/*",
           "**/test_*.py", "**/*_test.py", "**/*_test.go", "**/*_test.rs",
           "**/*.test.ts", "**/*.test.js", "**/*.spec.ts"]
+# 名前でテストの置き場を持たない言語は、中身で数える。Lean の定理はビルドのたびに
+# カーネルが検査するので、定理を書いたファイルがそのまま検査である
+# （実測 2026-10-28: openai/ten-proofs・openai/NavierStokesAndEuler がこれで落ちていた）。
+# 限界: `sorry` を含む定理も「在る」に数える。証明が閉じているかはここでは見ない。
+also_by_content = [
+  { globs = ["**/*.lean"], pattern = '(?m)^\s*(?:@\[[^\]]*\]\s*)?(?:private\s+|protected\s+)?(?:theorem|lemma)\s' },
+]
 # vendor した依存のテストを自分のテストとして数えない。
 # *在ること* を見る観測が除外を守らないと、偽陽性ではなく偽陰性になる。
 except_presets = ["vendored"]
@@ -427,6 +444,11 @@ why = "実体の .env が追跡されていること自体が事故。.env.examp
 id = "gitignore_exists"
 kind = "file_present"
 any_of = [".gitignore"]
+# 直下に無いときは、[workspaces] のマニフェストを持つ全ディレクトリが、自分か祖先の
+# .gitignore で覆われていれば通す。ビルドの産物が落ちるのはワークスペースの中である。
+# 実測 2026-10-28: openai/math は直下が論文の置き場で、Lean のワークスペースと
+# .gitignore は lean/ に在る。直下だけを見て第1段で止めていた。
+per_workspace = true
 severity = "block"
 why = "何を追跡しないかの宣言が無いリポは、いつか秘密を追跡する"
 

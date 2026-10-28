@@ -490,7 +490,80 @@ def obs_file_present(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list[s
                     return "pass", f"{cand} に該当（{rel}）", []
         elif (root / cand).exists():
             return "pass", f"{cand} を確認", []
+    by_content = _present_by_content(chk, ctx, skip)
+    if by_content:
+        return "pass", by_content, []
+    if chk.get("per_workspace"):
+        return _present_per_workspace(root, chk, ctx)
     return "fail", "いずれも存在しない: " + ", ".join(chk.get("any_of", [])), []
+
+
+def _present_by_content(chk: dict, ctx: dict, skip: list[str]) -> str:
+    """ファイルの名前ではなく中身で「在る」と言える場合。当たった場所を返す。
+
+    名前で数えるテストの置き場を持たない言語がある。Lean の定理は `lake build` の
+    たびにカーネルが検査するので、定理を書いたファイルそのものが検査である。
+    実測 2026-10-28: openai/ten-proofs と openai/NavierStokesAndEuler は
+    tests_exist で落ちていた。どちらも中身は機械検査済みの証明だけである。
+    """
+    for spec in chk.get("also_by_content", []):
+        try:
+            rx = re.compile(spec.get("pattern", ""))
+        except re.error:
+            continue
+        files = _scoped(ctx["files"], list(spec.get("globs", [])), skip)
+        hits = _collect_hits(files, rx, 1)
+        if hits:
+            return f"中身で該当（{hits[0]}）"
+    return ""
+
+
+def _workspace_dirs(ctx: dict) -> list[str]:
+    """マニフェストを持つディレクトリ（ワークスペース）の一覧。直下は "" になる。
+
+    他人が書いた木（vendored）と見本（fixtures）のマニフェストは数えない。
+    node_modules の中の package.json は、自分のワークスペースではない。
+    """
+    cfg = ctx["lanes_cfg"]
+    names = set(cfg.get("workspaces", {}).get("manifests", []))
+    skip = (list(cfg.get("presets", {}).get("vendored", []))
+            + list(cfg.get("presets", {}).get("fixtures", [])))
+    dirs = set()
+    for rel, _ in ctx["files"]:
+        if rel.rsplit("/", 1)[-1] in names and not any(_match_glob(rel, g) for g in skip):
+            dirs.add(rel.rsplit("/", 1)[0] if "/" in rel else "")
+    return sorted(dirs)
+
+
+def _present_per_workspace(root: Path, chk: dict,
+                           ctx: dict) -> tuple[str, str, list[str]]:
+    """直下に無いとき、全ワークスペースが自分か祖先の候補で覆われているか。
+
+    ビルドの産物が落ちるのはワークスペースの中である。論文と証明を同居させた
+    リポは直下がプロジェクトではなく、Lean のワークスペースは lean/ に在って
+    .gitignore もそこに在る（実測 2026-10-28: openai/math が直下だけを見る
+    この観測で第1段に止まっていた）。
+
+    マニフェストの名前は config の宣言である。知らない名前のワークスペースは
+    見つからないので、そのときは直下を要求する元の判定に戻る（甘くなる向きには
+    倒れない）。直下がワークスペースなら、直下に無いことはそのまま欠陥である。
+    """
+    names = list(chk.get("any_of", []))
+    missing = "いずれも存在しない: " + ", ".join(names)
+    dirs = _workspace_dirs(ctx)
+    if not dirs or "" in dirs:
+        return "fail", missing, []
+
+    def covered(ws: str) -> bool:
+        parts = ws.split("/")
+        return any((root / "/".join(parts[:i]) / n).exists()
+                   for i in range(len(parts), 0, -1) for n in names)
+
+    bare = [d for d in dirs if not covered(d)]
+    if bare:
+        return "fail", f"{missing}（直下にも、ワークスペース {len(bare)}/{len(dirs)} にも）", \
+            [f"{d}/" for d in bare]
+    return "pass", f"直下には無いが、ワークスペース {len(dirs)} 個すべてに在る（{', '.join(d + '/' for d in dirs[:3])}）", []
 
 
 def obs_doc_section(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list[str]]:
