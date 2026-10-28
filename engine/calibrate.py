@@ -110,7 +110,18 @@ def clone(slug: str, dest: Path, max_mb: int) -> str:
 
 
 def has_manifest(root: Path, manifests: list[str]) -> bool:
-    return any((root / m).exists() for m in manifests)
+    """直下か、どこかのワークスペースにマニフェストが在るか。
+
+    直下だけを見ると、論文と証明を同居させたリポ（openai/math は Lean の
+    ワークスペースが lean/ に在る）を「動かすものではない」として測らずに外す
+    （実測 2026-10-28）。ゲートの per_workspace と同じ検出を使い、vendored と
+    fixtures のマニフェストは数えない。
+    """
+    if any((root / m).exists() for m in manifests):
+        return True
+    lanes_cfg = {**release_gate.load_lanes(), "workspaces": {"manifests": manifests}}
+    ctx = {"files": release_gate.tracked_files(root, []), "lanes_cfg": lanes_cfg}
+    return bool(release_gate._workspace_dirs(ctx))
 
 
 # --------------------------------------------------------------------------- #
