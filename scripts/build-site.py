@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""公開サイト（site/index.html）を、判定基準と校正の結果から生成する。
+"""公開サイト（docs/index.html。GitHub Pages が main の /docs から配信する）を、判定基準と校正の結果から生成する。
 
 サイトに手で数字や検査の一覧を書くと、ゲートを直すたびに食い違う。
 calibration/README.md と results/ が一度食い違った（2026-09-16）のと同じ形になるので、
@@ -8,8 +8,8 @@ calibration/README.md と results/ が一度食い違った（2026-09-16）の�
 判定基準は **骨格だけ** から読む。組織の registry を重ねると、組織固有の宣言が
 公開サイトに載る。WORKOS_REGISTRY を空のディレクトリに向けて --checks を呼ぶ。
 
-    python3 scripts/build-site.py            site/index.html を書く
-    python3 scripts/build-site.py --check    書かずに、今の site/ と食い違うかだけ見る（exit 1）
+    python3 scripts/build-site.py            docs/index.html を書く
+    python3 scripts/build-site.py --check    書かずに、今の docs/index.html と食い違うかだけ見る（exit 1）
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "site" / "index.html"
+OUT = ROOT / "docs" / "index.html"
 RESULTS = ROOT / "calibration" / "results"
 FORMAL = ROOT / "formal" / "WorkosSpec"
 REPO_URL = "https://github.com/tkbstore/work-os"
@@ -144,17 +144,17 @@ def render(data: dict, res: dict) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="site/index.html を生成する")
+    ap = argparse.ArgumentParser(description="docs/index.html を生成する")
     ap.add_argument("--check", action="store_true", help="書かずに食い違いだけを見る")
     args = ap.parse_args(argv)
     page = render(load_checks(), latest_results())
     if args.check:
         current = OUT.read_text(encoding="utf-8") if OUT.is_file() else ""
         if current != page:
-            print("site/index.html が判定基準・校正の結果と食い違っています。"
+            print("docs/index.html が判定基準・校正の結果と食い違っています。"
                   "python3 scripts/build-site.py で作り直してください", file=sys.stderr)
             return 1
-        print("site/index.html は最新です")
+        print("docs/index.html は最新です")
         return 0
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(page, encoding="utf-8")
