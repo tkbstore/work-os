@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>work-os release gate</title>
+<meta name="description" content="A fail-closed gate that answers one question before a git repository leaves your machine: is it safe, and is it ready, to publish?">
+<style>
+:root {
+  --bg: #fbfbf9; --fg: #1d1d1b; --muted: #5f5f5a; --line: #e2e1dc;
+  --card: #ffffff; --accent: #1f5f8b; --block: #a3261f; --warn: #8a6100; --code: #f1f0ec;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #151514; --fg: #ecebe6; --muted: #a3a29b; --line: #2e2d2a;
+    --card: #1c1c1a; --accent: #7fb6dc; --block: #f08a80; --warn: #e3b75a; --code: #24231f;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #151514; --fg: #ecebe6; --muted: #a3a29b; --line: #2e2d2a;
+  --card: #1c1c1a; --accent: #7fb6dc; --block: #f08a80; --warn: #e3b75a; --code: #24231f;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Hiragino Sans", sans-serif; }
+main { max-width: 920px; margin: 0 auto; padding: 48px 16px 80px; }
+h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.2; margin: 0 0 12px; letter-spacing: -0.01em; }
+h2 { font-size: 22px; margin: 56px 0 12px; padding-top: 8px; border-top: 1px solid var(--line); }
+p, li { color: var(--fg); }
+.lede { font-size: 19px; color: var(--muted); max-width: 680px; }
+a { color: var(--accent); }
+code { font: 0.9em ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--code);
+  padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+.ladder { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+.card h3 { margin: 0 0 6px; font-size: 16px; }
+.card p { margin: 0; color: var(--muted); font-size: 15px; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--card); }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; }
+tr:last-child td { border-bottom: none; }
+.sev { font: 12px ui-monospace, monospace; padding: 1px 6px; border-radius: 4px; border: 1px solid currentColor; }
+.sev-block { color: var(--block); }
+.sev-warn { color: var(--warn); }
+.cols { columns: 2 260px; padding-left: 18px; }
+.note { color: var(--muted); font-size: 14px; }
+footer { margin-top: 64px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Can this repository leave your machine?</h1>
+<p class="lede">work-os release gate answers one permission question before you share or open-source a git repository. It is fail-closed: a check that did not run is reported as <em>unmeasured</em>, never as passed. Python standard library only, no install beyond one script.</p>
+<pre><code>curl -fsSL https://raw.githubusercontent.com/tkbstore/work-os/main/install.sh | sh
+workos-gate &lt;path-to-a-repo&gt;
+workos-gate --checks</code></pre>
+<p class="note">Source: <a href="https://github.com/tkbstore/work-os">https://github.com/tkbstore/work-os</a> · MIT · Gate messages are currently in Japanese.</p>
+
+<h2>How it decides</h2>
+<div class="ladder">
+  <div class="card"><h3>Stage 1 — internal</h3><p>Blocks only what is irreversible once shared: committed secrets (judged by the value and whether its host is reachable, not by variable names), tracked real <code>.env</code> files, home-directory paths, a missing <code>.gitignore</code>.</p></div>
+  <div class="card"><h3>Stage 2 — public</h3><p>Adds what a stranger needs: license, an entry point in the README, tests that actually run, robustness, and a history lane that scans every published blob and commit message, not just the working tree.</p></div>
+  <div class="card"><h3>Cumulative</h3><p>One ladder, cut in two. A failed stage stops the measurement; nothing above it is reported as reached. <code>warn</code> never blocks; a <code>block</code> check that was not executed keeps the stage open.</p></div>
+</div>
+
+<h2>Measured against 46 public repositories</h2>
+<p>The thresholds are not taste. The same gate (<code>release_gate.evaluate()</code>, unchanged) is run against a declared corpus, and the frozen result is committed. Published repositories are ground truth for "may be published", so a stage-1 stop on them is a false-positive candidate that we inspect by hand. Frozen on 2026-10-28; 3 repositories could not be measured and are listed with the reason in the result file.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Group</th><th>Measured</th><th>Reached stage 1</th><th>Reached stage 2</th></tr></thead>
+<tbody>
+<tr><td>Widely adopted Python tools</td><td>10</td><td>8/10</td><td>3/10</td></tr>
+<tr><td>Rarely adopted tools (organisation-owned)</td><td>6</td><td>5/6</td><td>3/6</td></tr>
+<tr><td>Agent-friendly CLIs</td><td>6</td><td>4/6</td><td>2/6</td></tr>
+<tr><td>Canaries (must not fail)</td><td>2</td><td>2/2</td><td>1/2</td></tr>
+<tr><td>Published Lean / formal-proof repositories</td><td>22</td><td>22/22</td><td>1/22</td></tr>
+</tbody></table></div>
+<p>5 published repositories were stopped at stage 1. Each is a false-positive candidate and is examined by hand in <a href='https://github.com/tkbstore/work-os/blob/main/calibration/README.md'>calibration/README.md</a>.</p><ul class='cols'><li><code>bbvch-ai/aihub-core</code></li><li><code>home-assistant/core</code></li><li><code>supabase/cli</code></li><li><code>superfly/flyctl</code></li><li><code>yt-dlp/yt-dlp</code></li></ul>
+<p class="note">Stage 2 is not a popularity score. On this corpus the gate does not separate widely adopted projects from rarely adopted ones, and we say so in <a href="https://github.com/tkbstore/work-os/blob/main/calibration/README.md">calibration/README.md</a>. Commands from other people's repositories are never executed during calibration, so execution checks are unmeasured there.</p>
+
+<h2>Kernel invariants, proved in Lean 4</h2>
+<p>The rules the gate and the framework rely on are stated as 15 theorems in <a href="https://github.com/tkbstore/work-os/tree/main/formal"><code>formal/</code></a> and checked by <code>lake build</code>. The specification is not a proof that the Python implementation follows it; it is a precise statement that can be wrong in the open. Writing it already caught one false claim in our own code comments.</p>
+<ul class="cols">
+<li><code>Ladder.warn_never_blocks</code></li>
+<li><code>Ladder.pending_block_unsettles</code></li>
+<li><code>Ladder.reached_le</code></li>
+<li><code>Ladder.below_reached_settled</code></li>
+<li><code>Ladder.blocked_caps_reached</code></li>
+<li><code>Ladder.publishable_iff</code></li>
+<li><code>Layers.undeclared_is_local</code></li>
+<li><code>Layers.nonlocal_has_witness</code></li>
+<li><code>Promotion.promote_is_next</code></li>
+<li><code>Promotion.promote_rank</code></li>
+<li><code>Promotion.kernel_is_top</code></li>
+<li><code>Promotion.proposed_needs_rule_of_three</code></li>
+<li><code>Promotion.star_not_counted</code></li>
+<li><code>Workspace.root_workspace_requires_root</code></li>
+<li><code>Workspace.no_workspace_requires_root</code></li>
+</ul>
+
+<h2>Every check</h2>
+<p class="note">Generated from <code>workos-gate --checks</code> with no organisation-specific configuration.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Stage</th><th>Lane</th><th>Check</th><th>Severity</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>internal</td><td>safety</td><td><code>excluded_paths_not_tracked</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>exclude は観測を止めるだけで公開を止めない。追跡下にあれば公開時に一緒に出る</td></tr>
+<tr><td>internal</td><td>safety</td><td><code>no_secrets</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>秘密は出した瞬間に漏洩が確定する。git から消しても遅い</td></tr>
+<tr><td>internal</td><td>safety</td><td><code>no_secrets_in_docs</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>解説の見本と本物を機械は見分けられない。止めはしないが、目で見る必要はある</td></tr>
+<tr><td>internal</td><td>safety</td><td><code>env_example_not_real</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>実体の .env が追跡されていること自体が事故。.env.example だけを置く</td></tr>
+<tr><td>internal</td><td>safety</td><td><code>gitignore_exists</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>何を追跡しないかの宣言が無いリポは、いつか秘密を追跡する</td></tr>
+<tr><td>internal</td><td>portability</td><td><code>no_absolute_home_paths</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>自分の machine でしか動かないものは、他人にとって動かないものと同じ</td></tr>
+<tr><td>internal</td><td>provenance</td><td><code>no_private_terms</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>同僚には配ってよい。public には出せない（履歴に残るので取り返しがつかない）</td></tr>
+<tr><td>internal</td><td>correctness</td><td><code>tests_exist</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>テストの無いリポは、壊れたことに誰も気づけない</td></tr>
+<tr><td>internal</td><td>correctness</td><td><code>test_command_declared</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>テストがあっても、走らせ方が宣言されていなければ他人は走らせない</td></tr>
+<tr><td>internal</td><td>correctness</td><td><code>gate_runs_in_repo</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>毎回機械が走らせる仕掛けは、リポの中に在って他人の手元にも付いていく必要がある</td></tr>
+<tr><td>internal</td><td>correctness</td><td><code>test_passes</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>テストがあることと通ることは別。通らないものを公開しない</td></tr>
+<tr><td>internal</td><td>correctness</td><td><code>tutorial_runs</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>README の手順が実際に動くか。ここが star の多いリポと自称OSSの分かれ目</td></tr>
+<tr><td>internal</td><td>correctness</td><td><code>e2e_passes</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>単体が通ることと通しで動くことは別。宣言した e2e は宣言どおりに走る必要がある</td></tr>
+<tr><td>public</td><td>safety</td><td><code>excluded_paths_not_tracked</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>exclude は観測を止めるだけで公開を止めない。追跡下にあれば公開時に一緒に出る</td></tr>
+<tr><td>public</td><td>safety</td><td><code>no_secrets</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>秘密は出した瞬間に漏洩が確定する。git から消しても遅い</td></tr>
+<tr><td>public</td><td>safety</td><td><code>no_secrets_in_docs</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>解説の見本と本物を機械は見分けられない。止めはしないが、目で見る必要はある</td></tr>
+<tr><td>public</td><td>safety</td><td><code>env_example_not_real</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>実体の .env が追跡されていること自体が事故。.env.example だけを置く</td></tr>
+<tr><td>public</td><td>safety</td><td><code>gitignore_exists</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>何を追跡しないかの宣言が無いリポは、いつか秘密を追跡する</td></tr>
+<tr><td>public</td><td>provenance</td><td><code>no_private_terms</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>同僚には配ってよい。public には出せない（履歴に残るので取り返しがつかない）</td></tr>
+<tr><td>public</td><td>history</td><td><code>history_erased</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>公開は取り返しがつかない。今の木から消しても、履歴に残っていれば clone した相手には渡っている</td></tr>
+<tr><td>public</td><td>history</td><td><code>no_private_terms_in_history</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>見つかったら確実に困る。見つからなくても安全とは言えない（列挙した語しか見ていない）</td></tr>
+<tr><td>public</td><td>history</td><td><code>no_private_terms_since_release</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>公開したあとに積んだ分は消せない。入る前に止めるしかない</td></tr>
+<tr><td>public</td><td>history</td><td><code>no_secrets_since_release</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>公開したあとに積んだ秘密は、消しても clone した相手に渡っている</td></tr>
+<tr><td>public</td><td>history</td><td><code>no_secrets_in_docs_since_release</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>公開後に解説へ貼った鍵は、消しても履歴に残る。見本か本物かは人が見る</td></tr>
+<tr><td>public</td><td>entry</td><td><code>readme_exists</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>入口が無ければ他人は始められない</td></tr>
+<tr><td>public</td><td>entry</td><td><code>license_exists</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>ライセンスの無いコードは、法的には誰も使えない。公開したことにならない</td></tr>
+<tr><td>public</td><td>entry</td><td><code>install_section</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>動かす前に何が要るかが書かれていない README は、書いた本人にしか読めない</td></tr>
+<tr><td>public</td><td>entry</td><td><code>usage_section</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>見出しの言葉は流派が分かれる。高star リポでも表記が揃わないので警告に留める</td></tr>
+<tr><td>public</td><td>entry</td><td><code>runnable_example</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>コピーして貼れる行が1つも無いなら、それは説明であって手順ではない</td></tr>
+<tr><td>public</td><td>entry</td><td><code>contributing</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>外から直したい人が、作法を推測せずに済む</td></tr>
+<tr><td>public</td><td>entry</td><td><code>issue_template</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>再現手順の無いバグ報告を減らす。報告の質は様式で決まる</td></tr>
+<tr><td>public</td><td>usability</td><td><code>command_appears_early</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>最初のコマンドまでの距離。読ませてから試させる順序は人を落とす</td></tr>
+<tr><td>public</td><td>usability</td><td><code>zero_config_start</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>最初の例が鍵の取得を要求すると、そこで大半が離脱する。鍵は後段に置く</td></tr>
+<tr><td>public</td><td>usability</td><td><code>help_available</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>詰まった人が最初に打つのは help。ここが無いと、読みに戻るしかなくなる</td></tr>
+<tr><td>public</td><td>agent_ready</td><td><code>cli_entry_point</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>登録がWebフォームにしかないと、そこでエージェントは止まる。動線はコマンド側に要る</td></tr>
+<tr><td>public</td><td>agent_ready</td><td><code>no_form_auth</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>デバイスコードかPKCEなら、人はURLを開いて承認するだけで済む。フォーム入力が消える</td></tr>
+<tr><td>public</td><td>agent_ready</td><td><code>headless_escape</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>ブラウザを開けない場所で動くのがエージェント。逃げ道が無いと全部が無駄になる</td></tr>
+<tr><td>public</td><td>agent_ready</td><td><code>machine_readable_output</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>結果を読めなければ次の手が打てない。人間向けの整形出力だけでは進めない</td></tr>
+<tr><td>public</td><td>agent_ready</td><td><code>install_free_start</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>環境構築はエージェントが最も詰まる場所。1行で起動できると越えられる</td></tr>
+<tr><td>public</td><td>agent_ready</td><td><code>agent_surface</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>エージェントが読む面。人間向けドキュメントとは別に、機械が従える手順が要る</td></tr>
+<tr><td>public</td><td>correctness</td><td><code>tests_exist</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>テストの無いリポは、壊れたことに誰も気づけない</td></tr>
+<tr><td>public</td><td>correctness</td><td><code>test_command_declared</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>テストがあっても、走らせ方が宣言されていなければ他人は走らせない</td></tr>
+<tr><td>public</td><td>correctness</td><td><code>gate_runs_in_repo</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>毎回機械が走らせる仕掛けは、リポの中に在って他人の手元にも付いていく必要がある</td></tr>
+<tr><td>public</td><td>correctness</td><td><code>test_passes</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>テストがあることと通ることは別。通らないものを公開しない</td></tr>
+<tr><td>public</td><td>correctness</td><td><code>tutorial_runs</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>README の手順が実際に動くか。ここが star の多いリポと自称OSSの分かれ目</td></tr>
+<tr><td>public</td><td>correctness</td><td><code>e2e_passes</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>単体が通ることと通しで動くことは別。宣言した e2e は宣言どおりに走る必要がある</td></tr>
+<tr><td>public</td><td>robustness</td><td><code>no_bare_except</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>裸の except は KeyboardInterrupt まで飲み込む。原因が永久に分からなくなる</td></tr>
+<tr><td>public</td><td>robustness</td><td><code>no_silent_pass</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>握りつぶしは、後から来た人にとって存在しないバグになる</td></tr>
+<tr><td>public</td><td>robustness</td><td><code>no_empty_catch_js</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>同上。言語が変わっても握りつぶしは握りつぶし</td></tr>
+<tr><td>public</td><td>robustness</td><td><code>no_debug_print_left</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>消し忘れた出力は、他人の環境では意味不明なノイズになる</td></tr>
+</tbody></table></div>
+
+<h2>What it does not do</h2>
+<ul>
+  <li>It cannot find a leak of a shape nobody has described. A clean stage 1 means "none of the declared shapes", not "safe".</li>
+  <li>Removing a file does not remove it from history or from a host that already served it. The history lane tells you that; it cannot undo it.</li>
+  <li>Customer and private names are your organisation's data. They live in your own configuration, never in this repository.</li>
+</ul>
+
+<footer>work-os contributors · <a href="https://github.com/tkbstore/work-os">GitHub</a> · This page is generated by <code>scripts/build-site.py</code>; numbers come from <code>calibration/results/</code>.</footer>
+</main>
+</body>
+</html>

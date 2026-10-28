@@ -52,6 +52,10 @@ GATES: list[tuple[str, list[str], str]] = [
     # 仕組みの層に組織固有の名前が漏れていないか。
     # 08-28 に自分で4件漏らし、指摘は別セッションから届いた。自分のテストは緑だった
     ("abstraction", [sys.executable, "engine/abstraction_gate.py"], "error"),
+    # 公開サイトが判定基準・校正の結果と食い違っていないか。サイトの数字は生成物で、
+    # 手で直すと calibration/README.md と results/ が食い違ったとき（2026-09-16）と
+    # 同じ形で嘘になる。食い違いは作り直せば消えるので、差し戻す。
+    ("site", [sys.executable, "scripts/build-site.py", "--check"], "error"),
     # テストはここでは走らせない。下の release が --execute で
     # [publish.commands] test（= tests/run_all.py）を実走させるので、独立して
     # 置くと **同じスイートを2回走らせる**ことになる。
