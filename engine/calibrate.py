@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -36,7 +37,8 @@ from workos import _load_toml  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 CORPUS_FILE = ROOT / "calibration" / "corpus.toml"
 RESULTS_DIR = ROOT / "calibration" / "results"
-CLONE_TIMEOUT = 300
+# 論文の PDF まで抱えたリポ（openai/math は作業ツリー 3.6GB）は 300 秒で終わらない。
+CLONE_TIMEOUT = 900
 # 対照群を service とみなして観測し直したものの印。実在の slug と混ざらないように付ける。
 AS_SERVICE = " (service とみなす)"
 CONTRAST_SERVICE = "not_adopted_as_service"
@@ -88,7 +90,11 @@ def clone(slug: str, dest: Path, max_mb: int) -> str:
         proc = subprocess.run(
             ["git", "clone", "--depth", "1", "--single-branch", "--quiet",
              f"https://github.com/{slug}.git", str(dest)],
-            capture_output=True, text=True, timeout=CLONE_TIMEOUT)
+            capture_output=True, text=True, timeout=CLONE_TIMEOUT,
+            # LFS の実体は取りに行かない。git が追跡しているのはポインタのほうで、
+            # 公開されるのもポインタである。実体を取りに行くと、サーバ側で消えた
+            # オブジェクト1つで checkout ごと失敗する（実測 2026-10-28: NyxFoundation/speca）。
+            env={**os.environ, "GIT_LFS_SKIP_SMUDGE": "1"})
     except subprocess.TimeoutExpired:
         return f"{CLONE_TIMEOUT}秒で終わらない"
     except OSError as exc:
@@ -111,7 +117,8 @@ def has_manifest(root: Path, manifests: list[str]) -> bool:
 # 観測
 # --------------------------------------------------------------------------- #
 
-def observe(root: Path, lanes_cfg: dict, shape: str) -> tuple[dict[str, str], bool | None]:
+def observe(root: Path, lanes_cfg: dict,
+            shape: str) -> tuple[dict[str, str], bool | None, str]:
     """check_id → pass | fail | skip と、ゲート全体の判定。
 
     チェック単位の通過率だけ見ていると「ゲートとして使えるか」が見えない。
@@ -121,12 +128,12 @@ def observe(root: Path, lanes_cfg: dict, shape: str) -> tuple[dict[str, str], bo
     result = release_gate.evaluate(root, lanes_cfg, execute=False,
                                    assume_public=True, assume_shape=shape)
     if result is None:
-        return {}, None
+        return {}, None, ""
     out: dict[str, str] = {}
     for lane in result.lanes:
         for f in lane.findings:
             out[f"{lane.name}.{f.check_id}"] = f.state
-    return out, result.publishable
+    return out, result.publishable, result.reached
 
 
 def rate(states: list[str]) -> tuple[float | None, int, int]:
@@ -219,16 +226,21 @@ def main(argv: list[str] | None = None) -> int:
 
     per_repo: dict[str, dict[str, str]] = {}
     verdicts: dict[str, bool] = {}
+    # 届いた段。公開済みのリポを第1段で止めたなら、それは「出した瞬間に取り返しが
+    # つかない」と言ったことになる。公開済みは「出してよい」の正解なので、偽陽性の候補。
+    reached: dict[str, str] = {}
     members: dict[str, list[str]] = {}
     excluded: list[dict] = []
     try:
         for gname, g in corpus["groups"].items():
             members[gname] = []
             shape = str(g.get("shape", ""))
+            # 群ごとに上限を上書きできる。上書きは corpus.toml の diff に残る。
+            g_max_mb = int(g.get("max_clone_mb", max_mb))
             for slug in g["slugs"]:
                 dest = cache / slug.replace("/", "__")
                 print(f"  取得 {slug} ...", flush=True)
-                err = clone(slug, dest, max_mb)
+                err = clone(slug, dest, g_max_mb)
                 if err:
                     excluded.append({"slug": slug, "group": gname, "why": err})
                     print(f"    除外: {err}")
@@ -239,13 +251,14 @@ def main(argv: list[str] | None = None) -> int:
                     excluded.append({"slug": slug, "group": gname, "why": why})
                     print(f"    除外: {why}")
                     continue
-                states, ok = observe(dest, lanes_cfg, shape)
+                states, ok, got = observe(dest, lanes_cfg, shape)
                 if not states:
                     excluded.append({"slug": slug, "group": gname, "why": "観測できなかった"})
                     print("    除外: 観測できなかった")
                     continue
                 per_repo[slug] = states
                 verdicts[slug] = bool(ok)
+                reached[slug] = got
                 members[gname].append(slug)
                 if gname == "not_adopted":
                     # agent_ready は shape = "service" を宣言したリポにしか当たらない。
@@ -254,7 +267,7 @@ def main(argv: list[str] | None = None) -> int:
                     # ために、対照群だけ service とみなした2回目の観測を持つ。
                     # 元の観測は上書きしない（tool としての結果も残す）。
                     alias = slug + AS_SERVICE
-                    per_repo[alias], _ = observe(dest, lanes_cfg, "service")
+                    per_repo[alias], _, _ = observe(dest, lanes_cfg, "service")
                     members.setdefault(CONTRAST_SERVICE, []).append(alias)
     finally:
         if tmp is not None:
@@ -270,17 +283,23 @@ def main(argv: list[str] | None = None) -> int:
     print("\n" + "=" * 82)
     print("ゲート全体の通過率（1レーンでも欠けたら公開不可）")
     gate_rates: dict[str, dict] = {}
+    first_stage = (lanes_cfg.get("gate", {}).get("stages") or [""])[0]
+    first_lanes = set(lanes_cfg.get("stages", {}).get(first_stage, {}).get("lanes", []))
     for gname, slugs in members.items():
         if gname == CONTRAST_SERVICE:
             continue
         judged = [s_ for s_ in slugs if s_ in verdicts]
         passed = sum(1 for s_ in judged if verdicts[s_])
-        gate_rates[gname] = {"pass": passed, "n": len(judged)}
+        first = sum(1 for s_ in judged if reached.get(s_))
+        gate_rates[gname] = {"pass": passed, "n": len(judged), "internal": first}
         share = f"{passed / len(judged):.0%}" if judged else "—"
-        print(f"  {gname:<16} {passed:>2}/{len(judged):<3} ({share})")
+        print(f"  {gname:<16} 公開可 {passed:>2}/{len(judged):<3} ({share})"
+              f"  第1段 {first:>2}/{len(judged)}")
         for s_ in judged:
-            if not verdicts[s_]:
-                print(f"       不可  {s_}")
+            if not reached.get(s_):
+                bad = sorted(k for k, v in per_repo[s_].items()
+                             if v == "fail" and k.split(".", 1)[0] in first_lanes)
+                print(f"       第1段で止まる  {s_}: {', '.join(bad)}")
     if excluded:
         # 黙って削らない。何を測らなかったかは結果の一部である。
         print(f"\n除外 {len(excluded)} 本")
@@ -322,6 +341,7 @@ def main(argv: list[str] | None = None) -> int:
             "adopted_vs_not_adopted": main_rows,
             "agent_native_vs_not_adopted": agent_rows,
             "verdicts": verdicts,
+            "reached": reached,
             "gate_rates": gate_rates,
             "min_gap": min_gap,
             "agent_lane_min_gap": agent_gap,
