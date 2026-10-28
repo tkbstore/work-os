@@ -7,3 +7,6 @@ __pycache__/
 .mcp.json
 .claude/settings.local.json
 sessions/
+
+# Lean（formal/）のビルド産物
+formal/.lake/

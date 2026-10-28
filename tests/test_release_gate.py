@@ -1040,7 +1040,7 @@ def main() -> int:
 
         real_creds = build(Path(td) / "real_creds", {
             **HEALTHY_FILES,
-            "src/conf.py": 'URL = "postgres' + 'ql://app:hunter2@db.abc123.example.com:5432/app"\n',
+            "src/conf.py": 'URL = "postgres' + 'ql://app:hunter2@db.abc123.supabase.co:5432/app"\n',
         })
         _, res = run(real_creds)
         check("名前解決できるホストへの資格情報は秘密として落とす",
@@ -1203,6 +1203,74 @@ def main() -> int:
         check("run_all.py が tests/ の test_*.py を取りこぼさない",
               sorted(listed) == on_disk)
         check("走らせる対象が1本以上ある", len(on_disk) >= 1)
+
+    # --- ワークスペースと Lean（外部コーパスで見つけた誤判定 2026-10-28）------
+    # 直下に .gitignore が無くても、全ワークスペースが覆われていれば通す。
+    # 1つでも覆われていなければ落とす。直下がワークスペースなら直下を要求する。
+    print("\nワークスペース単位の .gitignore")
+    with tempfile.TemporaryDirectory() as td:
+        lean_ws = {"README.md": "# papers\n", "lean/lakefile.toml": 'name = "p"\n',
+                   "lean/P.lean": "theorem t : 1 = 1 := rfl\n"}
+        covered = build(Path(td) / "covered", {**lean_ws, "lean/.gitignore": ".lake/\n"})
+        _, res = run(covered, "--assume-public")
+        check("全ワークスペースに在れば通す", states(res).get("gitignore_exists") == "pass")
+        bare = build(Path(td) / "bare", {**lean_ws, "lean/.gitignore": ".lake/\n",
+                                          "web/package.json": "{}\n"})
+        _, res = run(bare, "--assume-public")
+        check("覆われていないワークスペースが1つあれば落とす",
+              states(res).get("gitignore_exists") == "fail")
+        rootws = build(Path(td) / "rootws", {"pyproject.toml": "[project]\n",
+                                             "sub/.gitignore": "x\n"})
+        _, res = run(rootws, "--assume-public")
+        check("直下がワークスペースなら直下を要求する",
+              states(res).get("gitignore_exists") == "fail")
+        nows = build(Path(td) / "nows", {"README.md": "# x\n", "a/.gitignore": "x\n"})
+        _, res = run(nows, "--assume-public")
+        check("ワークスペースが見つからなければ直下を要求する",
+              states(res).get("gitignore_exists") == "fail")
+        vend = build(Path(td) / "vend", {"README.md": "# x\n",
+                                         "vendor/lib/package.json": "{}\n",
+                                         "vendor/lib/.gitignore": "x\n"})
+        _, res = run(vend, "--assume-public")
+        check("vendor した木のマニフェストはワークスペースに数えない",
+              states(res).get("gitignore_exists") == "fail")
+
+        print("\nLean の定理をテストとして数える")
+        check("theorem を持つ .lean は tests_exist を満たす",
+              states(run(covered, "--assume-public")[1]).get("tests_exist") == "pass")
+        defs = build(Path(td) / "defs", {"lean/lakefile.toml": 'name = "p"\n',
+                                         "lean/P.lean": "def f : Nat := 1\n-- theorem in a comment\n"})
+        check("定義だけの .lean は数えない",
+              states(run(defs, "--assume-public")[1]).get("tests_exist") == "fail")
+        dep = build(Path(td) / "dep", {"lean/lakefile.toml": 'name = "p"\n',
+                                       "lean/.lake/packages/m/M.lean": "theorem t : 1 = 1 := rfl\n"})
+        check("依存（.lake/）の定理は自分のテストに数えない",
+              states(run(dep, "--assume-public")[1]).get("tests_exist") == "fail")
+
+        print("\n規格で解決しない名前の資格情報")
+        reserved = build(Path(td) / "reserved", {
+            "src/check.py": 'URLS = ["postgresql://u:secret@remote.test:5432/db",\n'
+                            '        "postgres://u:pw@db.example.com/x"]\n'})
+        check("予約ドメイン（.test / example.com）は資格情報に数えない",
+              states(run(reserved, "--assume-public")[1]).get("no_secrets") == "pass")
+        internal = build(Path(td) / "internal", {
+            "src/check.py": 'URL = "postgresql://postgres:pw@postgres.app.internal:5432/r"\n'})
+        check("私的利用に予約された .internal は資格情報に数えない",
+              states(run(internal, "--assume-public")[1]).get("no_secrets") == "pass")
+        camel = build(Path(td) / "camel", {
+            "src/num.py": 'X = dict(api_key="chargePowerCommand")\n'})
+        check("camelCase の語（フィールド名）は api_key の値に数えない",
+              states(run(camel, "--assume-public")[1]).get("no_secrets") == "pass")
+        rand = build(Path(td) / "rand", {
+            "src/num.py": 'X = dict(api_key="aBcdEfgHIjklMnopQrst")\n'})
+        check("大文字が続く乱数は camelCase の除外に紛れない",
+              states(run(rand, "--assume-public")[1]).get("no_secrets") == "fail")
+        for host in ("x.test.evil.com", "remote.testing.com", "myexample.com",
+                     "x.internal.evil.com"):
+            real = build(Path(td) / f"real-{host}", {
+                "src/check.py": f'URL = "postgresql://u:s3cret@{host}:5432/db"\n'})
+            check(f"名前の途中にあるだけの {host} は引き続き当たる",
+                  states(run(real, "--assume-public")[1]).get("no_secrets") == "fail")
 
     print()
     if failed:

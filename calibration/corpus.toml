@@ -19,7 +19,9 @@
 #   下の rule は、同じ手順で別の人が別の母集団を引ける粒度で書くこと。
 
 [corpus]
-frozen_on = "2026-08-26"
+frozen_on = "2026-10-28"
+# 2026-08-26 の凍結結果は results/2026-08-26.json に残してある。群を足したので日付を進めた
+# （同じ日付で書くと前回の結果を上書きしてしまう）。
 # star 数は凍結時点の値。変動するので、判定には使わず記録だけする。
 note = "star 数は frozen_on 時点。再測定するときは slug を差し替えず、まず同じ集合で測る"
 
@@ -121,6 +123,49 @@ slugs = [
 
 
 # --------------------------------------------------------------------------- #
+# formal — 形式証明を公開している組織の Lean リポジトリ
+# --------------------------------------------------------------------------- #
+# 公開済み＝「出してよい」の正解ラベル。star では選ばない。数学の証明成果物と、
+# 形式検証のフレームワーク・参照ノートが混ざる。ここを第1段で止めたら、それは
+# 「出した瞬間に取り返しがつかないものがある」と言ったことになるので、1件ずつ実物を見る。
+[groups.formal]
+title = "形式証明を公開している"
+rule = """
+gh search repos --owner openai --language Lean と --owner NyxFoundation --language Lean
+から、fork でも archive でもないものを全部取る（2026-10-28 に実行）。star では選ばない。
+"""
+shape = "tool"
+# openai/math は論文の PDF と組版ソースを含めて作業ツリーが 3.6GB ある。
+# 既定の 400MB では測らずに除外されるので、この群だけ上限を上げる。
+max_clone_mb = 5000
+slugs = [
+  "openai/math",
+  "openai/NavierStokesAndEuler",
+  "openai/ten-proofs",
+  "openai/PrimeGaps186",
+  "openai/LongGapsBetweenPrimes",
+  "openai/cdc-lean",
+  "NyxFoundation/nyxis",
+  "NyxFoundation/docs2formalspec",
+  "NyxFoundation/tsl-formal-verification",
+  "NyxFoundation/formal-leanSpec",
+  "NyxFoundation/verity-aeneas-proofs",
+  "NyxFoundation/minimmit-fv",
+  "NyxFoundation/consensus-ffi-poc",
+  "NyxFoundation/cl-asm",
+  "NyxFoundation/leanSSZ",
+  "NyxFoundation/consensus-sim",
+  "NyxFoundation/simplex-fv",
+  "NyxFoundation/nyx-ssz",
+  "NyxFoundation/rlmd-ghost-fv",
+  "NyxFoundation/lean4-client-proto",
+  "NyxFoundation/goldfish-fv",
+  "NyxFoundation/lean4-speedup",
+  "NyxFoundation/eth-total-supply-safety",
+]
+
+
+# --------------------------------------------------------------------------- #
 # 対象から外す条件
 # --------------------------------------------------------------------------- #
 [filters]
@@ -129,6 +174,7 @@ slugs = [
 manifest_required = [
   "pyproject.toml", "setup.py", "setup.cfg", "package.json",
   "go.mod", "Cargo.toml", "pom.xml", "build.gradle", "Gemfile", "composer.json",
+  "lakefile.lean", "lakefile.toml",
 ]
 # clone の上限。超えるものは測らずに除外し、結果に理由付きで残す（黙って落とさない）。
 max_clone_mb = 400

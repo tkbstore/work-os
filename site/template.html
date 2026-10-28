@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>work-os release gate</title>
+<meta name="description" content="A fail-closed gate that answers one question before a git repository leaves your machine: is it safe, and is it ready, to publish?">
+<style>
+:root {
+  --bg: #fbfbf9; --fg: #1d1d1b; --muted: #5f5f5a; --line: #e2e1dc;
+  --card: #ffffff; --accent: #1f5f8b; --block: #a3261f; --warn: #8a6100; --code: #f1f0ec;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #151514; --fg: #ecebe6; --muted: #a3a29b; --line: #2e2d2a;
+    --card: #1c1c1a; --accent: #7fb6dc; --block: #f08a80; --warn: #e3b75a; --code: #24231f;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #151514; --fg: #ecebe6; --muted: #a3a29b; --line: #2e2d2a;
+  --card: #1c1c1a; --accent: #7fb6dc; --block: #f08a80; --warn: #e3b75a; --code: #24231f;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Hiragino Sans", sans-serif; }
+main { max-width: 920px; margin: 0 auto; padding: 48px 16px 80px; }
+h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.2; margin: 0 0 12px; letter-spacing: -0.01em; }
+h2 { font-size: 22px; margin: 56px 0 12px; padding-top: 8px; border-top: 1px solid var(--line); }
+p, li { color: var(--fg); }
+.lede { font-size: 19px; color: var(--muted); max-width: 680px; }
+a { color: var(--accent); }
+code { font: 0.9em ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--code);
+  padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+.ladder { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+.card h3 { margin: 0 0 6px; font-size: 16px; }
+.card p { margin: 0; color: var(--muted); font-size: 15px; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--card); }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; }
+tr:last-child td { border-bottom: none; }
+.sev { font: 12px ui-monospace, monospace; padding: 1px 6px; border-radius: 4px; border: 1px solid currentColor; }
+.sev-block { color: var(--block); }
+.sev-warn { color: var(--warn); }
+.cols { columns: 2 260px; padding-left: 18px; }
+.note { color: var(--muted); font-size: 14px; }
+footer { margin-top: 64px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Can this repository leave your machine?</h1>
+<p class="lede">work-os release gate answers one permission question before you share or open-source a git repository. It is fail-closed: a check that did not run is reported as <em>unmeasured</em>, never as passed. Python standard library only, no install beyond one script.</p>
+<pre><code>{{INSTALL}}</code></pre>
+<p class="note">Source: <a href="{{REPO_URL}}">{{REPO_URL}}</a> · MIT · Gate messages are currently in Japanese.</p>
+
+<h2>How it decides</h2>
+<div class="ladder">
+  <div class="card"><h3>Stage 1 — internal</h3><p>Blocks only what is irreversible once shared: committed secrets (judged by the value and whether its host is reachable, not by variable names), tracked real <code>.env</code> files, home-directory paths, a missing <code>.gitignore</code>.</p></div>
+  <div class="card"><h3>Stage 2 — public</h3><p>Adds what a stranger needs: license, an entry point in the README, tests that actually run, robustness, and a history lane that scans every published blob and commit message, not just the working tree.</p></div>
+  <div class="card"><h3>Cumulative</h3><p>One ladder, cut in two. A failed stage stops the measurement; nothing above it is reported as reached. <code>warn</code> never blocks; a <code>block</code> check that was not executed keeps the stage open.</p></div>
+</div>
+
+<h2>Measured against {{CORPUS_N}} public repositories</h2>
+<p>The thresholds are not taste. The same gate (<code>release_gate.evaluate()</code>, unchanged) is run against a declared corpus, and the frozen result is committed. Published repositories are ground truth for "may be published", so a stage-1 stop on them is a false-positive candidate that we inspect by hand. Frozen on {{FROZEN_ON}}; {{EXCLUDED_N}} repositories could not be measured and are listed with the reason in the result file.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Group</th><th>Measured</th><th>Reached stage 1</th><th>Reached stage 2</th></tr></thead>
+<tbody>
+{{CALIBRATION_ROWS}}
+</tbody></table></div>
+{{STAGE1_STOPS}}
+<p class="note">Stage 2 is not a popularity score. On this corpus the gate does not separate widely adopted projects from rarely adopted ones, and we say so in <a href="{{REPO_URL}}/blob/main/calibration/README.md">calibration/README.md</a>. Commands from other people's repositories are never executed during calibration, so execution checks are unmeasured there.</p>
+
+<h2>Kernel invariants, proved in Lean 4</h2>
+<p>The rules the gate and the framework rely on are stated as {{THEOREM_N}} theorems in <a href="{{REPO_URL}}/tree/main/formal"><code>formal/</code></a> and checked by <code>lake build</code>. The specification is not a proof that the Python implementation follows it; it is a precise statement that can be wrong in the open. Writing it already caught one false claim in our own code comments.</p>
+<ul class="cols">
+{{THEOREMS}}
+</ul>
+
+<h2>Every check</h2>
+<p class="note">Generated from <code>workos-gate --checks</code> with no organisation-specific configuration.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Stage</th><th>Lane</th><th>Check</th><th>Severity</th><th>Why</th></tr></thead>
+<tbody>
+{{CHECK_ROWS}}
+</tbody></table></div>
+
+<h2>What it does not do</h2>
+<ul>
+  <li>It cannot find a leak of a shape nobody has described. A clean stage 1 means "none of the declared shapes", not "safe".</li>
+  <li>Removing a file does not remove it from history or from a host that already served it. The history lane tells you that; it cannot undo it.</li>
+  <li>Customer and private names are your organisation's data. They live in your own configuration, never in this repository.</li>
+</ul>
+
+<footer>work-os contributors · <a href="{{REPO_URL}}">GitHub</a> · This page is generated by <code>scripts/build-site.py</code>; numbers come from <code>calibration/results/</code>.</footer>
+</main>
+</body>
+</html>
