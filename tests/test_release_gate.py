@@ -1253,7 +1253,20 @@ def main() -> int:
                             '        "postgres://u:pw@db.example.com/x"]\n'})
         check("予約ドメイン（.test / example.com）は資格情報に数えない",
               states(run(reserved, "--assume-public")[1]).get("no_secrets") == "pass")
-        for host in ("x.test.evil.com", "remote.testing.com", "myexample.com"):
+        internal = build(Path(td) / "internal", {
+            "src/check.py": 'URL = "postgresql://postgres:pw@postgres.app.internal:5432/r"\n'})
+        check("私的利用に予約された .internal は資格情報に数えない",
+              states(run(internal, "--assume-public")[1]).get("no_secrets") == "pass")
+        camel = build(Path(td) / "camel", {
+            "src/num.py": 'X = dict(api_key="chargePowerCommand")\n'})
+        check("camelCase の語（フィールド名）は api_key の値に数えない",
+              states(run(camel, "--assume-public")[1]).get("no_secrets") == "pass")
+        rand = build(Path(td) / "rand", {
+            "src/num.py": 'X = dict(api_key="aBcdEfgHIjklMnopQrst")\n'})
+        check("大文字が続く乱数は camelCase の除外に紛れない",
+              states(run(rand, "--assume-public")[1]).get("no_secrets") == "fail")
+        for host in ("x.test.evil.com", "remote.testing.com", "myexample.com",
+                     "x.internal.evil.com"):
             real = build(Path(td) / f"real-{host}", {
                 "src/check.py": f'URL = "postgresql://u:s3cret@{host}:5432/db"\n'})
             check(f"名前の途中にあるだけの {host} は引き続き当たる",
