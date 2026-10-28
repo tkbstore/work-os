@@ -1,0 +1,5 @@
+name = "WorkosSpec"
+defaultTargets = ["WorkosSpec"]
+
+[[lean_lib]]
+name = "WorkosSpec"

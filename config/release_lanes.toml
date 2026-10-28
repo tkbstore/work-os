@@ -150,7 +150,9 @@ vendored = ["**/node_modules/*", "**/vendor/*", "**/site-packages/*",
             "*-lock.json", "**/*-lock.json", "**/*.lock", "**/*.min.js"]
 
 # ビルドの単位（ワークスペース）を示すマニフェストの名前。per_workspace が使う。
-# ここに無い名前のワークスペースは見つからないだけで、判定は直下を要求する側に倒れる。
+# 既知のワークスペースが1つも無ければ、判定は直下を要求する側に倒れる。ただし既知の
+# ワークスペースが覆われていれば、ここに無い名前のワークスペースが覆われていなくても通る
+# （formal/WorkosSpec/Workspace.lean の反例）。名前を足すほど見える範囲が広がる。
 [workspaces]
 manifests = ["pyproject.toml", "setup.py", "setup.cfg", "package.json",
              "go.mod", "Cargo.toml", "pom.xml", "build.gradle", "Gemfile",
