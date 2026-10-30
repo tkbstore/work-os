@@ -81,7 +81,7 @@ workos-gate --checks</code></pre>
 <p class="note">Stage 2 is not a popularity score. On this corpus the gate does not separate widely adopted projects from rarely adopted ones, and we say so in <a href="https://github.com/tkbstore/work-os/blob/main/calibration/README.md">calibration/README.md</a>. Commands from other people's repositories are never executed during calibration, so execution checks are unmeasured there.</p>
 
 <h2>Kernel invariants, proved in Lean 4</h2>
-<p>The rules the gate and the framework rely on are stated as 15 theorems in <a href="https://github.com/tkbstore/work-os/tree/main/formal"><code>formal/</code></a> and checked by <code>lake build</code>. The specification is not a proof that the Python implementation follows it; it is a precise statement that can be wrong in the open. Writing it already caught one false claim in our own code comments.</p>
+<p>The rules the gate and the framework rely on are stated as 18 theorems in <a href="https://github.com/tkbstore/work-os/tree/main/formal"><code>formal/</code></a> and checked by <code>lake build</code>. The specification is not a proof that the Python implementation follows it; it is a precise statement that can be wrong in the open. Writing it already caught one false claim in our own code comments.</p>
 <ul class="cols">
 <li><code>Ladder.warn_never_blocks</code></li>
 <li><code>Ladder.pending_block_unsettles</code></li>
@@ -91,6 +91,9 @@ workos-gate --checks</code></pre>
 <li><code>Ladder.publishable_iff</code></li>
 <li><code>Layers.undeclared_is_local</code></li>
 <li><code>Layers.nonlocal_has_witness</code></li>
+<li><code>Layers.pick_snd_witness</code></li>
+<li><code>Layers.pick_longest</code></li>
+<li><code>Layers.head_wins_ties</code></li>
 <li><code>Promotion.promote_is_next</code></li>
 <li><code>Promotion.promote_rank</code></li>
 <li><code>Promotion.kernel_is_top</code></li>

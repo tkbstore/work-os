@@ -200,7 +200,12 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
-        lean = run_lean(lake_bin, to_lean(case), work)
+        try:
+            lean = run_lean(lake_bin, to_lean(case), work)
+        except RuntimeError as exc:
+            # 仕様がビルドできないのは比べられないのではなく、仕様が壊れている。
+            print(f"NG  {exc}")
+            return 1
         py = {"layer": [py_layer(c) for c in case["layer"]],
               "ladder": [py_ladder(c) for c in case["ladder"]],
               "rule": [py_rule(c) for c in case["rule"]],
