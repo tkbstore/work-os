@@ -3,3 +3,8 @@ defaultTargets = ["WorkosSpec"]
 
 [[lean_lib]]
 name = "WorkosSpec"
+
+# 差分テストの実行体。tests/test_formal_differential.py が使う。
+[[lean_exe]]
+name = "differential"
+root = "Differential"
