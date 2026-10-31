@@ -9,6 +9,11 @@ engine/upstream.py が見つけた版ごとに、engine/calibrate.py と同じ�
 当て直せた版だけを「見た」として記録する。当て直せなかった版を見たことにすると、
 次の回にもう試されない。
 
+限界: kind = path（モノレポの中の1つ）はそのディレクトリだけに当てるので、祖先に在る
+ファイル（直下の .gitignore など）が見えない。2026-10-31 の基準づくりで
+claude-security の safety.gitignore_exists が落ちたのはこのため。版の間の差分には
+現れない（毎回同じに落ちる）ので候補は作らないが、到達の段はそのまま読まないこと。
+
   python3 engine/upstream_audit.py                 新しい版を当て直して結果を出す（書かない）
   python3 engine/upstream_audit.py --write         結果と見た版を記録する
   python3 engine/upstream_audit.py --cache DIR     clone の置き場所（既定は一時領域）
