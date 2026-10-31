@@ -222,9 +222,13 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(render(changes, errors))
     if args.write:
-        # 見られなかった上流は前回の記録を残す。消すと次回「初回」に化ける。
-        write_seen({**seen, **{c.key: c.after for c in changes}})
+        write_seen(merged(seen, changes))
     return SKIPPED if errors else 0
+
+
+def merged(seen: dict[str, Seen], changes: list[Change]) -> dict[str, Seen]:
+    """次の記録。見られなかった上流は前回の記録を残す。消すと次回「初回」に化ける。"""
+    return {**seen, **{c.key: c.after for c in changes}}
 
 
 if __name__ == "__main__":
