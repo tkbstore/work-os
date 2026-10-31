@@ -16,6 +16,8 @@ command_exit_zero 系は必ず skip になる。ここで分かるのは静的�
   python3 engine/calibrate.py              観測して calibration/results/ に書く
   python3 engine/calibrate.py --dry-run    clone せず宣言だけ検査する
   python3 engine/calibrate.py --cache DIR  clone の置き場所（既定は一時領域）
+  python3 engine/calibrate.py --pin calibration/results/<日付>.json
+                                           前回の結果に記録したコミットを測り直す
 """
 
 from __future__ import annotations
@@ -81,32 +83,86 @@ def lint_corpus(corpus: dict) -> list[str]:
 # 取得
 # --------------------------------------------------------------------------- #
 
-def clone(slug: str, dest: Path, max_mb: int) -> str:
-    """浅く clone する。成功なら空文字、失敗なら理由を返す。"""
-    if (dest / ".git").exists():
+# clone 元。テストは手元のリポを指すように差し替える。
+REMOTE = "https://github.com/{slug}.git"
+# LFS の実体は取りに行かない。git が追跡しているのはポインタのほうで、
+# 公開されるのもポインタである。実体を取りに行くと、サーバ側で消えた
+# オブジェクト1つで checkout ごと失敗する（実測 2026-10-28: NyxFoundation/speca）。
+GIT_ENV = {"GIT_LFS_SKIP_SMUDGE": "1"}
+
+
+def _git(args: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True,
+                          timeout=CLONE_TIMEOUT, env={**os.environ, **GIT_ENV})
+
+
+def _last_line(proc: subprocess.CompletedProcess, fallback: str) -> str:
+    lines = (proc.stderr or "").strip().splitlines()
+    return lines[-1] if lines else fallback
+
+
+def head_sha(dest: Path) -> str:
+    """作業ツリーが指しているコミット。取れなければ空文字。"""
+    if not (dest / ".git").exists():
         return ""
-    dest.parent.mkdir(parents=True, exist_ok=True)
     try:
-        proc = subprocess.run(
-            ["git", "clone", "--depth", "1", "--single-branch", "--quiet",
-             f"https://github.com/{slug}.git", str(dest)],
-            capture_output=True, text=True, timeout=CLONE_TIMEOUT,
-            # LFS の実体は取りに行かない。git が追跡しているのはポインタのほうで、
-            # 公開されるのもポインタである。実体を取りに行くと、サーバ側で消えた
-            # オブジェクト1つで checkout ごと失敗する（実測 2026-10-28: NyxFoundation/speca）。
-            env={**os.environ, "GIT_LFS_SKIP_SMUDGE": "1"})
+        proc = _git(["rev-parse", "HEAD"], cwd=dest)
+    except (subprocess.TimeoutExpired, OSError):
+        return ""
+    return proc.stdout.strip() if proc.returncode == 0 else ""
+
+
+def _fetch_sha(slug: str, dest: Path, sha: str) -> str:
+    """そのコミットだけを浅く取ってきて、作業ツリーをそこに合わせる。"""
+    if not (dest / ".git").exists():
+        dest.mkdir(parents=True, exist_ok=True)
+        for args in (["init", "--quiet"], ["remote", "add", "origin", REMOTE.format(slug=slug)]):
+            proc = _git(args, cwd=dest)
+            if proc.returncode != 0:
+                return _last_line(proc, "git init に失敗")
+    for args in (["fetch", "--depth", "1", "--quiet", "origin", sha],
+                 ["checkout", "--quiet", "--detach", "FETCH_HEAD"]):
+        proc = _git(args, cwd=dest)
+        if proc.returncode != 0:
+            return _last_line(proc, f"{sha[:12]} を取れない")
+    return ""
+
+
+def clone(slug: str, dest: Path, max_mb: int, sha: str = "") -> str:
+    """浅く取得する。成功なら空文字、失敗なら理由を返す。
+
+    sha を渡すとそのコミットを取る。渡さなければ既定ブランチの先頭を取る。
+    どちらでも、実際に測ったコミットは head_sha() で結果に残す。以前は日付しか
+    残しておらず、キャッシュの古い木を測っても、測り直しても、どの版を測ったかが
+    分からなかった。前回との差分は、版が分からなければ取れない。
+    """
+    try:
+        if sha:
+            if head_sha(dest) != sha:
+                err = _fetch_sha(slug, dest, sha)
+                if err:
+                    return err
+        elif not (dest / ".git").exists():
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            proc = _git(["clone", "--depth", "1", "--single-branch", "--quiet",
+                         REMOTE.format(slug=slug), str(dest)])
+            if proc.returncode != 0:
+                return _last_line(proc, "clone に失敗")
     except subprocess.TimeoutExpired:
         return f"{CLONE_TIMEOUT}秒で終わらない"
     except OSError as exc:
         return f"git を起動できない: {exc}"
-    if proc.returncode != 0:
-        return (proc.stderr or "").strip().splitlines()[-1:] and \
-               (proc.stderr or "").strip().splitlines()[-1] or "clone に失敗"
     size_mb = sum(f.stat().st_size for f in dest.rglob("*") if f.is_file()) // (1024 * 1024)
     if size_mb > max_mb:
         shutil.rmtree(dest, ignore_errors=True)
         return f"{size_mb}MB は上限 {max_mb}MB を超える"
     return ""
+
+
+def load_pins(path: Path) -> dict[str, str]:
+    """前回の結果に記録されたコミット。同じ版を測り直すときに使う。"""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {str(k): str(v) for k, v in data.get("commits", {}).items()}
 
 
 def has_manifest(root: Path, manifests: list[str]) -> bool:
@@ -209,6 +265,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="clone の置き場所。省略すると一時領域を使い、終了時に消す")
     ap.add_argument("--write", action="store_true",
                     help="calibration/results/ に結果を書く")
+    ap.add_argument("--pin", metavar="RESULTS", default="",
+                    help="この結果の commits に記録されたコミットを測る")
     args = ap.parse_args(argv)
 
     corpus = load_corpus()
@@ -223,6 +281,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.dry_run:
         return 0
 
+    pins = load_pins(Path(args.pin)) if args.pin else {}
     lanes_cfg = release_gate.load_lanes()
     filters = corpus.get("filters", {})
     manifests = list(filters.get("manifest_required", []))
@@ -242,6 +301,8 @@ def main(argv: list[str] | None = None) -> int:
     reached: dict[str, str] = {}
     members: dict[str, list[str]] = {}
     excluded: list[dict] = []
+    # 実際に測ったコミット。--pin で同じ版を測り直すときの入力になる。
+    commits: dict[str, str] = {}
     try:
         for gname, g in corpus["groups"].items():
             members[gname] = []
@@ -251,7 +312,10 @@ def main(argv: list[str] | None = None) -> int:
             for slug in g["slugs"]:
                 dest = cache / slug.replace("/", "__")
                 print(f"  取得 {slug} ...", flush=True)
-                err = clone(slug, dest, g_max_mb)
+                if args.pin and slug not in pins:
+                    err = "固定するコミットが --pin の結果に記録されていない"
+                else:
+                    err = clone(slug, dest, g_max_mb, pins.get(slug, ""))
                 if err:
                     excluded.append({"slug": slug, "group": gname, "why": err})
                     print(f"    除外: {err}")
@@ -268,6 +332,7 @@ def main(argv: list[str] | None = None) -> int:
                     print("    除外: 観測できなかった")
                     continue
                 per_repo[slug] = states
+                commits[slug] = head_sha(dest)
                 verdicts[slug] = bool(ok)
                 reached[slug] = got
                 members[gname].append(slug)
@@ -346,6 +411,8 @@ def main(argv: list[str] | None = None) -> int:
         out = RESULTS_DIR / f"{stamp}.json"
         out.write_text(json.dumps({
             "frozen_on": stamp,
+            "pinned_from": args.pin,
+            "commits": commits,
             "members": members,
             "excluded": excluded,
             "per_repo": per_repo,

@@ -4,8 +4,8 @@
 閾値の根拠は、一度書けば終わりではない。チェックの名前を変えれば結果は宙に浮くし、
 群の宣言が空でも数字は出る。証拠のほうが黙って腐るのを止めるのが目的。
 
-ここで clone はしない（ネットワークに依存するテストは CI で不安定になる）。
-検査するのは宣言の健全性と、既に書き出された結果との対応だけ。
+ネットワークには出ない（外に依存するテストは不安定になる）。検査するのは宣言の健全性、
+既に書き出された結果との対応、手元に作ったリポを相手にしたコミットの固定。
 
   python3 tests/test_calibration.py
 """
@@ -13,7 +13,9 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -51,8 +53,58 @@ def lane_check_ids() -> set[str]:
     return out
 
 
+def make_upstream(base: Path) -> tuple[str, str]:
+    """2コミットを持つ上流を作る。GitHub と同じく、到達できる SHA の取得を許す。"""
+    up = base / "up" / "repo"
+    up.mkdir(parents=True)
+
+    def git(*args: str) -> str:
+        return subprocess.run(["git", "-C", str(up), *args], check=True, capture_output=True,
+                              text=True, timeout=30).stdout.strip()
+    git("init", "-q")
+    git("config", "uploadpack.allowReachableSHA1InWant", "true")
+    shas = []
+    for n in ("1", "2"):
+        (up / "README.md").write_text(n, encoding="utf-8")
+        git("add", "README.md")
+        # 利用者の core.hooksPath（コミットメッセージの検査など）を持ち込まない
+        git("-c", "user.name=t", "-c", "user.email=t@example.com",
+            "-c", "core.hooksPath=/dev/null", "commit", "-q", "-m", n)
+        shas.append(git("rev-parse", "HEAD"))
+    return shas[0], shas[1]
+
+
+def check_pinning() -> None:
+    """測ったコミットが記録され、固定したコミットを測れること。
+
+    日付しか残していなかった頃は、キャッシュの古い木を測っても、測り直しても、
+    どの版を測ったかが分からなかった。前回との差分は版が分からなければ取れない。
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        old, new = make_upstream(base)
+        calibrate.REMOTE = f"file://{base}/up/{{slug}}"
+        a = base / "cache" / "a"
+        check("固定しなければ先頭を取る",
+              calibrate.clone("repo", a, 100) == "" and calibrate.head_sha(a) == new)
+        b = base / "cache" / "b"
+        check("固定したコミットを取る",
+              calibrate.clone("repo", b, 100, old) == "" and calibrate.head_sha(b) == old)
+        # キャッシュが別の版を指していても、固定した版に合わせ直す
+        check("キャッシュの版を固定した版に合わせる",
+              calibrate.clone("repo", a, 100, old) == "" and calibrate.head_sha(a) == old)
+        check("取れないコミットは理由付きで失敗する",
+              calibrate.clone("repo", base / "cache" / "c", 100, "0" * 40) != "")
+        res = base / "r.json"
+        res.write_text(json.dumps({"commits": {"o/r": old}}), encoding="utf-8")
+        check("結果の commits を固定に使える", calibrate.load_pins(res) == {"o/r": old})
+
+
 def main() -> int:
-    print("コーパスの宣言")
+    print("コミットの固定")
+    check_pinning()
+
+    print("\nコーパスの宣言")
     corpus = calibrate.load_corpus()
     problems = calibrate.lint_corpus(corpus)
     check("宣言に矛盾が無い", not problems, detail="; ".join(problems))
