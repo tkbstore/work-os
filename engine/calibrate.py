@@ -81,27 +81,75 @@ def lint_corpus(corpus: dict) -> list[str]:
 # 取得
 # --------------------------------------------------------------------------- #
 
-def clone(slug: str, dest: Path, max_mb: int) -> str:
-    """浅く clone する。成功なら空文字、失敗なら理由を返す。"""
-    if (dest / ".git").exists():
+# clone 元。テストは手元のリポを指すように差し替える。
+REMOTE = "https://github.com/{slug}.git"
+# LFS の実体は取りに行かない。git が追跡しているのはポインタのほうで、
+# 公開されるのもポインタである。実体を取りに行くと、サーバ側で消えた
+# オブジェクト1つで checkout ごと失敗する（実測 2026-10-28: NyxFoundation/speca）。
+GIT_ENV = {"GIT_LFS_SKIP_SMUDGE": "1"}
+
+
+def _git(args: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True,
+                          timeout=CLONE_TIMEOUT, env={**os.environ, **GIT_ENV})
+
+
+def _last_line(proc: subprocess.CompletedProcess, fallback: str) -> str:
+    lines = (proc.stderr or "").strip().splitlines()
+    return lines[-1] if lines else fallback
+
+
+def head_sha(dest: Path) -> str:
+    """作業ツリーが指しているコミット。取れなければ空文字。"""
+    if not (dest / ".git").exists():
         return ""
-    dest.parent.mkdir(parents=True, exist_ok=True)
     try:
-        proc = subprocess.run(
-            ["git", "clone", "--depth", "1", "--single-branch", "--quiet",
-             f"https://github.com/{slug}.git", str(dest)],
-            capture_output=True, text=True, timeout=CLONE_TIMEOUT,
-            # LFS の実体は取りに行かない。git が追跡しているのはポインタのほうで、
-            # 公開されるのもポインタである。実体を取りに行くと、サーバ側で消えた
-            # オブジェクト1つで checkout ごと失敗する（実測 2026-10-28: NyxFoundation/speca）。
-            env={**os.environ, "GIT_LFS_SKIP_SMUDGE": "1"})
+        proc = _git(["rev-parse", "HEAD"], cwd=dest)
+    except (subprocess.TimeoutExpired, OSError):
+        return ""
+    return proc.stdout.strip() if proc.returncode == 0 else ""
+
+
+def _fetch_sha(slug: str, dest: Path, sha: str) -> str:
+    """そのコミットだけを浅く取ってきて、作業ツリーをそこに合わせる。"""
+    if not (dest / ".git").exists():
+        dest.mkdir(parents=True, exist_ok=True)
+        for args in (["init", "--quiet"], ["remote", "add", "origin", REMOTE.format(slug=slug)]):
+            proc = _git(args, cwd=dest)
+            if proc.returncode != 0:
+                return _last_line(proc, "git init に失敗")
+    for args in (["fetch", "--depth", "1", "--quiet", "origin", sha],
+                 ["checkout", "--quiet", "--detach", "FETCH_HEAD"]):
+        proc = _git(args, cwd=dest)
+        if proc.returncode != 0:
+            return _last_line(proc, f"{sha[:12]} を取れない")
+    return ""
+
+
+def clone(slug: str, dest: Path, max_mb: int, sha: str = "") -> str:
+    """浅く取得する。成功なら空文字、失敗なら理由を返す。
+
+    sha を渡すとそのコミットを取る。渡さなければ既定ブランチの先頭を取る。
+    どちらでも、実際に測ったコミットは head_sha() で結果に残す。以前は日付しか
+    残しておらず、キャッシュの古い木を測っても、測り直しても、どの版を測ったかが
+    分からなかった。前回との差分は、版が分からなければ取れない。
+    """
+    try:
+        if sha:
+            if head_sha(dest) != sha:
+                err = _fetch_sha(slug, dest, sha)
+                if err:
+                    return err
+        elif not (dest / ".git").exists():
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            proc = _git(["clone", "--depth", "1", "--single-branch", "--quiet",
+                         REMOTE.format(slug=slug), str(dest)])
+            if proc.returncode != 0:
+                return _last_line(proc, "clone に失敗")
     except subprocess.TimeoutExpired:
         return f"{CLONE_TIMEOUT}秒で終わらない"
     except OSError as exc:
         return f"git を起動できない: {exc}"
-    if proc.returncode != 0:
-        return (proc.stderr or "").strip().splitlines()[-1:] and \
-               (proc.stderr or "").strip().splitlines()[-1] or "clone に失敗"
     size_mb = sum(f.stat().st_size for f in dest.rglob("*") if f.is_file()) // (1024 * 1024)
     if size_mb > max_mb:
         shutil.rmtree(dest, ignore_errors=True)
