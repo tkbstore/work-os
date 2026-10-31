@@ -6,7 +6,11 @@
 ```bash
 python3 engine/calibrate.py --dry-run    # 宣言の矛盾だけを検査（clone しない）
 python3 engine/calibrate.py --write      # 実際に clone して測り、results/ に書く
+python3 engine/calibrate.py --pin calibration/results/<日付>.json   # その結果のコミットを測り直す
 ```
+
+結果の `commits` には、各リポで実際に測ったコミットが残ります（2026-10-31 から。
+それより前の結果には日付しか無く、同じ版を測り直すことはできません）。
 
 - 対象の宣言: [corpus.toml](./corpus.toml)
 - 結果: [results/](./results/)（日付ごとの JSON）
