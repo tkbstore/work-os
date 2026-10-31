@@ -63,6 +63,59 @@ theorem nonlocal_has_witness (decls : List (String × Layer)) (rel : String) :
       obtain ⟨w, hw, hm, hl⟩ := ih h
       exact ⟨w, List.mem_cons_of_mem _ hw, hm, hl⟩
 
+/-- 選ばれた長さは、一致がなければ -1、あればどれかの一致した宣言の長さ。 -/
+theorem pick_snd_witness (decls : List (String × Layer)) (rel : String) :
+    (pick rel decls).2 = -1 ∨
+    ∃ d ∈ decls, matchesB d.1 rel = true ∧ (pick rel decls).2 = d.1.length := by
+  induction decls with
+  | nil => simp [pick]
+  | cons d ds ih =>
+    obtain ⟨p, l⟩ := d
+    simp only [pick]
+    split
+    · rename_i hc
+      simp only [Bool.and_eq_true] at hc
+      exact Or.inr ⟨(p, l), List.mem_cons_self .., hc.1, rfl⟩
+    · rcases ih with h | ⟨w, hw, hm, hl⟩
+      · exact Or.inl h
+      · exact Or.inr ⟨w, List.mem_cons_of_mem _ hw, hm, hl⟩
+
+/-- 最長一致。一致した宣言はどれも、選ばれた長さより長くない。 -/
+theorem pick_longest (decls : List (String × Layer)) (rel : String) :
+    ∀ d ∈ decls, matchesB d.1 rel = true → (d.1.length : Int) ≤ (pick rel decls).2 := by
+  induction decls with
+  | nil => simp
+  | cons d ds ih =>
+    obtain ⟨p, l⟩ := d
+    intro e he hm
+    simp only [pick]
+    rcases List.mem_cons.mp he with rfl | hd
+    · split
+      · exact Int.le_refl _
+      · rename_i hc
+        simp only [hm, Bool.true_and, decide_eq_true_eq] at hc
+        dsimp only
+        omega
+    · have := ih e hd hm
+      split
+      · rename_i hc
+        simp only [Bool.and_eq_true, decide_eq_true_eq] at hc
+        omega
+      · exact this
+
+/-- 同じ長さなら先に宣言されたほうが勝つ。先頭の宣言が一致していて、後ろのどの一致より
+    短くなければ、その層が選ばれる。 -/
+theorem head_wins_ties (p : String) (l : Layer) (ds : List (String × Layer)) (rel : String)
+    (hm : matchesB p rel = true)
+    (hle : ∀ d ∈ ds, matchesB d.1 rel = true → d.1.length ≤ p.length) :
+    layerOf ((p, l) :: ds) rel = l := by
+  have hge : (pick rel ds).2 ≤ (p.length : Int) := by
+    rcases pick_snd_witness ds rel with h | ⟨w, hw, hwm, hl⟩
+    · omega
+    · have := hle w hw hwm
+      omega
+  simp [layerOf, pick, hm, hge]
+
 -- 実装と同じ答えになることを、具体例で固定しておく（tests/ の例と揃えてある）。
 #guard layerOf [("CONSTITUTION.md", .kernel), ("engine", .goldenPath),
                 ("engine/workos.py", .kernel)] "engine/workos.py" == .kernel
