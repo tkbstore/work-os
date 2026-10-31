@@ -48,7 +48,9 @@
 ## 判定
 
 **Compose + Build**
-1. 検知は `gh api repos/{o}/{r}/releases/latest` と `tags` を ETag 付きで（新しい依存を入れない）。
+1. 検知は `gh api repos/{o}/{r}/releases/latest` とタグのコミット（新しい依存を入れない）。
+   実装（`engine/upstream.py`）では ETag を使っていない。上流7つで1回14件程度の問い合わせで、
+   レート制限（5000/時）に対して小さいため。上流を大きく増やしたら ETag を足す。
 2. 再監査は自前のゲート（`calibrate.py`）を固定した SHA に当てる。**最初の作業は SHA の固定と記録**。
    これが無いと 2 と 3 の差分が取れない。
 3. 差分から候補を作る部分は Build。候補は PR として出し、検査に上げるかは

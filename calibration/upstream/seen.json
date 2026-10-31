@@ -1,0 +1,30 @@
+{
+  "anthropics/anthropic-sdk-python": {
+    "version": "v2.3.0",
+    "commit": "202db72c87d7c6eaa72129c67ce67fd343a3a20c"
+  },
+  "anthropics/claude-code": {
+    "version": "v2.1.316",
+    "commit": "80c6959d28c4c30ecd14fc1cdf172f19d9adad81"
+  },
+  "anthropics/claude-plugins-official:plugins/claude-security": {
+    "version": "0.12.0",
+    "commit": "ca08d5e47d6402db586d37780c559a0c4c7ded9a"
+  },
+  "google-gemini/gemini-cli": {
+    "version": "v0.66.0",
+    "commit": "970413207732f5d4d8c50540c7fc359c44fdaaf2"
+  },
+  "google/adk-python": {
+    "version": "v2.13.0",
+    "commit": "d68ca857d5e3bab8e968d4e5f98ef028eb37dc87"
+  },
+  "openai/codex": {
+    "version": "rust-v0.166.0",
+    "commit": "6ff1e1ca3b30fc8b914720681fcf5fe62e95f856"
+  },
+  "openai/openai-python": {
+    "version": "v3.42.0",
+    "commit": "0dcd904bc2fed26c737d9740bca5f6b0ecc4cb7f"
+  }
+}
