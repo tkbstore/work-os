@@ -16,6 +16,8 @@ command_exit_zero 系は必ず skip になる。ここで分かるのは静的�
   python3 engine/calibrate.py              観測して calibration/results/ に書く
   python3 engine/calibrate.py --dry-run    clone せず宣言だけ検査する
   python3 engine/calibrate.py --cache DIR  clone の置き場所（既定は一時領域）
+  python3 engine/calibrate.py --pin calibration/results/<日付>.json
+                                           前回の結果に記録したコミットを測り直す
 """
 
 from __future__ import annotations
@@ -157,6 +159,12 @@ def clone(slug: str, dest: Path, max_mb: int, sha: str = "") -> str:
     return ""
 
 
+def load_pins(path: Path) -> dict[str, str]:
+    """前回の結果に記録されたコミット。同じ版を測り直すときに使う。"""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {str(k): str(v) for k, v in data.get("commits", {}).items()}
+
+
 def has_manifest(root: Path, manifests: list[str]) -> bool:
     """直下か、どこかのワークスペースにマニフェストが在るか。
 
@@ -257,6 +265,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="clone の置き場所。省略すると一時領域を使い、終了時に消す")
     ap.add_argument("--write", action="store_true",
                     help="calibration/results/ に結果を書く")
+    ap.add_argument("--pin", metavar="RESULTS", default="",
+                    help="この結果の commits に記録されたコミットを測る")
     args = ap.parse_args(argv)
 
     corpus = load_corpus()
@@ -271,6 +281,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.dry_run:
         return 0
 
+    pins = load_pins(Path(args.pin)) if args.pin else {}
     lanes_cfg = release_gate.load_lanes()
     filters = corpus.get("filters", {})
     manifests = list(filters.get("manifest_required", []))
@@ -290,6 +301,8 @@ def main(argv: list[str] | None = None) -> int:
     reached: dict[str, str] = {}
     members: dict[str, list[str]] = {}
     excluded: list[dict] = []
+    # 実際に測ったコミット。--pin で同じ版を測り直すときの入力になる。
+    commits: dict[str, str] = {}
     try:
         for gname, g in corpus["groups"].items():
             members[gname] = []
@@ -299,7 +312,10 @@ def main(argv: list[str] | None = None) -> int:
             for slug in g["slugs"]:
                 dest = cache / slug.replace("/", "__")
                 print(f"  取得 {slug} ...", flush=True)
-                err = clone(slug, dest, g_max_mb)
+                if args.pin and slug not in pins:
+                    err = "固定するコミットが --pin の結果に記録されていない"
+                else:
+                    err = clone(slug, dest, g_max_mb, pins.get(slug, ""))
                 if err:
                     excluded.append({"slug": slug, "group": gname, "why": err})
                     print(f"    除外: {err}")
@@ -316,6 +332,7 @@ def main(argv: list[str] | None = None) -> int:
                     print("    除外: 観測できなかった")
                     continue
                 per_repo[slug] = states
+                commits[slug] = head_sha(dest)
                 verdicts[slug] = bool(ok)
                 reached[slug] = got
                 members[gname].append(slug)
@@ -394,6 +411,8 @@ def main(argv: list[str] | None = None) -> int:
         out = RESULTS_DIR / f"{stamp}.json"
         out.write_text(json.dumps({
             "frozen_on": stamp,
+            "pinned_from": args.pin,
+            "commits": commits,
             "members": members,
             "excluded": excluded,
             "per_repo": per_repo,
