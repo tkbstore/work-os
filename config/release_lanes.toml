@@ -190,7 +190,11 @@ kind = "doc_section"
 file = "README.md"
 any_of = ["(?im)^#+.*(install|setup|getting started|requirement)",
           "(?im)^#+.*(インストール|導入|セットアップ|必要なもの|前提)"]
-severity = "block"
+# 2026-10-31 に warn に決めた。star の研究から来た検査で、分離は再現していない
+# （calibration/README.md「この日の枠組みは誤っていた」）。見出しの語で節を探すので、
+# 基準のリポの「Get started」を見落として claude-code を止めていた。語を足して直すと
+# 列挙になる。何が要るかは見出しの名前ではなく、実行できるブロックが示す（runnable_example）。
+severity = "warn"
 why = "動かす前に何が要るかが書かれていない README は、書いた本人にしか読めない"
 
 [[lanes.entry.checks]]
@@ -340,7 +344,10 @@ globs = ["**/*.py"]
 except_presets = ["fixtures", "vendored"]
 pattern = '(?m)^\s*except\s*:\s*$'
 max = 0
-severity = "block"
+# 2026-10-31 に warn に決めた。上限 0 の block は、基準のリポ google/adk-python
+# （contributing/samples/ の見本に1件）を止めていた。1件で公開を止めるのは基準より厳しい。
+# 置き場（samples/）を除外に足すと列挙になるので、強さのほうを基準に合わせる。
+severity = "warn"
 why = "裸の except は KeyboardInterrupt まで飲み込む。原因が永久に分からなくなる"
 
 [[lanes.robustness.checks]]
@@ -423,6 +430,18 @@ except_presets = ["fixtures", "vendored"]
 patterns_from = "secret_patterns.toml"
 severity = "warn"
 why = "解説の見本と本物を機械は見分けられない。止めはしないが、目で見る必要はある"
+
+[[lanes.safety.checks]]
+id = "no_public_client_secrets"
+kind = "pattern_absent"
+globs = ["**/*"]
+except_presets = ["fixtures", "vendored"]
+# インストール型アプリの client secret は公開してよいと発行元が文書化している値で、
+# Web アプリのものは同じ形で本当に秘密。形では分けられないので止めずに見せる。
+# 理由と出典は public_client_secrets.toml の先頭。
+patterns_from = "public_client_secrets.toml"
+severity = "warn"
+why = "公開してよい client secret と漏れた client secret は同じ形をしている。どちらかは人が決める"
 
 [[lanes.safety.checks]]
 id = "env_example_not_real"
@@ -679,7 +698,11 @@ file = "README.md"
 within_ratio = 0.30
 within_lines = 40
 min = 1
-severity = "block"
+# 2026-10-31 に warn に決めた。上の通り block の根拠は再現しておらず、基準のリポ
+# （calibration/upstream.toml）のうち claude-code / claude-security / adk-python の3つを
+# 公開の段で止めていた。基準のリポを止める検査は「同じ水準」という主張と矛盾する
+# （tests/test_reference_repos.py）。
+severity = "warn"
 why = "最初のコマンドまでの距離。読ませてから試させる順序は人を落とす"
 
 [[lanes.usability.checks]]

@@ -120,7 +120,10 @@ def main() -> int:
         plug = {"slug": "o/repo", "kind": "path", "path": "plugins/p",
                 "version_file": "plugins/p/plugin.json"}
         r = ua.audit(plug, Seen("0.1.0", new), cache, lanes)
-        check("サブディレクトリに当てる", r["key"] == "o/repo:plugins/p" and bool(r["states"]))
+        # LICENSE は直下にだけ在る。パスの中に当てていれば見えない
+        lic = [s for c, s in r["states"].items() if c.endswith(".license_exists")]
+        check("パスの版でも、ゲートはリポの直下に当てる",
+              r["key"] == "o/repo:plugins/p" and lic == ["pass"], detail=str(lic))
         try:
             ua.audit(plug, Seen("0.0.1", old), cache, lanes)
             check("そのコミットに無いパスは当て直せないと言う", False)

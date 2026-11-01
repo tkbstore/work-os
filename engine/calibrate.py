@@ -184,6 +184,25 @@ def has_manifest(root: Path, manifests: list[str]) -> bool:
 # 観測
 # --------------------------------------------------------------------------- #
 
+def evaluate(root: Path, lanes_cfg: dict, shape: str):
+    """校正の物差し。外のリポなので、コマンドは走らせず、公開を意図したものとして当てる。
+
+    観測の結果を使う側（ここと engine/upstream_audit.py）は、必ずこれを通す。
+    呼び方が分かれると、同じ名前の物差しが2本になる。
+    """
+    return release_gate.evaluate(root, lanes_cfg, execute=False,
+                                 assume_public=True, assume_shape=shape)
+
+
+def blocking(result) -> list[str]:
+    """実際に止めた観測（block で fail）。段:レーン.観測 の形。warn の fail は止めない。"""
+    if result is None:
+        return []
+    return sorted(f"{st.name}:{lane.name}.{f.check_id}" for st in result.stages
+                  for lane in st.lanes for f in lane.findings
+                  if f.state == "fail" and f.severity == "block")
+
+
 def observe(root: Path, lanes_cfg: dict,
             shape: str) -> tuple[dict[str, str], bool | None, str]:
     """check_id → pass | fail | skip と、ゲート全体の判定。
@@ -192,15 +211,15 @@ def observe(root: Path, lanes_cfg: dict,
     1レーンでも欠けたら落ちる設計なので、個々の差が小さくても全体では落ちる。
     群ごとの公開可率を並べて初めて、物差しとして成立しているかが分かる。
     """
-    result = release_gate.evaluate(root, lanes_cfg, execute=False,
-                                   assume_public=True, assume_shape=shape)
+    result = evaluate(root, lanes_cfg, shape)
     if result is None:
         return {}, None, ""
-    out: dict[str, str] = {}
-    for lane in result.lanes:
-        for f in lane.findings:
-            out[f"{lane.name}.{f.check_id}"] = f.state
-    return out, result.publishable, result.reached
+    return states_of(result), result.publishable, result.reached
+
+
+def states_of(result) -> dict[str, str]:
+    """レーン.観測 → pass | fail | skip。"""
+    return {f"{lane.name}.{f.check_id}": f.state for lane in result.lanes for f in lane.findings}
 
 
 def rate(states: list[str]) -> tuple[float | None, int, int]:
