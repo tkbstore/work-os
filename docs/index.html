@@ -111,6 +111,7 @@ workos-gate --checks</code></pre>
 <tr><td>internal</td><td>safety</td><td><code>excluded_paths_not_tracked</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>exclude は観測を止めるだけで公開を止めない。追跡下にあれば公開時に一緒に出る</td></tr>
 <tr><td>internal</td><td>safety</td><td><code>no_secrets</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>秘密は出した瞬間に漏洩が確定する。git から消しても遅い</td></tr>
 <tr><td>internal</td><td>safety</td><td><code>no_secrets_in_docs</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>解説の見本と本物を機械は見分けられない。止めはしないが、目で見る必要はある</td></tr>
+<tr><td>internal</td><td>safety</td><td><code>no_public_client_secrets</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>公開してよい client secret と漏れた client secret は同じ形をしている。どちらかは人が決める</td></tr>
 <tr><td>internal</td><td>safety</td><td><code>env_example_not_real</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>実体の .env が追跡されていること自体が事故。.env.example だけを置く</td></tr>
 <tr><td>internal</td><td>safety</td><td><code>gitignore_exists</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>何を追跡しないかの宣言が無いリポは、いつか秘密を追跡する</td></tr>
 <tr><td>internal</td><td>portability</td><td><code>no_absolute_home_paths</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>自分の machine でしか動かないものは、他人にとって動かないものと同じ</td></tr>
@@ -124,6 +125,7 @@ workos-gate --checks</code></pre>
 <tr><td>public</td><td>safety</td><td><code>excluded_paths_not_tracked</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>exclude は観測を止めるだけで公開を止めない。追跡下にあれば公開時に一緒に出る</td></tr>
 <tr><td>public</td><td>safety</td><td><code>no_secrets</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>秘密は出した瞬間に漏洩が確定する。git から消しても遅い</td></tr>
 <tr><td>public</td><td>safety</td><td><code>no_secrets_in_docs</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>解説の見本と本物を機械は見分けられない。止めはしないが、目で見る必要はある</td></tr>
+<tr><td>public</td><td>safety</td><td><code>no_public_client_secrets</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>公開してよい client secret と漏れた client secret は同じ形をしている。どちらかは人が決める</td></tr>
 <tr><td>public</td><td>safety</td><td><code>env_example_not_real</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>実体の .env が追跡されていること自体が事故。.env.example だけを置く</td></tr>
 <tr><td>public</td><td>safety</td><td><code>gitignore_exists</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>何を追跡しないかの宣言が無いリポは、いつか秘密を追跡する</td></tr>
 <tr><td>public</td><td>provenance</td><td><code>no_private_terms</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>同僚には配ってよい。public には出せない（履歴に残るので取り返しがつかない）</td></tr>
@@ -134,12 +136,12 @@ workos-gate --checks</code></pre>
 <tr><td>public</td><td>history</td><td><code>no_secrets_in_docs_since_release</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>公開後に解説へ貼った鍵は、消しても履歴に残る。見本か本物かは人が見る</td></tr>
 <tr><td>public</td><td>entry</td><td><code>readme_exists</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>入口が無ければ他人は始められない</td></tr>
 <tr><td>public</td><td>entry</td><td><code>license_exists</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>ライセンスの無いコードは、法的には誰も使えない。公開したことにならない</td></tr>
-<tr><td>public</td><td>entry</td><td><code>install_section</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>動かす前に何が要るかが書かれていない README は、書いた本人にしか読めない</td></tr>
+<tr><td>public</td><td>entry</td><td><code>install_section</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>動かす前に何が要るかが書かれていない README は、書いた本人にしか読めない</td></tr>
 <tr><td>public</td><td>entry</td><td><code>usage_section</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>見出しの言葉は流派が分かれる。高star リポでも表記が揃わないので警告に留める</td></tr>
 <tr><td>public</td><td>entry</td><td><code>runnable_example</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>コピーして貼れる行が1つも無いなら、それは説明であって手順ではない</td></tr>
 <tr><td>public</td><td>entry</td><td><code>contributing</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>外から直したい人が、作法を推測せずに済む</td></tr>
 <tr><td>public</td><td>entry</td><td><code>issue_template</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>再現手順の無いバグ報告を減らす。報告の質は様式で決まる</td></tr>
-<tr><td>public</td><td>usability</td><td><code>command_appears_early</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>最初のコマンドまでの距離。読ませてから試させる順序は人を落とす</td></tr>
+<tr><td>public</td><td>usability</td><td><code>command_appears_early</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>最初のコマンドまでの距離。読ませてから試させる順序は人を落とす</td></tr>
 <tr><td>public</td><td>usability</td><td><code>zero_config_start</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>最初の例が鍵の取得を要求すると、そこで大半が離脱する。鍵は後段に置く</td></tr>
 <tr><td>public</td><td>usability</td><td><code>help_available</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>詰まった人が最初に打つのは help。ここが無いと、読みに戻るしかなくなる</td></tr>
 <tr><td>public</td><td>agent_ready</td><td><code>cli_entry_point</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>登録がWebフォームにしかないと、そこでエージェントは止まる。動線はコマンド側に要る</td></tr>
@@ -154,7 +156,7 @@ workos-gate --checks</code></pre>
 <tr><td>public</td><td>correctness</td><td><code>test_passes</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>テストがあることと通ることは別。通らないものを公開しない</td></tr>
 <tr><td>public</td><td>correctness</td><td><code>tutorial_runs</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>README の手順が実際に動くか。ここが star の多いリポと自称OSSの分かれ目</td></tr>
 <tr><td>public</td><td>correctness</td><td><code>e2e_passes</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>単体が通ることと通しで動くことは別。宣言した e2e は宣言どおりに走る必要がある</td></tr>
-<tr><td>public</td><td>robustness</td><td><code>no_bare_except</code></td><td><span class='sev sev-block'>block</span></td><td lang='ja'>裸の except は KeyboardInterrupt まで飲み込む。原因が永久に分からなくなる</td></tr>
+<tr><td>public</td><td>robustness</td><td><code>no_bare_except</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>裸の except は KeyboardInterrupt まで飲み込む。原因が永久に分からなくなる</td></tr>
 <tr><td>public</td><td>robustness</td><td><code>no_silent_pass</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>握りつぶしは、後から来た人にとって存在しないバグになる</td></tr>
 <tr><td>public</td><td>robustness</td><td><code>no_empty_catch_js</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>同上。言語が変わっても握りつぶしは握りつぶし</td></tr>
 <tr><td>public</td><td>robustness</td><td><code>no_debug_print_left</code></td><td><span class='sev sev-warn'>warn</span></td><td lang='ja'>消し忘れた出力は、他人の環境では意味不明なノイズになる</td></tr>
