@@ -3,7 +3,8 @@
   "version": "v3.42.0",
   "commit": "0dcd904bc2fed26c737d9740bca5f6b0ecc4cb7f",
   "shape": "tool",
-  "audited_on": "2026-10-31",
+  "audited_on": "2026-11-02",
+  "gate": "7ef8bf6b3c82129d",
   "states": {
     "correctness.e2e_passes": "skip",
     "correctness.gate_runs_in_repo": "fail",
@@ -32,6 +33,7 @@
     "safety.env_example_not_real": "pass",
     "safety.excluded_paths_not_tracked": "pass",
     "safety.gitignore_exists": "pass",
+    "safety.no_public_client_secrets": "pass",
     "safety.no_secrets": "pass",
     "safety.no_secrets_in_docs": "pass",
     "usability.command_appears_early": "pass",
@@ -39,5 +41,6 @@
     "usability.zero_config_start": "fail"
   },
   "publishable": true,
-  "reached": "public"
+  "reached": "public",
+  "blocks": []
 }

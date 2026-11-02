@@ -43,6 +43,10 @@ LANES_DEFAULT = Path(__file__).resolve().parent.parent / "config" / "release_lan
 # 事実（顧客名・秘密のパターン）と組織の選択は registry が持つ。差分だけを書く。
 LANES_FILE = REGISTRY / "release_lanes.toml"
 
+# コードブロックの囲み。手順の番号付きリストの中に置かれた囲みは字下げされる（Markdown の
+# リスト項目の続き）。行頭の ``` だけを数えていた頃は、anthropics/claude-code の
+# 「Get started」にある 5 つの bash を 0 個と数え、公開の段で止めていた（2026-10-31）。
+FENCE = re.compile(r"^[ \t]*```([^\n`]*)\n(.*?)^[ \t]*```", re.S | re.M)
 # 実行できるコードブロックとみなす言語。空の info string も手順とみなす。
 RUNNABLE_LANGS = {"", "sh", "bash", "zsh", "shell", "console",
                   "python", "py", "js", "ts", "node"}
@@ -590,7 +594,7 @@ def obs_runnable_block(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list
     text, scope = _window(text, chk)
     langs = set(chk.get("langs", RUNNABLE_LANGS))
     count = 0
-    for info, body in re.findall(r"^```([^\n`]*)\n(.*?)^```", text, re.S | re.M):
+    for info, body in FENCE.findall(text):
         if info.strip().lower() in langs and _is_commands(body):
             count += 1
     need = int(chk.get("min", 1))
