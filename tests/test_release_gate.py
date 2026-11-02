@@ -616,6 +616,22 @@ def main() -> int:
         for cid in ("cli_entry_point", "no_form_auth", "headless_escape"):
             check(f"{cid} の欠落を検出する", st.get(cid) == "fail")
 
+        # 環境変数でトークンを渡すのも逃げ道。実測: 基準のリポ railwayapp/cli は
+        # `RAILWAY_TOKEN=xxx railway up` で認証し、フラグを持たないので止めていた。
+        for name, extra in (
+                ("手順での代入", {"README.md": HEALTHY_README + "\n```bash\nSAMPLE_TOKEN=xxx sample up\n```\n"}),
+                ("コードでの読み出し", {"src/auth.py": 'import os\nT = os.environ.get("SAMPLE_API_TOKEN")\n'})):
+            env = build(Path(td) / f"env_{len(name)}", {
+                **HEALTHY_FILES,
+                "work.toml": HEALTHY_FILES["work.toml"].replace(
+                    'intent = "public"', 'intent = "public"\nshape = "service"'),
+                "src/mod.py": "def f():\n    return 1\n",
+                **extra,
+            })
+            _, res = run(env)
+            check(f"環境変数のトークン（{name}）を headless の逃げ道と認める",
+                  states(res).get("headless_escape") == "pass")
+
         # --- ** の展開 -----------------------------------------------------
         # 実際に起きた事故: `**/` が 0セグメントを食う場合しか当たらず、
         # `**/tests/*` が `a/tests/t.py` に当たらなかった。除外の宣言が効かない

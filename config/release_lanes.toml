@@ -804,8 +804,13 @@ id = "headless_escape"
 kind = "pattern_present"
 globs = ["**/*.go", "**/*.ts", "**/*.rs", "**/*.py", "README.md"]
 except_presets = ["fixtures", "vendored"]
+# 環境変数でトークンを渡すのも逃げ道。CI はこの形で認証する。実測: 基準のリポ
+# railwayapp/cli は `RAILWAY_TOKEN=xxx railway up` で認証し、フラグを持たないため
+# 第2段で止めていた（2026-11-02）。手順での代入と、コードでの読み出しの両方を見る。
 patterns = ['--with-token', 'readPastedCodes', 'paste the code',
-            '--non-?interactive', '--headless', '--token[ =]']
+            '--non-?interactive', '--headless', '--token[ =]',
+            '\b[A-Z][A-Z0-9_]*_TOKEN=',
+            '''(?:env::var|getenv|environ(?:\.get)?|process\.env)\W+[A-Z][A-Z0-9_]*_TOKEN''']
 severity = "block"
 why = "ブラウザを開けない場所で動くのがエージェント。逃げ道が無いと全部が無駄になる"
 
