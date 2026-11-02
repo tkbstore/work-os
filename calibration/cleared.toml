@@ -218,3 +218,36 @@ why = "TVer オリンピックサイトのライブ再生（projectId tver-olymp
 who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
 when = "2026-11-02"
 excerpt = "api_key = 'a35e…'"
+
+[[entry]]
+repo = "yt-dlp__yt-dlp"
+path = "yt_dlp/extractor/shahid.py"
+declaration = "api_key"
+line_key = "6929170411e563b0"
+verdict = "cleared"
+why = "39 行目のアクセスキーと対になる API Gateway 署名用の secret。Wayback 20180110045308 の https://shahid.mbc.net/static/client.js に、同じ対が shahid:{access,secret} として全訪問者向けに配られていたことを確かめた"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-03"
+excerpt = "'secret_key': '4WUU…',"
+
+[[entry]]
+repo = "yt-dlp__yt-dlp"
+path = "yt_dlp/extractor/foxsports.py"
+declaration = "api_key"
+line_key = "f1bd1f49cc1c89e4"
+verdict = "cleared"
+why = "FOX の動画プレイヤーが全訪問者に配る API キー。2026-11-03 に https://www.foxsports.com/watch の HTML と https://player.fox.com/v3/foxsports.js（keys.desktop）に同じ値があることを確かめた"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-03"
+excerpt = "'x-api-key': 'cf28…',"
+
+[[entry]]
+repo = "yt-dlp__yt-dlp"
+path = "yt_dlp/extractor/tvw.py"
+declaration = "api_key"
+line_key = "635d334118cb73a3"
+verdict = "cleared"
+why = "Invintus の埋め込みプレイヤーが全訪問者に配る embedder 用の vendorKey。2026-11-03 に https://player.invintus.com/app.js（tvw.org が読み込む）の embedderAuth に同じ値があることを確かめた"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-03"
+excerpt = "'wsc-api-key': '7Whi…',"
