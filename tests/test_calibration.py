@@ -155,6 +155,20 @@ def main() -> int:
     print("\n人の判定の記録")
     check_cleared()
 
+    print("\n測れなかった結果で上書きしない")
+    # commits を持たない結果を --pin に渡すと全件が除外される。そのまま書くと、
+    # 前回の結果が空に置き換わる（実測 2026-11-03）。clone の前に除外されるので速い。
+    with tempfile.TemporaryDirectory() as tmp:
+        pin = Path(tmp) / "pin.json"
+        pin.write_text(json.dumps({"commits": {}}), encoding="utf-8")
+        before = {p.name: p.read_bytes() for p in (ROOT / "calibration" / "results").glob("*.json")}
+        proc = subprocess.run([sys.executable, str(ROOT / "engine" / "calibrate.py"), "--pin", str(pin),
+                               "--write", "--cache", str(Path(tmp) / "cache")],
+                              capture_output=True, text=True, timeout=300)
+        after = {p.name: p.read_bytes() for p in (ROOT / "calibration" / "results").glob("*.json")}
+        check("1本も測れなければ失敗で終わる", proc.returncode != 0)
+        check("前回の結果を書き換えない", before == after)
+
     print("\nコーパスの宣言")
     corpus = calibrate.load_corpus()
     problems = calibrate.lint_corpus(corpus)
