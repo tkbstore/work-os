@@ -38,7 +38,10 @@ from workos import _load_toml  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 DECL_FILE = ROOT / "calibration" / "upstream.toml"
 SEEN_FILE = ROOT / "calibration" / "upstream" / "seen.json"
-KINDS = ("release", "path")
+CORPUS_FILE = ROOT / "calibration" / "corpus.toml"
+KINDS = ("release", "path", "head")
+# kind = head の版の書き方。リリースを出さないリポ（django など）は既定ブランチの先頭を見る。
+HEAD_PREFIX = "HEAD@"
 SKIPPED = 3
 GH_TIMEOUT = 60
 # タグには接頭辞が付くことがある（openai/codex は rust-v0.166.0）。数字の並びだけを見る。
@@ -58,7 +61,8 @@ class Change:
     key: str
     before: Seen | None
     after: Seen
-    # first（初めて見た）/ major / minor / patch / same / unparsed（版の形が読めない）
+    # first（初めて見た）/ major / minor / patch / same / moved（head の先頭が動いた）
+    # / unparsed（版の形が読めない）
     step: str
 
 
@@ -66,8 +70,33 @@ class Change:
 # 宣言
 # --------------------------------------------------------------------------- #
 
-def load_decls(path: Path = DECL_FILE) -> list[dict]:
-    return list(_load_toml(path).get("upstream", []))
+def load_decls(path: Path = DECL_FILE, corpus_path: Path = CORPUS_FILE) -> list[dict]:
+    """明示した上流と、[reference_corpus] で取り込んだコーパスの群。
+
+    コーパスの群は書き写さずに名前で取り込む。写すと同じ一覧が2つになり、片方だけが
+    更新される。同じリポを明示していれば、明示したほうを使う（版の見方が具体的なため）。
+    取り込んだリポは kind = head（リリースの有無はリポによる）。
+    """
+    data = _load_toml(path)
+    decls = list(data.get("upstream", []))
+    named = {str(d.get("slug", "")) for d in decls}
+    groups = list(data.get("reference_corpus", {}).get("groups", []))
+    corpus = _load_toml(corpus_path).get("groups", {}) if groups else {}
+    for name in groups:
+        g = corpus.get(name)
+        if g is None:
+            decls.append({"group_missing": name})
+            continue
+        for slug in g.get("slugs", []):
+            if slug in named:
+                continue
+            named.add(slug)
+            decl = {"slug": slug, "kind": "head", "shape": str(g.get("shape", "tool")),
+                    "group": name}
+            if g.get("max_clone_mb"):
+                decl["max_clone_mb"] = int(g["max_clone_mb"])
+            decls.append(decl)
+    return decls
 
 
 def lint_decls(decls: list[dict]) -> list[str]:
@@ -76,6 +105,9 @@ def lint_decls(decls: list[dict]) -> list[str]:
     if not decls:
         problems.append("upstream が空")
     for d in decls:
+        if d.get("group_missing"):
+            problems.append(f"[reference_corpus] の群 {d['group_missing']!r} が corpus.toml に無い")
+            continue
         slug, kind = str(d.get("slug", "")), str(d.get("kind", ""))
         if slug.count("/") != 1:
             problems.append(f"slug の形が違う: {slug!r}")
@@ -119,6 +151,9 @@ def current(decl: dict, fetch: Fetch = gh_api) -> Seen:
         tag = str(fetch(f"repos/{slug}/releases/latest")["tag_name"])
         sha = str(fetch(f"repos/{slug}/commits/{quote(tag, safe='')}")["sha"])
         return Seen(version=tag, commit=sha)
+    if decl["kind"] == "head":
+        sha = str(fetch(f"repos/{slug}/commits/HEAD")["sha"])
+        return Seen(version=f"{HEAD_PREFIX}{sha[:12]}", commit=sha)
     commits = fetch(f"repos/{slug}/commits?path={quote(decl['path'])}&per_page=1")
     if not commits:
         raise RuntimeError(f"{slug}: {decl['path']} を変えたコミットが無い")
@@ -139,6 +174,8 @@ def step_of(before: Seen | None, after: Seen) -> str:
         return "first"
     if before == after:
         return "same"
+    if after.version.startswith(HEAD_PREFIX):
+        return "moved"
     a, b = VERSION.search(before.version), VERSION.search(after.version)
     if not (a and b):
         return "unparsed"
