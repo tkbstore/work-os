@@ -16,12 +16,15 @@ command_exit_zero 系は必ず skip になる。ここで分かるのは静的�
   python3 engine/calibrate.py              観測して calibration/results/ に書く
   python3 engine/calibrate.py --dry-run    clone せず宣言だけ検査する
   python3 engine/calibrate.py --cache DIR  clone の置き場所（既定は一時領域）
+  python3 engine/calibrate.py --pin calibration/results/<日付>.json
+                                           前回の結果に記録したコミットを測り直す
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -36,7 +39,8 @@ from workos import _load_toml  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 CORPUS_FILE = ROOT / "calibration" / "corpus.toml"
 RESULTS_DIR = ROOT / "calibration" / "results"
-CLONE_TIMEOUT = 300
+# 論文の PDF まで抱えたリポ（openai/math は作業ツリー 3.6GB）は 300 秒で終わらない。
+CLONE_TIMEOUT = 900
 # 対照群を service とみなして観測し直したものの印。実在の slug と混ざらないように付ける。
 AS_SERVICE = " (service とみなす)"
 CONTRAST_SERVICE = "not_adopted_as_service"
@@ -79,23 +83,75 @@ def lint_corpus(corpus: dict) -> list[str]:
 # 取得
 # --------------------------------------------------------------------------- #
 
-def clone(slug: str, dest: Path, max_mb: int) -> str:
-    """浅く clone する。成功なら空文字、失敗なら理由を返す。"""
-    if (dest / ".git").exists():
+# clone 元。テストは手元のリポを指すように差し替える。
+REMOTE = "https://github.com/{slug}.git"
+# LFS の実体は取りに行かない。git が追跡しているのはポインタのほうで、
+# 公開されるのもポインタである。実体を取りに行くと、サーバ側で消えた
+# オブジェクト1つで checkout ごと失敗する（実測 2026-10-28: NyxFoundation/speca）。
+GIT_ENV = {"GIT_LFS_SKIP_SMUDGE": "1"}
+
+
+def _git(args: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True,
+                          timeout=CLONE_TIMEOUT, env={**os.environ, **GIT_ENV})
+
+
+def _last_line(proc: subprocess.CompletedProcess, fallback: str) -> str:
+    lines = (proc.stderr or "").strip().splitlines()
+    return lines[-1] if lines else fallback
+
+
+def head_sha(dest: Path) -> str:
+    """作業ツリーが指しているコミット。取れなければ空文字。"""
+    if not (dest / ".git").exists():
         return ""
-    dest.parent.mkdir(parents=True, exist_ok=True)
     try:
-        proc = subprocess.run(
-            ["git", "clone", "--depth", "1", "--single-branch", "--quiet",
-             f"https://github.com/{slug}.git", str(dest)],
-            capture_output=True, text=True, timeout=CLONE_TIMEOUT)
+        proc = _git(["rev-parse", "HEAD"], cwd=dest)
+    except (subprocess.TimeoutExpired, OSError):
+        return ""
+    return proc.stdout.strip() if proc.returncode == 0 else ""
+
+
+def _fetch_sha(slug: str, dest: Path, sha: str) -> str:
+    """そのコミットだけを浅く取ってきて、作業ツリーをそこに合わせる。"""
+    if not (dest / ".git").exists():
+        dest.mkdir(parents=True, exist_ok=True)
+        for args in (["init", "--quiet"], ["remote", "add", "origin", REMOTE.format(slug=slug)]):
+            proc = _git(args, cwd=dest)
+            if proc.returncode != 0:
+                return _last_line(proc, "git init に失敗")
+    for args in (["fetch", "--depth", "1", "--quiet", "origin", sha],
+                 ["checkout", "--quiet", "--detach", "FETCH_HEAD"]):
+        proc = _git(args, cwd=dest)
+        if proc.returncode != 0:
+            return _last_line(proc, f"{sha[:12]} を取れない")
+    return ""
+
+
+def clone(slug: str, dest: Path, max_mb: int, sha: str = "") -> str:
+    """浅く取得する。成功なら空文字、失敗なら理由を返す。
+
+    sha を渡すとそのコミットを取る。渡さなければ既定ブランチの先頭を取る。
+    どちらでも、実際に測ったコミットは head_sha() で結果に残す。以前は日付しか
+    残しておらず、キャッシュの古い木を測っても、測り直しても、どの版を測ったかが
+    分からなかった。前回との差分は、版が分からなければ取れない。
+    """
+    try:
+        if sha:
+            if head_sha(dest) != sha:
+                err = _fetch_sha(slug, dest, sha)
+                if err:
+                    return err
+        elif not (dest / ".git").exists():
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            proc = _git(["clone", "--depth", "1", "--single-branch", "--quiet",
+                         REMOTE.format(slug=slug), str(dest)])
+            if proc.returncode != 0:
+                return _last_line(proc, "clone に失敗")
     except subprocess.TimeoutExpired:
         return f"{CLONE_TIMEOUT}秒で終わらない"
     except OSError as exc:
         return f"git を起動できない: {exc}"
-    if proc.returncode != 0:
-        return (proc.stderr or "").strip().splitlines()[-1:] and \
-               (proc.stderr or "").strip().splitlines()[-1] or "clone に失敗"
     size_mb = sum(f.stat().st_size for f in dest.rglob("*") if f.is_file()) // (1024 * 1024)
     if size_mb > max_mb:
         shutil.rmtree(dest, ignore_errors=True)
@@ -103,30 +159,67 @@ def clone(slug: str, dest: Path, max_mb: int) -> str:
     return ""
 
 
+def load_pins(path: Path) -> dict[str, str]:
+    """前回の結果に記録されたコミット。同じ版を測り直すときに使う。"""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {str(k): str(v) for k, v in data.get("commits", {}).items()}
+
+
 def has_manifest(root: Path, manifests: list[str]) -> bool:
-    return any((root / m).exists() for m in manifests)
+    """直下か、どこかのワークスペースにマニフェストが在るか。
+
+    直下だけを見ると、論文と証明を同居させたリポ（openai/math は Lean の
+    ワークスペースが lean/ に在る）を「動かすものではない」として測らずに外す
+    （実測 2026-10-28）。ゲートの per_workspace と同じ検出を使い、vendored と
+    fixtures のマニフェストは数えない。
+    """
+    if any((root / m).exists() for m in manifests):
+        return True
+    lanes_cfg = {**release_gate.load_lanes(), "workspaces": {"manifests": manifests}}
+    ctx = {"files": release_gate.tracked_files(root, []), "lanes_cfg": lanes_cfg}
+    return bool(release_gate._workspace_dirs(ctx))
 
 
 # --------------------------------------------------------------------------- #
 # 観測
 # --------------------------------------------------------------------------- #
 
-def observe(root: Path, lanes_cfg: dict, shape: str) -> tuple[dict[str, str], bool | None]:
+def evaluate(root: Path, lanes_cfg: dict, shape: str):
+    """校正の物差し。外のリポなので、コマンドは走らせず、公開を意図したものとして当てる。
+
+    観測の結果を使う側（ここと engine/upstream_audit.py）は、必ずこれを通す。
+    呼び方が分かれると、同じ名前の物差しが2本になる。
+    """
+    return release_gate.evaluate(root, lanes_cfg, execute=False,
+                                 assume_public=True, assume_shape=shape)
+
+
+def blocking(result) -> list[str]:
+    """実際に止めた観測（block で fail）。段:レーン.観測 の形。warn の fail は止めない。"""
+    if result is None:
+        return []
+    return sorted(f"{st.name}:{lane.name}.{f.check_id}" for st in result.stages
+                  for lane in st.lanes for f in lane.findings
+                  if f.state == "fail" and f.severity == "block")
+
+
+def observe(root: Path, lanes_cfg: dict,
+            shape: str) -> tuple[dict[str, str], bool | None, str]:
     """check_id → pass | fail | skip と、ゲート全体の判定。
 
     チェック単位の通過率だけ見ていると「ゲートとして使えるか」が見えない。
     1レーンでも欠けたら落ちる設計なので、個々の差が小さくても全体では落ちる。
     群ごとの公開可率を並べて初めて、物差しとして成立しているかが分かる。
     """
-    result = release_gate.evaluate(root, lanes_cfg, execute=False,
-                                   assume_public=True, assume_shape=shape)
+    result = evaluate(root, lanes_cfg, shape)
     if result is None:
-        return {}, None
-    out: dict[str, str] = {}
-    for lane in result.lanes:
-        for f in lane.findings:
-            out[f"{lane.name}.{f.check_id}"] = f.state
-    return out, result.publishable
+        return {}, None, ""
+    return states_of(result), result.publishable, result.reached
+
+
+def states_of(result) -> dict[str, str]:
+    """レーン.観測 → pass | fail | skip。"""
+    return {f"{lane.name}.{f.check_id}": f.state for lane in result.lanes for f in lane.findings}
 
 
 def rate(states: list[str]) -> tuple[float | None, int, int]:
@@ -191,6 +284,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="clone の置き場所。省略すると一時領域を使い、終了時に消す")
     ap.add_argument("--write", action="store_true",
                     help="calibration/results/ に結果を書く")
+    ap.add_argument("--pin", metavar="RESULTS", default="",
+                    help="この結果の commits に記録されたコミットを測る")
     args = ap.parse_args(argv)
 
     corpus = load_corpus()
@@ -205,6 +300,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.dry_run:
         return 0
 
+    pins = load_pins(Path(args.pin)) if args.pin else {}
     lanes_cfg = release_gate.load_lanes()
     filters = corpus.get("filters", {})
     manifests = list(filters.get("manifest_required", []))
@@ -219,16 +315,26 @@ def main(argv: list[str] | None = None) -> int:
 
     per_repo: dict[str, dict[str, str]] = {}
     verdicts: dict[str, bool] = {}
+    # 届いた段。公開済みのリポを第1段で止めたなら、それは「出した瞬間に取り返しが
+    # つかない」と言ったことになる。公開済みは「出してよい」の正解なので、偽陽性の候補。
+    reached: dict[str, str] = {}
     members: dict[str, list[str]] = {}
     excluded: list[dict] = []
+    # 実際に測ったコミット。--pin で同じ版を測り直すときの入力になる。
+    commits: dict[str, str] = {}
     try:
         for gname, g in corpus["groups"].items():
             members[gname] = []
             shape = str(g.get("shape", ""))
+            # 群ごとに上限を上書きできる。上書きは corpus.toml の diff に残る。
+            g_max_mb = int(g.get("max_clone_mb", max_mb))
             for slug in g["slugs"]:
                 dest = cache / slug.replace("/", "__")
                 print(f"  取得 {slug} ...", flush=True)
-                err = clone(slug, dest, max_mb)
+                if args.pin and slug not in pins:
+                    err = "固定するコミットが --pin の結果に記録されていない"
+                else:
+                    err = clone(slug, dest, g_max_mb, pins.get(slug, ""))
                 if err:
                     excluded.append({"slug": slug, "group": gname, "why": err})
                     print(f"    除外: {err}")
@@ -239,13 +345,15 @@ def main(argv: list[str] | None = None) -> int:
                     excluded.append({"slug": slug, "group": gname, "why": why})
                     print(f"    除外: {why}")
                     continue
-                states, ok = observe(dest, lanes_cfg, shape)
+                states, ok, got = observe(dest, lanes_cfg, shape)
                 if not states:
                     excluded.append({"slug": slug, "group": gname, "why": "観測できなかった"})
                     print("    除外: 観測できなかった")
                     continue
                 per_repo[slug] = states
+                commits[slug] = head_sha(dest)
                 verdicts[slug] = bool(ok)
+                reached[slug] = got
                 members[gname].append(slug)
                 if gname == "not_adopted":
                     # agent_ready は shape = "service" を宣言したリポにしか当たらない。
@@ -254,7 +362,7 @@ def main(argv: list[str] | None = None) -> int:
                     # ために、対照群だけ service とみなした2回目の観測を持つ。
                     # 元の観測は上書きしない（tool としての結果も残す）。
                     alias = slug + AS_SERVICE
-                    per_repo[alias], _ = observe(dest, lanes_cfg, "service")
+                    per_repo[alias], _, _ = observe(dest, lanes_cfg, "service")
                     members.setdefault(CONTRAST_SERVICE, []).append(alias)
     finally:
         if tmp is not None:
@@ -270,17 +378,23 @@ def main(argv: list[str] | None = None) -> int:
     print("\n" + "=" * 82)
     print("ゲート全体の通過率（1レーンでも欠けたら公開不可）")
     gate_rates: dict[str, dict] = {}
+    first_stage = (lanes_cfg.get("gate", {}).get("stages") or [""])[0]
+    first_lanes = set(lanes_cfg.get("stages", {}).get(first_stage, {}).get("lanes", []))
     for gname, slugs in members.items():
         if gname == CONTRAST_SERVICE:
             continue
         judged = [s_ for s_ in slugs if s_ in verdicts]
         passed = sum(1 for s_ in judged if verdicts[s_])
-        gate_rates[gname] = {"pass": passed, "n": len(judged)}
+        first = sum(1 for s_ in judged if reached.get(s_))
+        gate_rates[gname] = {"pass": passed, "n": len(judged), "internal": first}
         share = f"{passed / len(judged):.0%}" if judged else "—"
-        print(f"  {gname:<16} {passed:>2}/{len(judged):<3} ({share})")
+        print(f"  {gname:<16} 公開可 {passed:>2}/{len(judged):<3} ({share})"
+              f"  第1段 {first:>2}/{len(judged)}")
         for s_ in judged:
-            if not verdicts[s_]:
-                print(f"       不可  {s_}")
+            if not reached.get(s_):
+                bad = sorted(k for k, v in per_repo[s_].items()
+                             if v == "fail" and k.split(".", 1)[0] in first_lanes)
+                print(f"       第1段で止まる  {s_}: {', '.join(bad)}")
     if excluded:
         # 黙って削らない。何を測らなかったかは結果の一部である。
         print(f"\n除外 {len(excluded)} 本")
@@ -316,12 +430,15 @@ def main(argv: list[str] | None = None) -> int:
         out = RESULTS_DIR / f"{stamp}.json"
         out.write_text(json.dumps({
             "frozen_on": stamp,
+            "pinned_from": args.pin,
+            "commits": commits,
             "members": members,
             "excluded": excluded,
             "per_repo": per_repo,
             "adopted_vs_not_adopted": main_rows,
             "agent_native_vs_not_adopted": agent_rows,
             "verdicts": verdicts,
+            "reached": reached,
             "gate_rates": gate_rates,
             "min_gap": min_gap,
             "agent_lane_min_gap": agent_gap,

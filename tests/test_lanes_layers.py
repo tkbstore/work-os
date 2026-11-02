@@ -115,7 +115,7 @@ with tempfile.TemporaryDirectory() as td:
     p = run(ROOT, empty)
     out = p.stdout + p.stderr
 
-    check("registry が無くても判定を出す", "[work-os]" in out, out[:300])
+    check("registry が無くても判定を出す", f"[{ROOT.name}]" in out, out[:300])
     check("判定基準が無いとは言わない", "判定基準が見つかりません" not in out, out[:300])
     # 形の観測（秘密のパターン）は骨格に在るので走る。通った観測は既定では印字され
     # ないので -v で見る。印字されないことを根拠にすると、この検査は常に真になる

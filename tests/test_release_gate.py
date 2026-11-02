@@ -136,7 +136,7 @@ def temp_registry(td: Path, default_intent: str | None) -> Path:
     reg.mkdir(parents=True, exist_ok=True)
     src = registry_root()
     for name in ("private_terms.toml", "release_lanes.toml", "secret_patterns.toml",
-                 "fleet_policy.toml"):
+                 "governance.toml"):
         if (src / name).is_file():
             (reg / name).write_text((src / name).read_text(encoding="utf-8"),
                                     encoding="utf-8")
@@ -334,7 +334,7 @@ def main() -> int:
         _, res = run_in(reg_int, undeclared)
         check("統治クラスの根拠が出る",
               bool(res) and "統治クラス" in str(res[0]["owned_note"]))
-        check("宣言が無ければ owned として扱う（fleet.py と同じ既定）",
+        check("宣言が無ければ owned として扱う",
               bool(res) and "owned" in str(res[0]["owned_note"]))
         check("自組織の観測が当たる", states(res).get("no_private_terms") != "skip")
 
@@ -347,7 +347,7 @@ def main() -> int:
         # 宣言は追記ではなく書き直す。実物にも [third_party] が在るので追記すると
         # 表が重複して TOML が読めなくなる（最初にそれで engine を traceback させた）。
         # 仕掛けが実物の中身に依存しない形にもなる。
-        pol = reg_int / "fleet_policy.toml"
+        pol = reg_int / "governance.toml"
         pol.write_text('[third_party]\noutsider = "検査用。他者所有として宣言する"\n',
                        encoding="utf-8")
         _, res = run_in(reg_int, outsider)
@@ -756,6 +756,30 @@ def main() -> int:
         check("since が無ければ全履歴を見る（今までどおり）",
               state == "fail" and "起点より後" not in detail)
 
+        # 公開されるのは HEAD ではなく push した ref 全部である。起点以降を
+        # `起点..HEAD` で切ると、チェックアウトしていないブランチは見えない。
+        # 実測 2026-10-03: 別ブランチのコミットメッセージに顧客名が入って push され、
+        # その間ずっと HEAD 側の観測は「該当なし」を返していた。
+        side = build(Path(td) / "side", HEALTHY_FILES)
+        cut = subprocess.run(["git", "-C", str(side), "rev-parse", "HEAD"],
+                             capture_output=True, text=True, timeout=30).stdout.strip()
+        here = subprocess.run(["git", "-C", str(side), "branch", "--show-current"],
+                              capture_output=True, text=True, timeout=30).stdout.strip()
+        subprocess.run(["git", "-C", str(side), "checkout", "-qb", "topic"],
+                       check=True, timeout=30)
+        (side / "src" / "topic.py").write_text("ok = 1\n", encoding="utf-8")
+        commit(side, "feat: ZZQQ-Client 向けの数え分け")
+        subprocess.run(["git", "-C", str(side), "checkout", "-q", here],
+                       check=True, timeout=30)
+        topic_sha = subprocess.run(["git", "-C", str(side), "rev-parse", "--short", "topic"],
+                                   capture_output=True, text=True, timeout=30).stdout.strip()
+        state, detail, ex = obs_history_pattern_absent(
+            side, chk, {"released_at": cut, "lanes_cfg": {}})
+        check("チェックアウトしていないブランチの起点以降も見る", state == "fail")
+        # 「コミットメッセージに該当」だけでは、どれを直せばいいか分からない。
+        # 実測では 4 件と出て、場所を探すのに別の走査を書く必要があった。
+        check("当たったコミットを名指しする", any(topic_sha in e for e in ex))
+
         # 範囲を切る理由そのもの。公開**前**に入っていた分は、公開した時点で
         # もう出ている。消せないものを毎回数え直すと、直しようのない過去で
         # 永久に落ち続け、公開後のゲートが誰にも使われなくなる。
@@ -1016,7 +1040,7 @@ def main() -> int:
 
         real_creds = build(Path(td) / "real_creds", {
             **HEALTHY_FILES,
-            "src/conf.py": 'URL = "postgres' + 'ql://app:hunter2@db.abc123.example.com:5432/app"\n',
+            "src/conf.py": 'URL = "postgres' + 'ql://app:hunter2@db.abc123.supabase.co:5432/app"\n',
         })
         _, res = run(real_creds)
         check("名前解決できるホストへの資格情報は秘密として落とす",
@@ -1179,6 +1203,74 @@ def main() -> int:
         check("run_all.py が tests/ の test_*.py を取りこぼさない",
               sorted(listed) == on_disk)
         check("走らせる対象が1本以上ある", len(on_disk) >= 1)
+
+    # --- ワークスペースと Lean（外部コーパスで見つけた誤判定 2026-10-28）------
+    # 直下に .gitignore が無くても、全ワークスペースが覆われていれば通す。
+    # 1つでも覆われていなければ落とす。直下がワークスペースなら直下を要求する。
+    print("\nワークスペース単位の .gitignore")
+    with tempfile.TemporaryDirectory() as td:
+        lean_ws = {"README.md": "# papers\n", "lean/lakefile.toml": 'name = "p"\n',
+                   "lean/P.lean": "theorem t : 1 = 1 := rfl\n"}
+        covered = build(Path(td) / "covered", {**lean_ws, "lean/.gitignore": ".lake/\n"})
+        _, res = run(covered, "--assume-public")
+        check("全ワークスペースに在れば通す", states(res).get("gitignore_exists") == "pass")
+        bare = build(Path(td) / "bare", {**lean_ws, "lean/.gitignore": ".lake/\n",
+                                          "web/package.json": "{}\n"})
+        _, res = run(bare, "--assume-public")
+        check("覆われていないワークスペースが1つあれば落とす",
+              states(res).get("gitignore_exists") == "fail")
+        rootws = build(Path(td) / "rootws", {"pyproject.toml": "[project]\n",
+                                             "sub/.gitignore": "x\n"})
+        _, res = run(rootws, "--assume-public")
+        check("直下がワークスペースなら直下を要求する",
+              states(res).get("gitignore_exists") == "fail")
+        nows = build(Path(td) / "nows", {"README.md": "# x\n", "a/.gitignore": "x\n"})
+        _, res = run(nows, "--assume-public")
+        check("ワークスペースが見つからなければ直下を要求する",
+              states(res).get("gitignore_exists") == "fail")
+        vend = build(Path(td) / "vend", {"README.md": "# x\n",
+                                         "vendor/lib/package.json": "{}\n",
+                                         "vendor/lib/.gitignore": "x\n"})
+        _, res = run(vend, "--assume-public")
+        check("vendor した木のマニフェストはワークスペースに数えない",
+              states(res).get("gitignore_exists") == "fail")
+
+        print("\nLean の定理をテストとして数える")
+        check("theorem を持つ .lean は tests_exist を満たす",
+              states(run(covered, "--assume-public")[1]).get("tests_exist") == "pass")
+        defs = build(Path(td) / "defs", {"lean/lakefile.toml": 'name = "p"\n',
+                                         "lean/P.lean": "def f : Nat := 1\n-- theorem in a comment\n"})
+        check("定義だけの .lean は数えない",
+              states(run(defs, "--assume-public")[1]).get("tests_exist") == "fail")
+        dep = build(Path(td) / "dep", {"lean/lakefile.toml": 'name = "p"\n',
+                                       "lean/.lake/packages/m/M.lean": "theorem t : 1 = 1 := rfl\n"})
+        check("依存（.lake/）の定理は自分のテストに数えない",
+              states(run(dep, "--assume-public")[1]).get("tests_exist") == "fail")
+
+        print("\n規格で解決しない名前の資格情報")
+        reserved = build(Path(td) / "reserved", {
+            "src/check.py": 'URLS = ["postgresql://u:secret@remote.test:5432/db",\n'
+                            '        "postgres://u:pw@db.example.com/x"]\n'})
+        check("予約ドメイン（.test / example.com）は資格情報に数えない",
+              states(run(reserved, "--assume-public")[1]).get("no_secrets") == "pass")
+        internal = build(Path(td) / "internal", {
+            "src/check.py": 'URL = "postgresql://postgres:pw@postgres.app.internal:5432/r"\n'})
+        check("私的利用に予約された .internal は資格情報に数えない",
+              states(run(internal, "--assume-public")[1]).get("no_secrets") == "pass")
+        camel = build(Path(td) / "camel", {
+            "src/num.py": 'X = dict(api_key="chargePowerCommand")\n'})
+        check("camelCase の語（フィールド名）は api_key の値に数えない",
+              states(run(camel, "--assume-public")[1]).get("no_secrets") == "pass")
+        rand = build(Path(td) / "rand", {
+            "src/num.py": 'X = dict(api_key="aBcdEfgHIjklMnopQrst")\n'})
+        check("大文字が続く乱数は camelCase の除外に紛れない",
+              states(run(rand, "--assume-public")[1]).get("no_secrets") == "fail")
+        for host in ("x.test.evil.com", "remote.testing.com", "myexample.com",
+                     "x.internal.evil.com"):
+            real = build(Path(td) / f"real-{host}", {
+                "src/check.py": f'URL = "postgresql://u:s3cret@{host}:5432/db"\n'})
+            check(f"名前の途中にあるだけの {host} は引き続き当たる",
+                  states(run(real, "--assume-public")[1]).get("no_secrets") == "fail")
 
     print()
     if failed:

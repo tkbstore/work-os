@@ -21,9 +21,9 @@
 cd <repos>/work-os
 
 # 1. 全リポジトリの棚卸し（どのドメインに何本あるか）
-# 出力先は config 層（別リポ）。所在は engine/workos.py registry_root() が決める
-python3 engine/registry.py <repos> > ../work-os-registry/repos.toml
-less ../work-os-registry/repos.toml
+# 標準出力に出る。手元の産物なので commit しない
+python3 engine/registry.py <repos> > /tmp/repos.toml
+less /tmp/repos.toml
 
 # 2. marketing ドメインの共通性・変動点・複製世代を実測
 python3 engine/scan.py <repos> --group <domain-prefix>

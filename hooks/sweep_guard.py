@@ -37,12 +37,12 @@ ACK_ENV = "WORKOS_SWEEP"
 # なっていた。報告に頼る限りこのズレは見えないので、機械が数える。
 #
 # コマンド文字列は記録しない（秘密が載りうる）。数と対象名と cwd だけを残す。
-# 記録先は registry（別リポ）にある。無い環境でも止める仕事は続ける。
+# 記録は産物なので state_root()（手元の産物置き場）に書く。無い環境でも止める仕事は続ける。
 # 検査用の複製のように engine/ が隣に無い置き方でも、ガードは動かねばならない。
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "engine"))
 try:
-    from workos import registry_path
-    EVENTS = registry_path("sweep_events.jsonl")
+    from workos import state_path
+    EVENTS = state_path("sweep_events.jsonl")
 except Exception:                                  # noqa: BLE001 — hook は落ちない
     EVENTS = None                                  # 記録だけ諦める。判定は変えない
 

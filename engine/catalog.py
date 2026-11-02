@@ -1,27 +1,29 @@
 #!/usr/bin/env python3
 """catalog.py — 「それ、もう作ってあるか？」に答えられるカタログを作る。読み取り専用。
 
-registry/repos.toml は**存在**を漏れなく持っているが、**能力**を持っていない。
+repos.toml（engine/registry.py の出力）は**存在**を漏れなく持っているが、**能力**を持っていない。
 だから「pdf」で引くとカタログのヒットは0、実際には26リポに実装がある、という
 逆の答えを返す。カタログの沈黙を不在の証拠と読むと、重複を作る。
 
 このカタログは手で書かない。書いたものは腐るからである。コードから機械的に導く。
 
-  python3 engine/catalog.py <repos> --build     # registry/catalog.toml を生成
+  python3 engine/catalog.py <repos> --build     # 台帳を手元（state_root()）に生成
   python3 engine/catalog.py --verify            # 宣言と実在のズレを出す
   python3 engine/catalog.py --set-purpose <名前> <本文>   # purpose を手で直す
-  python3 engine/catalog.py --find pdf          # どのリポが持っているか
+  python3 engine/catalog.py --find pdf          # どのリポが持っているか（ズレていれば作り直す）
   python3 engine/catalog.py --find pdf --why    # 何を根拠にそう言うか
 
 生成物には出自（[meta]: いつ・どこで・何本数えたか）を書き残す。件数だけでは実在と
 比べられない。実測 2026-09-26: 5 本消えて 5 本増えたカタログが 82 / 82 で一致していた。
 
-外部依存なし。生成先は registry/（非公開層）。engine には事実を持たせない。
+外部依存なし。生成先は手元の産物置き場（state_root()）で、どこにも commit しない。
+engine には事実を持たせない。
 """
 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import math
 import re
@@ -30,9 +32,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from workos import iter_repo_dirs, registry_path  # noqa: E402
+from workos import git_link, iter_repo_dirs, state_path  # noqa: E402
 
-CATALOG = registry_path("catalog.toml")
+# 台帳は産物なので commit しない。手元の木から作り、手元に置く（2026-10-13 まで
+# 別リポに commit していて、worktree の出入りのたびに鮮度の検査が止めていた）。
+# purpose の人の書き込み（--set-purpose）も同じファイルに残り、--build は上書きしない。
+CATALOG = state_path("catalog.toml")
 SRC_EXT = {".py", ".ts", ".tsx", ".js", ".jsx", ".go", ".rs", ".rb", ".sh"}
 SKIP_DIRS = {".git", "node_modules", "venv", "env", ".venv", "__pycache__", "dist",
              "build", ".next", "sessions", "data", "outputs", "out", ".claude"}
@@ -219,8 +224,26 @@ def purpose_trace(repo: Path) -> list[tuple[str, int, str, str]]:
     return out
 
 
+def worktree_purpose(repo: Path) -> str:
+    """clone に生えた枝なら、それがどの clone の何という枝かを返す。clone なら空。
+
+    worktree は本体と同じ作業ツリーを写しているので、README から下書きを作ると
+    **本体と一字一句同じ purpose が2行並ぶ**。台帳はそれを「別のプロダクトが2つ
+    ある」と読める（実測 2026-09-27）。枝であることは機械が読み取れる事実なので、
+    ここは terms と同じ機械の欄として扱い、人の欄にしない。
+    """
+    link = git_link(repo)
+    if not link or link[0] != "worktree":
+        return ""
+    _, parent, branch = link
+    on = f"（ブランチ {branch}）" if branch else ""
+    return f"{parent} の git worktree{on}。別のリポジトリではなく、同じ remote の作業用の枝である。"
+
+
 def read_purpose(repo: Path) -> str:
     """README / CLAUDE.md の最初の意味のある1文を purpose の下書きにする。"""
+    if wt := worktree_purpose(repo):
+        return wt[:PURPOSE_MAX]
     for name in ("README.md", "CLAUDE.md", "README.rst"):
         f = repo / name
         if not f.is_file():
@@ -314,12 +337,16 @@ def build(root: Path) -> int:
     # 台帳のズレを直す操作そのものが手で直した purpose を壊していた（実測 2026-09-26: 2 本）。
     # 直せと言われている欄を、直しても消える置き場にしてはいけない。
     kept = {str(r.get("name") or ""): str(r.get("purpose") or "") for r in load()}
-    rows, drafts = [], []
+    rows, drafts, worktrees = [], [], []
     for repo in iter_repo_dirs(root):
         terms = sorted(capability_terms(repo))
         draft = read_purpose(repo)
-        purpose = kept.get(repo.name) or draft
-        if purpose != draft and draft:
+        machine = bool(worktree_purpose(repo))
+        if machine:
+            worktrees.append((repo.name, draft))
+        # worktree の purpose は機械が持つので、人の値より下書きを採る（terms と同じ）
+        purpose = draft if machine else (kept.get(repo.name) or draft)
+        if purpose != draft and draft and not machine:
             drafts.append((repo.name, purpose, draft))
         rows.append((repo.name, purpose, terms))
 
@@ -349,6 +376,12 @@ def build(root: Path) -> int:
     CATALOG.write_text("\n".join(out), encoding="utf-8")
     total = sum(len(t) for _, _, t in rows)
     print(f"生成: {CATALOG}（{len(rows)} リポジトリ / 能力語 {total} 件）")
+    if worktrees:
+        # 母数から消さない。消すと「ローカルに無い＝存在しない」と同じ形の
+        # 見落としが起きる（2026-09-26 に registry 側で実際に起きた）。
+        print(f"うち git worktree {len(worktrees)} 本（clone ではない。数には入れている）:")
+        for n, d in worktrees:
+            print(f"  {n} → {d}")
     missing = [n for n, p, _ in rows if not p]
     if missing:
         print(f"purpose が空 {len(missing)} 件（README も CLAUDE.md も無い）: "
@@ -416,12 +449,10 @@ def verify(root: Path | None) -> int:
         print(f"数えた根が今は在りません: {root}（確かめていません）", file=sys.stderr)
         return 1
 
+    missing, stale = drift(rows, root)
     known = {str(r.get("name") or "") for r in rows} - {""}
     live = {d.name for d in iter_repo_dirs(root)}
     unseen = {d.name for d in iter_repo_dirs(root, require_git=False)} - live
-
-    missing = sorted(live - known)
-    stale = sorted(known - live)
 
     when = str(m.get("generated_at") or "不明")
     print(f"カタログ {len(known)} 本 / 実在 {len(live)} 本   生成 {when}   根 {root}")
@@ -514,6 +545,36 @@ def compare(name_a: str, name_b: str | None, limit: int) -> int:
     return 0
 
 
+def drift(rows: list[dict], root: Path) -> tuple[list[str], list[str]]:
+    """(実在するが台帳に無い名前, 台帳に在るが実在しない名前)。"""
+    known = {str(r.get("name") or "") for r in rows} - {""}
+    live = {d.name for d in iter_repo_dirs(root)}
+    return sorted(live - known), sorted(known - live)
+
+
+def refresh(rows: list[dict]) -> list[dict]:
+    """台帳が手元の木とズレていたら、出自の根で作り直してから返す。
+
+    台帳は産物なので、古いまま答えるより作り直して答えるほうが正しい。古い台帳は
+    黙って嘘をつく（沈黙が「作っていない」と読まれる）。作り直せないとき
+    （出自が無い・根が消えた）は手元の台帳で答え、そう言う。
+    """
+    declared = str(meta().get("root") or "")
+    root = Path(declared).expanduser() if declared else None
+    if root is None or not root.is_dir():
+        print("台帳の出自の根が分からないので、作り直さずに答えます。"
+              "（--verify で確かめてください）", file=sys.stderr)
+        return rows
+    missing, stale = drift(rows, root)
+    if not missing and not stale:
+        return rows
+    print(f"台帳が手元とズレていたので作り直します（無い {len(missing)} / "
+          f"消えた {len(stale)}）", file=sys.stderr)
+    with contextlib.redirect_stdout(sys.stderr):
+        build(root)
+    return load()
+
+
 def load() -> list[dict]:
     if not CATALOG.exists():
         return []
@@ -527,6 +588,7 @@ def find(term: str, why: bool) -> int:
     if not rows:
         print("catalog.toml がありません。先に --build してください。", file=sys.stderr)
         return 2
+    rows = refresh(rows)
     t = term.lower()
     hits = []
     for r in rows:

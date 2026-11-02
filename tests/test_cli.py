@@ -196,7 +196,9 @@ check("gate を deliverable_gate と数えない",
       not cli.invocation("deliverable_gate").search("python3 engine/release_gate.py"))
 
 # 実測: ゲートが走らせる入口には自動の呼び出し元が在る
-for name in ("validate", "release_gate", "abstraction_gate", "catalog"):
+# catalog は 2026-10-13 にゲートから外した（台帳は手元の産物で、--find が使う時点で
+# 作り直す）。ゲートが走らせなくなったので、ここにも並べない。
+for name in ("validate", "release_gate", "abstraction_gate"):
     code, _ = cli.callers(name, cli.entries()[name])
     check(f"{name} に自動の呼び出し元が在る", len(code) > 0, str(code))
 

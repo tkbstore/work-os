@@ -272,37 +272,51 @@ def _mini_toml(text: str) -> dict:
 # --------------------------------------------------------------------------- #
 # registry（config 層）の所在
 #
-# registry は組織固有の事実（顧客名・リポ名・閾値）の置き場であり、work-os 本体
-# とは別のリポジトリにある。同居していた頃は 14 ファイルがそれぞれ相対パスを
-# 組み立てていた。移した先を全員に知らせる方法が無いのが同居の本質的な問題なので、
-# 所在の判断はこの 1 関数だけが持つ。
+# registry は組織固有の宣言（顧客名・統治クラス・判定基準の上書き・人の判定）の
+# 置き場であり、work-os 本体の外にある。同居していた頃は 14 ファイルがそれぞれ相対
+# パスを組み立てていた。移した先を全員に知らせる方法が無いのが同居の本質的な問題
+# なので、所在の判断はこの 1 関数だけが持つ。
 #
-# 探す順序: 環境変数 → 兄弟ディレクトリ → 同居していた頃の位置。
+# 探す順序: 環境変数 → 既定の場所（~/.config/work-os）。
 # 見つからなくても既定の場所を返す。「無い」は呼び側が判断する（ここでは落とさない）。
+#
+# 置くのは人が決めた宣言だけ。機械が作る産物（台帳・記録）は state_root() に置く。
+# 2026-10-13 まで registry は専用のリポジトリで、産物も commit していた。産物は
+# 手元の木が動くたびに古くなるので、鮮度の検査がそのリポジトリを止め続けた。
+# 宣言の正本は組織の側（顧客・製品の一覧を持つ場所）に置き、ここはそれを指すだけ。
 # --------------------------------------------------------------------------- #
 
 REGISTRY_ENV = "WORKOS_REGISTRY"
-REGISTRY_DIRNAME = "work-os-registry"
+REGISTRY_DEFAULT = "~/.config/work-os"
 
 
 def registry_root() -> Path:
-    """registry の所在。存在しなくても既定の場所を返す。"""
+    """registry（組織の宣言）の所在。存在しなくても既定の場所を返す。"""
     env = os.environ.get(REGISTRY_ENV, "").strip()
-    if env:
-        return Path(env).expanduser()
-    workos = Path(__file__).resolve().parent.parent
-    sibling = workos.parent / REGISTRY_DIRNAME
-    if sibling.is_dir():
-        return sibling
-    legacy = workos / "registry"          # 同居していた頃の配置
-    if legacy.is_dir():
-        return legacy
-    return sibling
+    return Path(env or REGISTRY_DEFAULT).expanduser()
 
 
 def registry_path(*parts: str) -> Path:
     """registry 配下のファイルを指す。参照はすべてここを通る。"""
     return registry_root().joinpath(*parts)
+
+
+# 産物（台帳・イベントの記録）の置き場。手元で作り直せるのでどこにも commit しない。
+# 宣言と分ける理由は上のとおり。作るのは書く側（ここでは作らない）。
+STATE_ENV = "WORKOS_STATE"
+STATE_DEFAULT = "~/.local/state/work-os"
+
+
+def state_root() -> Path:
+    """産物の置き場。存在しなくても既定の場所を返す。"""
+    env = os.environ.get(STATE_ENV, "").strip()
+    return Path(env or STATE_DEFAULT).expanduser()
+
+
+def state_path(*parts: str) -> Path:
+    """産物の置き場の下のファイルを指す。"""
+    return state_root().joinpath(*parts)
+
 
 
 LAYERS = ("kernel", "golden_path", "config", "extension", "local")
@@ -470,6 +484,57 @@ def iter_repo_dirs(scan_root: Path, *, require_git: bool = True) -> list[Path]:
             continue
         out.append(child)
     return out
+
+
+def git_link(repo: Path) -> tuple[str, str, str] | None:
+    """`.git` がファイルなら、それが何へのポインタかを返す。clone なら None。
+
+    戻り値は (種類, 本体のディレクトリ名, 枝の名前)。種類は "worktree" か "module"。
+
+    「リポジトリとは何か」を答えるのが iter_repo_dirs である以上、「それは clone か、
+    既にある clone に生えた枝か」もここで答える。存在だけを見ると両者は区別できない
+    （worktree の `.git` はディレクトリではなくファイルだが、exists() は真になる）。
+
+    実測 2026-09-27: worktree が1本できただけで台帳のリポジトリ数が 82 → 83 になり、
+    remote も README も HEAD も同じ行が2つ並んだ。台帳は「別のプロダクトが2つある」と
+    読める状態になり、--verify も gate も通った。**通ることが問題だった。**
+    TK の git 規則は別ブランチでの作業に worktree を足すことを推奨しているので、
+    これは今後も増える。数えるのをやめるのではなく、何であるかを言えるようにする。
+
+    git を呼ばずに読む（work-os は標準ライブラリだけで動く）。worktree の
+    `.git` は "gitdir: <本体>/.git/worktrees/<名前>"、submodule は
+    ".../.git/modules/<名前>" を指す。
+    """
+    dot = repo / ".git"
+    if not dot.is_file():
+        return None
+    try:
+        text = dot.read_text(encoding="utf-8", errors="ignore").strip()
+    except OSError:
+        return None
+    if not text.startswith("gitdir:"):
+        return None
+    target = text.split(":", 1)[1].strip()
+    gitdir = Path(target) if Path(target).is_absolute() else (repo / target)
+    kind = ""
+    for marker, label in (("worktrees", "worktree"), ("modules", "module")):
+        if marker in gitdir.parts:
+            kind = label
+            break
+    if not kind:
+        return None
+    parts = list(gitdir.parts)
+    # <本体>/.git/<marker>/<名前> の <本体> を取り出す
+    idx = parts.index(".git") if ".git" in parts else -1
+    parent = parts[idx - 1] if idx > 0 else ""
+    branch = ""
+    try:
+        head = (gitdir / "HEAD").read_text(encoding="utf-8", errors="ignore").strip()
+        if head.startswith("ref: refs/heads/"):
+            branch = head[len("ref: refs/heads/"):]
+    except OSError:
+        pass
+    return (kind, parent, branch)
 
 
 def in_group(name: str, group: str | None) -> bool:

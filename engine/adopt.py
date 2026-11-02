@@ -38,7 +38,7 @@ def _load_naming() -> dict:
           file=sys.stderr)
     return {}
 
-# 組織固有の事実は engine に置かない。registry/naming.toml から読む。
+# 組織固有の事実は engine に置かない。registry の naming.toml から読む。
 # ここにあるのは「読み方」だけであり、「何がどのドメインか」はこのファイルの外にある。
 _NAMING = _load_naming()
 DOMAIN_RULES: list[tuple[str, str]] = list((_NAMING.get("domain_rules") or {}).items())

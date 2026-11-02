@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """release_gate.py — そのリポジトリを外に出して恥ずかしくないかを機械が見る。
 
-fleet.py は「フリートが壊れていないか」を見る。こちらは「1つのリポジトリが
-他人の手に渡せる状態か」を見る。別の問いなので別のゲートにしてある。
+見る問いは「1つのリポジトリが他人の手に渡せる状態か」である。
 
 原理は1つ。**主張ではなく観測で決める**。
 「README がある」ではなく「README に実行できる行があるか」を見る。
 「テストがある」ではなく「宣言されたテストコマンドが exit 0 で終わるか」を見る。
 
 このファイルは観測の *種類* だけを持つ。何が公開の条件かは組織が決めることなので
-registry/release_lanes.toml に宣言する。基準を変える現場はコードを触らない。
+config/release_lanes.toml（骨格）と registry の差分に宣言する。基準を変える現場はコードを触らない。
 
   python3 engine/release_gate.py                  # カレントを検査（静的のみ）
   python3 engine/release_gate.py <repo> --execute # 宣言されたコマンドを実走させる
@@ -46,6 +45,10 @@ LANES_DEFAULT = Path(__file__).resolve().parent.parent / "config" / "release_lan
 # 事実（顧客名・秘密のパターン）と組織の選択は registry が持つ。差分だけを書く。
 LANES_FILE = REGISTRY / "release_lanes.toml"
 
+# コードブロックの囲み。手順の番号付きリストの中に置かれた囲みは字下げされる（Markdown の
+# リスト項目の続き）。行頭の ``` だけを数えていた頃は、anthropics/claude-code の
+# 「Get started」にある 5 つの bash を 0 個と数え、公開の段で止めていた（2026-10-31）。
+FENCE = re.compile(r"^[ \t]*```([^\n`]*)\n(.*?)^[ \t]*```", re.S | re.M)
 # 実行できるコードブロックとみなす言語。空の info string も手順とみなす。
 RUNNABLE_LANGS = {"", "sh", "bash", "zsh", "shell", "console",
                   "python", "py", "js", "ts", "node"}
@@ -291,29 +294,38 @@ def load_lanes() -> dict:
     return _merge_cfg(base, over)
 
 
+GOVERNANCE_FILE = "governance.toml"
+# 統治クラス。owned が既定で、宣言するのは例外だけ。
+GOVERNANCE_CLASSES = ("owned", "archived", "external", "personal", "team", "third_party")
+
+
 @lru_cache(maxsize=1)
 def _policy() -> tuple[dict[str, tuple[str, str]], str]:
     """統治クラスの宣言を1度だけ読む。(宣言, 読めなかった理由) を返す。
 
-    所有者の一覧をここで新しく書かない。同じことを2箇所で宣言すると、片方だけが
-    更新されて食い違う。fleet_policy.toml は既に「既定は owned、例外だけ名指し」
-    という形を持っているので、それを借りる。
+    宣言は「既定は owned、例外だけ名指し」の形で registry の governance.toml に在る。
+    以前は日次観測（fleet.py）の宣言を借りていた。観測を退役させても、誰のものかの
+    宣言はゲートの判定に要るので、読む口だけをここに残した（2026-10-13）。
 
     読み込みの失敗を投げ返さない。宣言が壊れているだけでゲート全体が traceback で
     死ぬと、公開可否をひとつも答えられなくなる（実測 2026-09-26: 重複した表を
     1つ足しただけでそうなった）。読めなかったことは呼ぶ側に伝える。
     """
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    path = REGISTRY / GOVERNANCE_FILE
+    if not path.is_file():
+        return {}, ""
     try:
-        from fleet import load_policy  # noqa: PLC0415
-        return load_policy(), ""
+        data = _load_toml(path)
     # 壊れ方の種類で扱いは変わらない。どの例外でも「読めなかった」1つに落ちる。
     except Exception as exc:                                   # noqa: BLE001
         return {}, f"{type(exc).__name__}: {exc}"
+    return {name: (klass, str(note))
+            for klass in GOVERNANCE_CLASSES
+            for name, note in (data.get(klass) or {}).items()}, ""
 
 
 def _fleet_class(name: str) -> tuple[str, str]:
-    """リポ名から (統治クラス, 理由)。宣言が無ければ owned（fleet.py と同じ既定）。"""
+    """リポ名から (統治クラス, 理由)。宣言が無ければ owned。"""
     pol, err = _policy()
     if err:
         # 読めないことを「例外の宣言なし」と同じ扱いに畳まない。観測は当てたまま
@@ -484,7 +496,85 @@ def obs_file_present(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list[s
                     return "pass", f"{cand} に該当（{rel}）", []
         elif (root / cand).exists():
             return "pass", f"{cand} を確認", []
+    by_content = _present_by_content(chk, ctx, skip)
+    if by_content:
+        return "pass", by_content, []
+    if chk.get("per_workspace"):
+        return _present_per_workspace(root, chk, ctx)
     return "fail", "いずれも存在しない: " + ", ".join(chk.get("any_of", [])), []
+
+
+def _present_by_content(chk: dict, ctx: dict, skip: list[str]) -> str:
+    """ファイルの名前ではなく中身で「在る」と言える場合。当たった場所を返す。
+
+    名前で数えるテストの置き場を持たない言語がある。Lean の定理は `lake build` の
+    たびにカーネルが検査するので、定理を書いたファイルそのものが検査である。
+    実測 2026-10-28: openai/ten-proofs と openai/NavierStokesAndEuler は
+    tests_exist で落ちていた。どちらも中身は機械検査済みの証明だけである。
+    """
+    for spec in chk.get("also_by_content", []):
+        try:
+            rx = re.compile(spec.get("pattern", ""))
+        except re.error:
+            continue
+        files = _scoped(ctx["files"], list(spec.get("globs", [])), skip)
+        hits = _collect_hits(files, rx, 1)
+        if hits:
+            return f"中身で該当（{hits[0]}）"
+    return ""
+
+
+def _workspace_dirs(ctx: dict) -> list[str]:
+    """マニフェストを持つディレクトリ（ワークスペース）の一覧。直下は "" になる。
+
+    他人が書いた木（vendored）と見本（fixtures）のマニフェストは数えない。
+    node_modules の中の package.json は、自分のワークスペースではない。
+    """
+    cfg = ctx["lanes_cfg"]
+    names = set(cfg.get("workspaces", {}).get("manifests", []))
+    skip = (list(cfg.get("presets", {}).get("vendored", []))
+            + list(cfg.get("presets", {}).get("fixtures", [])))
+    dirs = set()
+    for rel, _ in ctx["files"]:
+        if rel.rsplit("/", 1)[-1] in names and not any(_match_glob(rel, g) for g in skip):
+            dirs.add(rel.rsplit("/", 1)[0] if "/" in rel else "")
+    return sorted(dirs)
+
+
+def _present_per_workspace(root: Path, chk: dict,
+                           ctx: dict) -> tuple[str, str, list[str]]:
+    """直下に無いとき、全ワークスペースが自分か祖先の候補で覆われているか。
+
+    ビルドの産物が落ちるのはワークスペースの中である。論文と証明を同居させた
+    リポは直下がプロジェクトではなく、Lean のワークスペースは lean/ に在って
+    .gitignore もそこに在る（実測 2026-10-28: openai/math が直下だけを見る
+    この観測で第1段に止まっていた）。
+
+    マニフェストの名前は config の宣言である。既知のワークスペースが1つも
+    見つからなければ、直下を要求する元の判定に戻る。直下がワークスペースなら、
+    直下に無いことはそのまま欠陥である。
+
+    限界: 既知のワークスペースが覆われていれば、**知らない名前のマニフェストを
+    持つディレクトリが覆われていなくても通る**。見つけられないワークスペースは
+    判定に現れない。一度「甘くなる向きには倒れない」と書いたが誤りで、
+    formal/WorkosSpec/Workspace.lean の反例で確かめた。
+    """
+    names = list(chk.get("any_of", []))
+    missing = "いずれも存在しない: " + ", ".join(names)
+    dirs = _workspace_dirs(ctx)
+    if not dirs or "" in dirs:
+        return "fail", missing, []
+
+    def covered(ws: str) -> bool:
+        parts = ws.split("/")
+        return any((root / "/".join(parts[:i]) / n).exists()
+                   for i in range(len(parts), 0, -1) for n in names)
+
+    bare = [d for d in dirs if not covered(d)]
+    if bare:
+        return "fail", f"{missing}（直下にも、ワークスペース {len(bare)}/{len(dirs)} にも）", \
+            [f"{d}/" for d in bare]
+    return "pass", f"直下には無いが、ワークスペース {len(dirs)} 個すべてに在る（{', '.join(d + '/' for d in dirs[:3])}）", []
 
 
 def obs_doc_section(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list[str]]:
@@ -506,7 +596,7 @@ def obs_runnable_block(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list
     text, scope = _window(text, chk)
     langs = set(chk.get("langs", RUNNABLE_LANGS))
     count = 0
-    for info, body in re.findall(r"^```([^\n`]*)\n(.*?)^```", text, re.S | re.M):
+    for info, body in FENCE.findall(text):
         if info.strip().lower() in langs and _is_commands(body):
             count += 1
     need = int(chk.get("min", 1))
@@ -598,6 +688,23 @@ class Match:
         return f"{self.rel}:{self.line}"
 
 
+def _compile_spec(label: str, raw: str, literal: bool) -> re.Pattern:
+    r"""木と履歴で同じ照合規則を使う。語自体は常にリテラルとして保持する。
+
+    短い ASCII 語まで部分一致にすると、無関係な英単語の一部にも当たる。
+    clients.words / words_cs だけは前後の ASCII 英数字を境界とし、後者は大小文字も
+    区別する。\b はアンダースコアや日本語も単語扱いするので、ここでは使わない。
+    """
+    if not literal:
+        return re.compile(raw)
+    pattern, flags = re.escape(raw), re.I
+    if label in ("clients.words", "clients.words_cs"):
+        pattern = rf"(?<![A-Za-z0-9]){pattern}(?![A-Za-z0-9])"
+        # re.I 単独だと文字クラスに非 ASCII の大小文字対応まで含まれる。
+        flags = re.ASCII | (re.I if label == "clients.words" else 0)
+    return re.compile(pattern, flags)
+
+
 def _scan_specs(files: list[tuple[str, Path]], specs: list[tuple[str, str]],
                 literal: bool, chk: dict,
                 collect_all: bool = False) -> list[tuple[str, int, list[Match]]]:
@@ -628,8 +735,7 @@ def _scan_specs(files: list[tuple[str, Path]], specs: list[tuple[str, str]],
     for label, raw in specs:
         try:
             rxs.append((f"{label}:{raw}" if literal else label,
-                        re.compile(re.escape(raw) if literal else raw,
-                                   re.I if literal else 0)))
+                        _compile_spec(label, raw, literal)))
         except re.error as exc:
             broken.append((f"<不正な正規表現 {label}: {exc}>", 1, []))
     counts: dict[str, int] = {}
@@ -994,6 +1100,44 @@ def _history_targets(root: Path, scope: list[str], listing: str, chk: dict,
     return names
 
 
+def _read_objects(root: Path, oids: list[str]) -> list[tuple[str, str, str]] | None:
+    """(oid, 種類, 本文) の並び。cat-file --batch の出力を大きさで切る。
+
+    本文を1本の文字列に連結して検索すると、当たったことは分かってもどこに
+    当たったかが分からない。直す場所を名指しできない観測は、直されない。
+    """
+    try:
+        data = subprocess.run(["git", "-C", str(root), "cat-file", "--batch"],
+                              input="\n".join(oids).encode(), capture_output=True,
+                              timeout=300).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    out: list[tuple[str, str, str]] = []
+    i = 0
+    while i < len(data):
+        nl = data.find(b"\n", i)
+        if nl < 0:
+            break
+        head = data[i:nl].decode(errors="replace").split()
+        if len(head) < 3 or not head[2].isdigit():   # "<oid> missing"
+            i = nl + 1
+            continue
+        size = int(head[2])
+        out.append((head[0], head[1],
+                    data[nl + 1:nl + 1 + size].decode(errors="replace")))
+        i = nl + 1 + size + 1
+    return out
+
+
+def _where(kind: str, oid: str, path: str) -> str:
+    short = oid[:8]
+    if kind == "commit":
+        return f"コミット {short} "
+    if kind == "tree":
+        return f"ファイル名（tree {short}）"
+    return f"{path or '?'}（blob {short}）"
+
+
 def obs_history_pattern_absent(root: Path, chk: dict,
                                ctx: dict) -> tuple[str, str, list[str]]:
     """履歴の中身（blob ＋ コミットメッセージ）にパターンが無いか。
@@ -1027,7 +1171,11 @@ def obs_history_pattern_absent(root: Path, chk: dict,
         head = _git_out(root, ["rev-parse", "--verify", f"{since}^{{commit}}"])
         if head is None:
             return "skip", f"[publish] released_at のコミットが無い: {since}", []
-        scope = [f"{head.strip()}..HEAD"]
+        # 公開されるのは HEAD ではなく、push した（これから push する）ref 全部である。
+        # 以前は `起点..HEAD` で切っていて、チェックアウトしていないブランチを見て
+        # いなかった。実測 2026-10-03: 別ブランチのコミットメッセージに顧客名が入って
+        # push され、6日間、HEAD 側のこの観測は「該当なし」を返し続けた。
+        scope = ["--branches", "--remotes", "--tags", "--not", head.strip()]
 
     listing = _git_out(root, ["rev-list", "--objects", *scope], timeout=120)
     if listing is None:
@@ -1038,28 +1186,28 @@ def obs_history_pattern_absent(root: Path, chk: dict,
     if not names:
         return "pass", ("公開の起点より後に対象が無い" if since else "履歴が空"), []
 
-    try:
-        batch = subprocess.run(["git", "-C", str(root), "cat-file", "--batch"],
-                               input="\n".join(names), capture_output=True,
-                               text=True, timeout=300, errors="replace").stdout
-    except (OSError, subprocess.SubprocessError):
+    objects = _read_objects(root, list(names))
+    if objects is None:
         return "skip", "履歴を読めなかった", []
-    # globs で場所を絞った観測はメッセージを見ない（_history_targets の docstring）。
-    messages = "" if chk.get("globs") else (
-        _git_out(root, ["log", *scope, "--format=%H%n%B"], timeout=120) or "")
+    # コミットオブジェクトは本文にメッセージを持つので、メッセージを別に読まない。
+    # 以前は両方を走査していて、1つのメッセージが「ファイル」と「メッセージ」の
+    # 2件に数えられていた（実測 2026-10-03: 1コミットが 4 件と出た）。
 
     hits: list[str] = []
+    named: set[str] = set()
     for label, raw in specs:
-        pat = re.escape(raw) if literal else raw
         try:
-            rx = re.compile(pat, re.I if literal else 0)
+            rx = _compile_spec(label, raw, literal)
         except re.error as exc:
             hits.append(f"<不正な正規表現 {label}: {exc}>")
             continue
-        if rx.search(batch):
-            hits.append(f"履歴のファイルに該当 [{label}]")
-        if rx.search(messages):
-            hits.append(f"コミットメッセージに該当 [{label}]")
+        for oid, kind, text in objects:
+            if oid in named or not rx.search(text):
+                continue
+            named.add(oid)
+            hits.append(f"{_where(kind, oid, names.get(oid, ''))}に該当 [{label}]")
+            if len(hits) >= MAX_EXAMPLES:
+                break
         if len(hits) >= MAX_EXAMPLES:
             break
     where = "公開の起点より後の " if since else ""
@@ -1157,7 +1305,7 @@ def evaluate(root: Path, lanes_cfg: dict, execute: bool = False,
     owned = owned or declared
     if source == "default" and not owned:
         # 自組織のものかは、ここで新しく列挙しない。統治クラスの宣言
-        # （fleet_policy.toml）が既に「既定は owned、例外だけ名指し」の形で在る。
+        # （registry の governance.toml）が「既定は owned、例外だけ名指し」の形で在る。
         # 当たった宣言を出す。出さないと、外部のフォークを自組織として扱ったのか
         # どうかが出力から消える。
         klass, note = _fleet_class(root.name)

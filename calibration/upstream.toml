@@ -1,0 +1,46 @@
+# upstream.toml — 新しい版が出たら公開ゲートを当て直す上流。config 層。
+#
+# なぜ在るか
+#   ゲートの水準を、広く使われている上流のリリースに追いつかせ続けるため。上流が新しく
+#   始めた実践は、検査の候補として PR で出す。候補を検査に上げるかは人が決める
+#   （上流1社の変化は根拠にならない。憲法 §4 の3社ルールとコーパス全体での分離で決める）。
+#   先行調査: docs/prior-art/2026-10-31-upstream-watch.md
+#
+# どう使うか
+#   python3 engine/upstream.py           新しい版を出す（記録は変えない）
+#   python3 engine/upstream.py --write   見た版を calibration/upstream/seen.json に残す
+#
+# kind
+#   release  GitHub のリリース（releases/latest）。タグとそのコミットを見る
+#   path     モノレポの中の1つ。path を最後に変えたコミットと、version_file の
+#            "version" を見る。リポ単位のリリースでは、中の1つの更新が見えないため
+
+[[upstream]]
+slug = "anthropics/claude-code"
+kind = "release"
+
+[[upstream]]
+slug = "anthropics/anthropic-sdk-python"
+kind = "release"
+
+[[upstream]]
+slug = "anthropics/claude-plugins-official"
+kind = "path"
+path = "plugins/claude-security"
+version_file = "plugins/claude-security/.claude-plugin/plugin.json"
+
+[[upstream]]
+slug = "openai/openai-python"
+kind = "release"
+
+[[upstream]]
+slug = "openai/codex"
+kind = "release"
+
+[[upstream]]
+slug = "google-gemini/gemini-cli"
+kind = "release"
+
+[[upstream]]
+slug = "google/adk-python"
+kind = "release"

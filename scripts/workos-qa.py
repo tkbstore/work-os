@@ -52,6 +52,10 @@ GATES: list[tuple[str, list[str], str]] = [
     # 仕組みの層に組織固有の名前が漏れていないか。
     # 08-28 に自分で4件漏らし、指摘は別セッションから届いた。自分のテストは緑だった
     ("abstraction", [sys.executable, "engine/abstraction_gate.py"], "error"),
+    # 公開サイトが判定基準・校正の結果と食い違っていないか。サイトの数字は生成物で、
+    # 手で直すと calibration/README.md と results/ が食い違ったとき（2026-09-16）と
+    # 同じ形で嘘になる。食い違いは作り直せば消えるので、差し戻す。
+    ("site", [sys.executable, "scripts/build-site.py", "--check"], "error"),
     # テストはここでは走らせない。下の release が --execute で
     # [publish.commands] test（= tests/run_all.py）を実走させるので、独立して
     # 置くと **同じスイートを2回走らせる**ことになる。
@@ -80,17 +84,9 @@ GATES: list[tuple[str, list[str], str]] = [
     # 下げるのは、公開を取り下げると決めたときだけ。
     ("release", [sys.executable, "engine/release_gate.py", ".",
                  "--execute", "--require", "public"], "error"),
-    # 台帳が実在とズレていないか。カタログは生成物なので、生成しなおさないかぎり
-    # 静かに腐る。実測 2026-09-26: 08-31 生成のカタログが 5 本消えて 5 本増えた状態で
-    # 4週間通っていた。本数は 82 / 82 で一致していたので、件数を見ても気づけない。
-    #
-    # warn である。ズレを直すには registry への書き込みが要り、それは work-os からは
-    # できない（別リポで、cross-repo-guard が止める）。自分で直せないものを error に
-    # すると毎回差し戻しになり、読まれなくなる。
-    #
-    # 根は渡さない。カタログの出自に書いてある根を使う。ここにパスを書くと、
-    # 「どこを数えたか」の答えが2箇所になり、食い違ったときにどちらが本当か分からない。
-    ("catalog", [sys.executable, "engine/catalog.py", "--verify"], "warn"),
+    # 台帳（catalog）の鮮度はここで見ない。台帳はこのリポジトリの中身ではなく手元の
+    # 産物で、--find が使う時点でズレを見て作り直す（2026-10-13）。ここで見ていた頃は
+    # 別リポに commit した台帳を見ていて、自分では直せないズレを毎回 warn していた。
 ]
 
 

@@ -1,0 +1,20 @@
+# known_generators.toml — 「機械が全リポに書いていること」を承知しているものの一覧。
+# config 層。憲法 §6-2「登録されていない成果物は存在しない」の生成器版。
+#
+# ここに無いものが `engine/generators.py` の出力に出る。つまり出力は常に
+# 「誰かの機械が黙って書いているもの」の一覧になる。ゼロを保つのが目標ではなく、
+# 出たものを見て「意図したものか」を判断し、意図したなら登録するのが運用。
+
+[boilerplate]
+".vscode/extensions.json" = "エディタ推奨拡張。全リポ共通で意図的"
+".gitattributes"          = "改行・差分設定。全リポ共通で意図的"
+"sessions/.gitkeep"       = "sessions/ ディレクトリの存在を保つためのマーカー。ログ本体は追跡しない"
+
+[shared_code]
+# 3社ルールを大きく超えて複製されている実装。共通化の候補であり、
+# 「同じものが13リポにある」こと自体は既知の課題として登録しておく。
+"web/experiment_generator.py" = "13リポで同一。marketing 系テンプレート由来。共通化候補"
+"web/hypothesis.py"           = "13リポで同一。同上"
+"web/static/style.css"        = "13リポで同一。同上"
+"web/templates/index.html"    = "13リポで同一。同上"
+"web/templates/database.html" = "13リポで同一。同上"

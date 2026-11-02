@@ -26,7 +26,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "engine"))
 
 try:
-    from workos import _load_toml, registry_path
+    from workos import _load_toml
 except Exception as exc:                           # noqa: BLE001 — hook は落ちない
     # 落ちないことと、黙ることは別である。engine/ が隣に無ければこの hook は
     # 一切検査しないので、そのことを言ってから抜ける。実測 2026-08-31: この
@@ -37,7 +37,9 @@ except Exception as exc:                           # noqa: BLE001 — hook は�
           f"engine/ を読み込めません: {exc}", file=sys.stderr)
     raise SystemExit(0)
 
-SMELLS = registry_path("patch_smells.toml")
+# 痕跡は組織によらない（抑制・テストの停止・閾値の緩め方はどこでも同じ形をしている）
+# ので、work-os 本体の config/ が持つ。2026-10-13 まで registry 側に在った。
+SMELLS = Path(__file__).resolve().parent.parent / "config" / "patch_smells.toml"
 WRITE_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 
 # 理由とみなす最小の長さ。「# fix」「# ok」を理由と呼ばせないための下限。
@@ -71,7 +73,7 @@ def _declared() -> dict:
         # 空の dict を返した先では「宣言がゼロ」と区別がつかない。
         print(f"[work-os] root_cause_guard は何も検査していません。"
               f"痕跡の宣言を読めません: {SMELLS} ({type(exc).__name__})\n"
-              f"  registry の場所を教えるか（WORKOS_REGISTRY=<path>）、"
+              f"  work-os の config/ が欠けていないか確かめるか、"
               f"この検査を切ってください（WORKOS_ROOT_CAUSE=off）", file=sys.stderr)
         return {}
 

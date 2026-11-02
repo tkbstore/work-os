@@ -28,11 +28,12 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from workos import iter_repo_dirs, registry_path  # noqa: E402
+from workos import iter_repo_dirs  # noqa: E402
 
-KNOWN = registry_path("known_generators.toml")
+# 既知の生成器は組織によらないので work-os 本体の config/ が持つ（2026-10-13 に移した）。
+KNOWN = Path(__file__).resolve().parent.parent / "config" / "known_generators.toml"
 # ツールのキャッシュは「機械が書いている」が、それは既知で無害である。
-# ここを増やすのは registry ではなく engine 側でよい（どの組織でも同じだから）。
+# ここを増やすのは config ではなく engine 側でよい（ツール自身の置き場だから）。
 SKIP_DIRS = {".git", "node_modules", "venv", "env", ".venv", "__pycache__", "dist",
              "build", ".next", "data", "outputs", "out", ".gradle", "bin",
              ".ruff_cache", ".pytest_cache", ".mypy_cache", ".cache", "coverage",

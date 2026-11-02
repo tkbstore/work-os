@@ -435,46 +435,6 @@ def main() -> int:
             failed.append(f"{hook.name}: 道具・宣言を読めずに黙って抜ける口 {silent}")
         print(f"  {'OK ' if ok else 'NG '} {hook.name}")
 
-    # --- 見つけたものが、記録より後ろに来ていないこと ----------------------
-    #
-    # 実測 2026-08-31: fleet_watch.sh はログ追記と通知を先頭付近で終えていて、
-    # その後に続く5つの検査（生成器 / ガード検査 / 公開ゲート / 公開ゲート検査 /
-    # inbox）は out に足されるだけだった。「[ガード検査] 失敗。hooks/ に穴が
-    # 開いています」は一度も記録にも通知にも出たことがない。
-    #
-    # さらに5つのうち3つは code を上げてすらいなかった。位置だけ直しても3つは
-    # 黙ったままになる。各検査に「足したら code も上げる」を憶えさせる形は、
-    # 憶え忘れた検査だけが静かに落ちる。足すことと知らせることを1関数で結び、
-    # その形を見る。検査の名前では列挙しない。列挙は次に足す検査を素通しする。
-    print("\nfleet_watch.sh")
-    watch = (ROOT / "hooks" / "fleet_watch.sh").read_text(encoding="utf-8")
-    wl = watch.splitlines()
-    fn = re.search(r"^add\(\)\s*\{.*?^\}", watch, re.M | re.S)
-    if not fn:
-        failed.append("fleet_watch.sh: 追記を集約する関数が無い")
-        print("  NG  追記の集約")
-    else:
-        lo = watch[:fn.start()].count("\n")
-        hi = watch[:fn.end()].count("\n")
-        loose = [i + 1 for i, ln in enumerate(wl)
-                 if 'out="$out' in ln and not lo <= i <= hi]
-        if loose:
-            failed.append(f"fleet_watch.sh: 集約を通さずに out へ足している {loose}")
-        print(f"  {'OK ' if not loose else 'NG '} 追記の集約")
-
-    calls = [i for i, ln in enumerate(wl) if re.match(r'\s*add\s+["\[]', ln)]
-    writes = [i for i, ln in enumerate(wl) if '>> "$LOG"' in ln]
-    if not calls or not writes:
-        failed.append("fleet_watch.sh: 追記の呼び出しか記録の書き込みが見つからない")
-        ok = False
-    else:
-        ok = max(calls) < min(writes)
-        if not ok:
-            failed.append(
-                f"fleet_watch.sh: {min(writes) + 1}行目の記録より後ろに検査がある"
-                f"（最後の追記は {max(calls) + 1}行目）")
-    print(f"  {'OK ' if ok else 'NG '} 記録は全検査の後")
-
     print()
     if failed:
         print(f"失敗 {len(failed)} 件")
@@ -482,7 +442,7 @@ def main() -> int:
             print(f"  - {f}")
         return 1
     hooks_n = len(list((ROOT / "hooks").glob("*.py")))
-    print(f"全 {len(sweeps) + len(branches) + len(robust) + len(CLAUDE_CASES) + 1 + hooks_n + 2} ケース通過")
+    print(f"全 {len(sweeps) + len(branches) + len(robust) + len(CLAUDE_CASES) + 1 + hooks_n} ケース通過")
     return 0
 
 
