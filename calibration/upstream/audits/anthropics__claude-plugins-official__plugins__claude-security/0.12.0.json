@@ -3,8 +3,8 @@
   "version": "0.12.0",
   "commit": "ca08d5e47d6402db586d37780c559a0c4c7ded9a",
   "shape": "tool",
-  "audited_on": "2026-11-01",
-  "gate": "571a44a96b252ab5",
+  "audited_on": "2026-11-02",
+  "gate": "7ef8bf6b3c82129d",
   "states": {
     "correctness.e2e_passes": "skip",
     "correctness.gate_runs_in_repo": "fail",
@@ -40,9 +40,7 @@
     "usability.help_available": "skip",
     "usability.zero_config_start": "pass"
   },
-  "publishable": false,
-  "reached": "internal",
-  "blocks": [
-    "public:entry.runnable_example"
-  ]
+  "publishable": true,
+  "reached": "public",
+  "blocks": []
 }

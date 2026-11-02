@@ -211,7 +211,12 @@ id = "runnable_example"
 kind = "runnable_block"
 file = "README.md"
 min = 1
-severity = "block"
+# 2026-11-02 に warn に決めた。基準のリポ anthropics/claude-plugins-official は、導入の
+# 手順を文中のコード（`/plugin install …`）で書き、囲みのブロックを持たない。django も
+# docs へ誘導する形で同じに落ちていた（calibration/README.md 2026-08-26）。囲みの有無で
+# 公開を止めるのは基準より厳しい。文中のコードをコマンドと見なす線引きは語の列挙に寄るので
+# 採らなかった。
+severity = "warn"
 why = "コピーして貼れる行が1つも無いなら、それは説明であって手順ではない"
 
 [[lanes.entry.checks]]
