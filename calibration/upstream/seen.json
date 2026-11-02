@@ -1,4 +1,12 @@
 {
+  "3b1b/manim": {
+    "version": "HEAD@fafa083a4fb2",
+    "commit": "fafa083a4fb274bba9cabde0b6e2f50ba6da0622"
+  },
+  "NousResearch/hermes-agent": {
+    "version": "HEAD@edf1495a314f",
+    "commit": "edf1495a314f24745a65aeffd5f11b87da9ee595"
+  },
   "anthropics/anthropic-sdk-python": {
     "version": "v2.3.0",
     "commit": "202db72c87d7c6eaa72129c67ce67fd343a3a20c"
@@ -11,6 +19,22 @@
     "version": "0.12.0",
     "commit": "ca08d5e47d6402db586d37780c559a0c4c7ded9a"
   },
+  "astral-sh/ruff": {
+    "version": "HEAD@05631cff6b91",
+    "commit": "05631cff6b91b3d23fe1bad577e382cefd8073a3"
+  },
+  "cli/cli": {
+    "version": "HEAD@9490d204a2ba",
+    "commit": "9490d204a2ba95434153dedce99898ce9f281426"
+  },
+  "django/django": {
+    "version": "HEAD@a05e16a7230f",
+    "commit": "a05e16a7230fe33d3f43f4a3aaed103cebb42efc"
+  },
+  "fastapi/fastapi": {
+    "version": "HEAD@45cb2252c737",
+    "commit": "45cb2252c737906f37544f5ba6bee0295fb81468"
+  },
   "google-gemini/gemini-cli": {
     "version": "v0.66.0",
     "commit": "970413207732f5d4d8c50540c7fc359c44fdaaf2"
@@ -19,12 +43,56 @@
     "version": "v2.13.0",
     "commit": "d68ca857d5e3bab8e968d4e5f98ef028eb37dc87"
   },
+  "home-assistant/core": {
+    "version": "HEAD@4faa2f334e91",
+    "commit": "4faa2f334e91ec223f78ecb04a13679171ddf2d6"
+  },
+  "nvbn/thefuck": {
+    "version": "HEAD@c7e7e1d884d3",
+    "commit": "c7e7e1d884d3bb241ea6448f72a989434c2a35ec"
+  },
   "openai/codex": {
     "version": "rust-v0.166.0",
     "commit": "6ff1e1ca3b30fc8b914720681fcf5fe62e95f856"
   },
   "openai/openai-python": {
-    "version": "v3.42.0",
-    "commit": "0dcd904bc2fed26c737d9740bca5f6b0ecc4cb7f"
+    "version": "v3.42.1",
+    "commit": "190dd5aee1053dd2093d2a5c3937f604860310a3"
+  },
+  "openai/whisper": {
+    "version": "HEAD@86098128c0b4",
+    "commit": "86098128c0b4f24f0e2aa2994de830614b474227"
+  },
+  "psf/requests": {
+    "version": "HEAD@3c7baaa05ab4",
+    "commit": "3c7baaa05ab4aa49cc819ce3a819d260de19c157"
+  },
+  "railwayapp/cli": {
+    "version": "HEAD@b62467ef1b53",
+    "commit": "b62467ef1b5303e3e340283ed96425dcf9612993"
+  },
+  "sherlock-project/sherlock": {
+    "version": "HEAD@c588d7c8b476",
+    "commit": "c588d7c8b476df9f9c84912a05d1430fb8cdcdae"
+  },
+  "stripe/stripe-cli": {
+    "version": "HEAD@3292c3301c85",
+    "commit": "3292c3301c85bcf9ab034e6e6146dbcf67c27416"
+  },
+  "supabase/cli": {
+    "version": "HEAD@a728de052709",
+    "commit": "a728de052709bf3eb105a5567fbb987625afac78"
+  },
+  "superfly/flyctl": {
+    "version": "HEAD@064225295020",
+    "commit": "064225295020103c31d380cae9e21720d1fd63d1"
+  },
+  "vercel/vercel": {
+    "version": "HEAD@84878e532142",
+    "commit": "84878e532142f0ac584953695658b324eb9e5b80"
+  },
+  "yt-dlp/yt-dlp": {
+    "version": "HEAD@b77c9304e1c4",
+    "commit": "b77c9304e1c4220cca450c583491904daf8455af"
   }
 }
