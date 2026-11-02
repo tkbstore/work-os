@@ -4,7 +4,7 @@
   "commit": "edf1495a314f24745a65aeffd5f11b87da9ee595",
   "shape": "tool",
   "audited_on": "2026-11-03",
-  "gate": "15a8b249566fa805",
+  "gate": "5719c3f2a9efb2d1",
   "states": {
     "correctness.e2e_passes": "skip",
     "correctness.gate_runs_in_repo": "fail",
@@ -36,7 +36,7 @@
     "safety.gitignore_exists": "pass",
     "safety.no_public_client_secrets": "pass",
     "safety.no_secrets": "pass",
-    "safety.no_secrets_in_docs": "pass",
+    "safety.no_secrets_in_docs": "fail",
     "usability.command_appears_early": "pass",
     "usability.help_available": "skip",
     "usability.zero_config_start": "pass"

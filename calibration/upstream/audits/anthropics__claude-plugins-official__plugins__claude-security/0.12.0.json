@@ -4,7 +4,7 @@
   "commit": "ca08d5e47d6402db586d37780c559a0c4c7ded9a",
   "shape": "tool",
   "audited_on": "2026-11-03",
-  "gate": "15a8b249566fa805",
+  "gate": "5719c3f2a9efb2d1",
   "states": {
     "correctness.e2e_passes": "skip",
     "correctness.gate_runs_in_repo": "fail",
