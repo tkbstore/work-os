@@ -144,14 +144,17 @@ class Log:
         return kept, len(hits) - len(kept)
 
 
-def load() -> Log:
+def load(where: Path | None = None) -> Log:
     """記録を読む。無ければ空。読めなければ「読めなかった」と言う。
+
+    where を省くと registry の記録。校正は公開リポについての判定なので、
+    work-os の calibration/ に置いた記録を渡す（engine/calibrate.py）。
 
     記録が無いことは欠陥ではない（まだ誰も判定していないだけ）。読めないことは
     欠陥である——照合対象が無いと抑制が全部外れ、出力が突然増えるだけで済むが、
     逆に「抑制されているつもり」の判断が効かなくなる。区別して返す。
     """
-    where = registry_path(AUDIT_FILE)
+    where = where or registry_path(AUDIT_FILE)
     if not where.is_file():
         return Log([], True, where)
     try:
@@ -213,7 +216,7 @@ def health(log: Log, repo: str, live: set[tuple[str, str, str]]) -> list[str]:
 
 
 def record(repo: str, target: str, declaration: str, why: str,
-           who: str, verdict: str) -> int:
+           who: str, verdict: str, where: Path | None = None) -> int:
     """判定を1件書く。鍵は実物の行から計算する。
 
     人に鍵を書かせない。行の本文のハッシュは手では作れないので、書かせると必ず
@@ -240,7 +243,7 @@ def record(repo: str, target: str, declaration: str, why: str,
                   line_key=line_key(body), verdict=verdict, why=why.strip(),
                   who=who, when=date.today().isoformat(),
                   excerpt=body.strip()[:120])
-    where = registry_path(AUDIT_FILE)
+    where = where or registry_path(AUDIT_FILE)
     if not where.parent.is_dir():
         print(f"記録の置き場がありません: {where.parent}\n"
               f"  registry の場所を教えてください（WORKOS_REGISTRY=<path>）",
@@ -279,14 +282,16 @@ def main() -> int:
                     help="この1件は混入であると記録する（抑制しない）")
     ap.add_argument("--why", default="", help="判定の理由（必須）")
     ap.add_argument("--who", default="", help="判定した人")
+    ap.add_argument("--log", type=Path, default=None,
+                    help="記録の置き場（省くと registry の audit.toml）")
     args = ap.parse_args()
 
     if args.clear or args.leak:
         target = args.clear or args.leak
         return record(target[0], target[1], target[2], args.why, args.who,
-                      "cleared" if args.clear else "leak")
+                      "cleared" if args.clear else "leak", args.log)
 
-    log = load()
+    log = load(args.log)
     if args.health:
         # live を渡せないので、ここでは規模だけ。死んだ記録はゲート側が出す
         # （何が当たったかを知っているのはゲートだけである）。

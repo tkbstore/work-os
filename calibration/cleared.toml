@@ -1,0 +1,187 @@
+# cleared.toml — 基準のリポで当たった値のうち、人が実物を見て「秘密ではない」と判定したもの。
+#
+# 形は registry の audit.toml と同じで、校正（engine/calibrate.py）だけが読む。本番の
+# ゲートの既定は変えない。値の形では本物の秘密と分けられないものを、形で緩めずに
+# 1件ずつ通すための記録である。どの組織も同じ仕組み（auditable）で同じことができる。
+#
+# 鍵は行の本文のハッシュ（line_key）。行の中身が変われば失効し、また止まる。
+# 1件が抑制できるのは1つの (repo, path, declaration, line_key) だけ。
+# 確かめられない値は記録しない。記録が無ければ止まったままになる。
+# 書き足すときは engine/audit.py --log calibration/cleared.toml --clear を使う。
+# 記録を変えるとゲートの指紋が変わるので、upstream_audit.py --recheck --write で測り直す。
+
+[[entry]]
+repo = "supabase__cli"
+path = "apps/cli/docs/templates/examples.yaml"
+declaration = "jwt"
+line_key = "e7b5daf3a9389292"
+verdict = "cleared"
+why = "ローカル開発用の demo JWT。iss=supabase-demo で、同じファイルに載る既定の JWT secret（super-secret-jwt-token-with-at-least-32-characters-long）で署名が通ることを確かめた。誰でも知っている鍵で署名された値で、何の権限も漏らさない"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-02"
+excerpt = "anon key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9."
+
+[[entry]]
+repo = "supabase__cli"
+path = "apps/cli/docs/templates/examples.yaml"
+declaration = "jwt"
+line_key = "8c095423de3f884e"
+verdict = "cleared"
+why = "ローカル開発用の demo JWT。iss=supabase-demo で、同じファイルに載る既定の JWT secret（super-secret-jwt-token-with-at-least-32-characters-long）で署名が通ることを確かめた。誰でも知っている鍵で署名された値で、何の権限も漏らさない"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-02"
+excerpt = "service_role key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4c"
+
+[[entry]]
+repo = "supabase__cli"
+path = "apps/cli/docs/templates/examples.yaml"
+declaration = "jwt"
+line_key = "db514d010ac96cfa"
+verdict = "cleared"
+why = "ローカル開発用の demo JWT。iss=supabase-demo で、同じファイルに載る既定の JWT secret（super-secret-jwt-token-with-at-least-32-characters-long）で署名が通ることを確かめた。誰でも知っている鍵で署名された値で、何の権限も漏らさない"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-02"
+excerpt = "ANON_KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9."
+
+[[entry]]
+repo = "supabase__cli"
+path = "apps/cli/docs/templates/examples.yaml"
+declaration = "jwt"
+line_key = "974cb214b88f4c8c"
+verdict = "cleared"
+why = "ローカル開発用の demo JWT。iss=supabase-demo で、同じファイルに載る既定の JWT secret（super-secret-jwt-token-with-at-least-32-characters-long）で署名が通ることを確かめた。誰でも知っている鍵で署名された値で、何の権限も漏らさない"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-02"
+excerpt = "SERVICE_ROLE_KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4c"
+
+[[entry]]
+repo = "supabase__cli"
+path = "apps/cli/docs/templates/examples.yaml"
+declaration = "jwt"
+line_key = "83ab4aee89ad3cd5"
+verdict = "cleared"
+why = "ローカル開発用の demo JWT。iss=supabase-demo で、同じファイルに載る既定の JWT secret（super-secret-jwt-token-with-at-least-32-characters-long）で署名が通ることを確かめた。誰でも知っている鍵で署名された値で、何の権限も漏らさない"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-02"
+excerpt = "SUPABASE_ANON_KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4"
+
+[[entry]]
+repo = "supabase__cli"
+path = "apps/cli/docs/templates/examples.yaml"
+declaration = "jwt"
+line_key = "ce0109eaca9223e6"
+verdict = "cleared"
+why = "ローカル開発用の demo JWT。iss=supabase-demo で、同じファイルに載る既定の JWT secret（super-secret-jwt-token-with-at-least-32-characters-long）で署名が通ることを確かめた。誰でも知っている鍵で署名された値で、何の権限も漏らさない"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-02"
+excerpt = "SUPABASE_SERVICE_KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsI"
+
+[[entry]]
+repo = "home-assistant__core"
+path = "homeassistant/components/growatt_server/number.py"
+declaration = "api_key"
+line_key = "3b75888cde9b502a"
+verdict = "cleared"
+why = "Growatt の API が返すフィールドの名前（コメントに Key returned by V1 API）。値は英単語と略語（SOC・bdc）をつないだ識別子で、乱数ではない"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-02"
+excerpt = "api_key=\"wchargeSOCLowLimit\",  # Key returned by V1 API"
+
+[[entry]]
+repo = "home-assistant__core"
+path = "homeassistant/components/growatt_server/number.py"
+declaration = "api_key"
+line_key = "fa7dd2d331d2cb2c"
+verdict = "cleared"
+why = "Growatt の API が返すフィールドの名前（コメントに Key returned by V1 API）。値は英単語と略語（SOC・bdc）をつないだ識別子で、乱数ではない"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-02"
+excerpt = "api_key=\"wdisChargeSOCLowLimit\",  # Key returned by V1 API (off-grid)"
+
+[[entry]]
+repo = "home-assistant__core"
+path = "homeassistant/components/growatt_server/number.py"
+declaration = "api_key"
+line_key = "3086ca6458ecd216"
+verdict = "cleared"
+why = "Growatt の API が返すフィールドの名前（コメントに Key returned by V1 API）。値は英単語と略語（SOC・bdc）をつないだ識別子で、乱数ではない"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-02"
+excerpt = "api_key=\"onGridDischargeStopSOC\",  # Key returned by V1 API (on-grid)"
+
+[[entry]]
+repo = "home-assistant__core"
+path = "homeassistant/components/growatt_server/sensor/sph.py"
+declaration = "api_key"
+line_key = "d7f97032d74ece74"
+verdict = "cleared"
+why = "Growatt の API が返すフィールドの名前（コメントに Key returned by V1 API）。値は英単語と略語（SOC・bdc）をつないだ識別子で、乱数ではない"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-02"
+excerpt = "api_key=\"edischarge1Today\","
+
+[[entry]]
+repo = "home-assistant__core"
+path = "homeassistant/components/growatt_server/sensor/sph.py"
+declaration = "api_key"
+line_key = "872261372d15187c"
+verdict = "cleared"
+why = "Growatt の API が返すフィールドの名前（コメントに Key returned by V1 API）。値は英単語と略語（SOC・bdc）をつないだ識別子で、乱数ではない"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-02"
+excerpt = "api_key=\"edischarge1Total\","
+
+[[entry]]
+repo = "home-assistant__core"
+path = "homeassistant/components/growatt_server/sensor/tlx.py"
+declaration = "api_key"
+line_key = "6b513cfb25c5ffb0"
+verdict = "cleared"
+why = "Growatt の API が返すフィールドの名前（コメントに Key returned by V1 API）。値は英単語と略語（SOC・bdc）をつないだ識別子で、乱数ではない"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-02"
+excerpt = "api_key=\"bdc1DischargePower\","
+
+[[entry]]
+repo = "home-assistant__core"
+path = "homeassistant/components/growatt_server/sensor/tlx.py"
+declaration = "api_key"
+line_key = "e4e0e49e138bc904"
+verdict = "cleared"
+why = "Growatt の API が返すフィールドの名前（コメントに Key returned by V1 API）。値は英単語と略語（SOC・bdc）をつないだ識別子で、乱数ではない"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-02"
+excerpt = "api_key=\"bdc1DischargeTotal\","
+
+[[entry]]
+repo = "home-assistant__core"
+path = "homeassistant/components/growatt_server/sensor/tlx.py"
+declaration = "api_key"
+line_key = "8111426d7672f311"
+verdict = "cleared"
+why = "Growatt の API が返すフィールドの名前（コメントに Key returned by V1 API）。値は英単語と略語（SOC・bdc）をつないだ識別子で、乱数ではない"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-02"
+excerpt = "api_key=\"bdc2DischargePower\","
+
+[[entry]]
+repo = "home-assistant__core"
+path = "homeassistant/components/growatt_server/sensor/tlx.py"
+declaration = "api_key"
+line_key = "80299b62f5170151"
+verdict = "cleared"
+why = "Growatt の API が返すフィールドの名前（コメントに Key returned by V1 API）。値は英単語と略語（SOC・bdc）をつないだ識別子で、乱数ではない"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-02"
+excerpt = "api_key=\"bdc2DischargeTotal\","
+
+[[entry]]
+repo = "yt-dlp__yt-dlp"
+path = "yt_dlp/extractor/cloudflarestream.py"
+declaration = "jwt"
+line_key = "cd20d48ae2c53a8f"
+verdict = "cleared"
+why = "_TESTS（テストケース）の URL に含まれる署名付き再生トークン。exp=1600609319（2020-09-20）で失効済み"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-02"
+excerpt = "'url': 'https://watch.cloudflarestream.com/eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJraWQiOiJmYTA0YjViMzQ2NDkwYTM5NWJiNzQ1"

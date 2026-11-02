@@ -785,7 +785,9 @@ def _apply_audit(root: Path, chk: dict,
     抑制した件数と記録の健全性は **必ず注記として返す**。黙って引くと、何を通した
     のかが出力から消える。それが baseline 方式の本来の壊れ方（rubber-stamp）である。
     """
-    log = audit.load()
+    # 記録の置き場を観測ごとに宣言できる。校正は公開リポについての判定を
+    # calibration/ に置き、組織の registry とは混ぜない（engine/calibrate.py）。
+    log = audit.load(Path(chk["audit_log"]) if chk.get("audit_log") else None)
     repo = root.name
     kept: list[tuple[str, int, list[Match]]] = []
     dropped: dict[str, int] = {}
