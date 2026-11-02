@@ -131,6 +131,9 @@ def main() -> int:
     passes("書き方の見本（path/to, my_, <...>）",
            {"README.md": readme(sh("python path/to/x.py", "python my_script.py",
                                    "bash <your-script>.sh"))})
+    # 実測 2026-11-02: 基準のリポ google-gemini/gemini-cli の README。cd 先は読み手が作る
+    passes("読み手が作るディレクトリへ cd して、木のファイルを呼ばない",
+           {"README.md": readme(sh("cd new-project/", "gemini"))})
     passes("別リポへ cd してから打つ手順",
            {"README.md": readme(sh("cd ../sibling", "python scripts/merge.py"))})
     with tempfile.TemporaryDirectory() as td:

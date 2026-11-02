@@ -65,29 +65,28 @@ def _norm(cwd: str, token: str) -> str:
     return os.path.normpath(os.path.join(cwd, token)) if cwd else os.path.normpath(token)
 
 
-def _enter(cwd: str | None, target: str, present: Present,
-           beside: Present) -> tuple[str | None, bool]:
-    """`cd target` の後の位置と、行き先が木の中なのに無いか。
+def _enter(cwd: str | None, target: str, present: Present, beside: Present) -> str | None:
+    """`cd target` の後の位置。木の外（`..` で抜ける・絶対パス・見本）へ出たら None。
 
-    木の外（`..` で抜ける・絶対パス・見本）へ出たら位置は None で、外れとは数えない。
-    木の中を指して無い場合も位置は None にするが、それ自体を外れとして返す。
-    最初は両者を区別せず、無い場所への cd も「木の外」として黙って見るのをやめていた。
-    そのためディレクトリごと消した手順（`cd app && python main.py` の app/ が無い）を
-    通していた。
+    木の中を指して無い場所でも、位置はそこに置いて見続ける。`cd` だけでは木について
+    何も主張していない（読み手がこれから作るディレクトリかもしれない）。主張になるのは
+    その後で呼ぶファイルで、無ければ「手順が呼ぶ X が木に無い」として数える。
+    最初は無い場所への cd を黙って木の外として扱い、ディレクトリごと消した手順
+    （`cd app && python main.py` の app/ が無い）を通していた。次に cd そのものを
+    外れとして数え、基準のリポ google-gemini/gemini-cli の `cd new-project/` → `gemini`
+    （読み手が作るディレクトリで、木のファイルを呼ばない）を落としていた（2026-11-02）。
 
     `..` を付けずに隣のリポへ入る手順もある（親ディレクトリで打つ前提の README）。
     木に無く、隣には在る名前は、木の外へ出たものとして扱う（beside）。
     """
     if cwd is None or PLACEHOLDER.search(target) or target.startswith("/"):
-        return None, False
+        return None
     nxt = _norm(cwd, target)
     if nxt == ".":
-        return "", False
-    if nxt.startswith(".."):
-        return None, False
-    if present(nxt):
-        return nxt, False
-    return None, not (cwd == "" and beside(nxt))
+        return ""
+    if nxt.startswith("..") or (not present(nxt) and cwd == "" and beside(nxt)):
+        return None
+    return nxt
 
 
 def command_refs(lines: list[str], base: str, present: Present,
@@ -110,9 +109,7 @@ def command_refs(lines: list[str], base: str, present: Present,
             if cloned and "/" not in target.rstrip("/") and not PLACEHOLDER.search(target):
                 cwd, cloned = "", False           # 実測: clone 先の名前は手元の名前と違った
                 continue
-            cwd, missing = _enter(cwd, target, present, beside)
-            if missing:
-                out.append(f"{i}: 手順が入る `{target}` が木に無い")
+            cwd = _enter(cwd, target, present, beside)
         if cwd is None:
             continue                              # 木の外で打つ手順は、この木の主張ではない
         for tok in INTERP.findall(body) + EXEC.findall(body):
