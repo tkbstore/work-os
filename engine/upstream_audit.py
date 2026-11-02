@@ -44,7 +44,7 @@ import upstream  # noqa: E402
 AUDITS_DIR = upstream.ROOT / "calibration" / "upstream" / "audits"
 ENGINE = Path(__file__).resolve().parent
 # ゲートの判定を決めるコード。ここに無いモジュールの変更は指紋に現れない。
-GATE_SOURCES = ("release_gate.py", "audit.py", "workos.py", "calibrate.py")
+GATE_SOURCES = ("release_gate.py", "audit.py", "workos.py", "calibrate.py", "doc_refs.py")
 
 
 def gate_fingerprint(lanes_cfg: dict) -> str:
@@ -64,6 +64,9 @@ def gate_fingerprint(lanes_cfg: dict) -> str:
             p = Path(folder) / ref
             if p.is_file():
                 h.update(p.read_bytes())
+    # 人の判定の記録も判定基準の一部。記録を足したら、前の結果は今の基準で測っていない。
+    if calibrate.CLEARED_FILE.is_file():
+        h.update(calibrate.CLEARED_FILE.read_bytes())
     return h.hexdigest()[:16]
 DEFAULT_MAX_MB = 400
 UNSAFE = re.compile(r"[^A-Za-z0-9._-]+")

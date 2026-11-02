@@ -4,7 +4,7 @@
   "commit": "a728de052709bf3eb105a5567fbb987625afac78",
   "shape": "service",
   "audited_on": "2026-11-02",
-  "gate": "eeee44c3a0c5a3b7",
+  "gate": "61afe226f778a1ae",
   "states": {
     "agent_ready.agent_surface": "pass",
     "agent_ready.cli_entry_point": "pass",
@@ -41,16 +41,13 @@
     "safety.excluded_paths_not_tracked": "pass",
     "safety.gitignore_exists": "pass",
     "safety.no_public_client_secrets": "pass",
-    "safety.no_secrets": "fail",
+    "safety.no_secrets": "pass",
     "safety.no_secrets_in_docs": "pass",
     "usability.command_appears_early": "pass",
     "usability.help_available": "skip",
     "usability.zero_config_start": "pass"
   },
-  "publishable": false,
-  "reached": "",
-  "blocks": [
-    "internal:safety.no_secrets",
-    "public:safety.no_secrets"
-  ]
+  "publishable": true,
+  "reached": "public",
+  "blocks": []
 }

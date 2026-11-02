@@ -1294,6 +1294,17 @@ def main() -> int:
             "src/check.py": 'URL = "postgresql://postgres:pw@postgres.app.internal:5432/r"\n'})
         check("私的利用に予約された .internal は資格情報に数えない",
               states(run(internal, "--assume-public")[1]).get("no_secrets") == "pass")
+        # 実測 2026-11-02: 基準のリポ superfly/flyctl の書式文字列で止めていた
+        for pw in ("%s", "{}", "{password}", "${DB_PASSWORD}", "$PGPASS"):
+            fmt = build(Path(td) / f"fmt-{len(pw)}-{pw[0]}", {
+                "src/check.py": f'URL = "postgres://%s:{pw}@db.prod.evil.net/x"\n'})
+            check(f"パスワードが書式の穴（{pw}）なら資格情報に数えない",
+                  states(run(fmt, "--assume-public")[1]).get("no_secrets") == "pass")
+        for pw in ("s3cret%s", "pw{}x"):
+            mixed = build(Path(td) / f"mixed-{len(pw)}", {
+                "src/check.py": f'URL = "postgres://u:{pw}@db.prod.evil.net/x"\n'})
+            check(f"値に穴が混じるだけ（{pw}）なら引き続き当たる",
+                  states(run(mixed, "--assume-public")[1]).get("no_secrets") == "fail")
         camel = build(Path(td) / "camel", {
             "src/num.py": 'X = dict(api_key="chargePowerCommand")\n'})
         check("camelCase の語（フィールド名）は api_key の値に数えない",

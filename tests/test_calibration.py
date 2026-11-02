@@ -25,6 +25,8 @@ from _registry import require  # noqa: E402
 require("release_lanes.toml")
 sys.path.insert(0, str(ROOT / "engine"))
 
+# E402 の抑制。engine/ は上の sys.path の後でしか解決しない
+import audit  # noqa: E402
 import calibrate  # noqa: E402
 import release_gate  # noqa: E402
 
@@ -100,9 +102,58 @@ def check_pinning() -> None:
         check("結果の commits を固定に使える", calibrate.load_pins(res) == {"o/r": old})
 
 
+def check_cleared() -> None:
+    """人の判定（calibration/cleared.toml）は、記録した値だけを校正で通すこと。
+
+    形で緩めずに、値の形では分けられないもの（demo JWT など）を1件ずつ通す仕組み。
+    記録の無い値・中身の変わった値まで通したら、それは形で緩めたのと同じになる。
+    本番のゲートは記録を読まないので、同じ値でも止め続ける。
+    """
+    token = "eyJhbGciOiJIUzI1NiJ9abcdefghijklmnop.eyJpc3MiOiJkZW1vIn0abcdefghijk.c2lnbmF0dXJl"
+
+    def repo(base: Path, body: str) -> Path:
+        root = base / "ref__repo"
+        (root / "src").mkdir(parents=True, exist_ok=True)
+        (root / "src" / "demo.py").write_text(body, encoding="utf-8")
+        for args in (["init", "-q"], ["add", "-A"],
+                     ["-c", "user.name=t", "-c", "user.email=t@example.com",
+                      "-c", "core.hooksPath=/dev/null", "commit", "-q", "-m", "x"]):
+            subprocess.run(["git", "-C", str(root), *args], check=True,
+                           capture_output=True, timeout=30)
+        return root
+
+    def secrets(root: Path, calibrated: bool) -> str:
+        cfg = release_gate.load_lanes()
+        res = (calibrate.evaluate(root, cfg, "tool") if calibrated else
+               release_gate.evaluate(root, cfg, execute=False, assume_public=True,
+                                     assume_shape="tool"))
+        return calibrate.states_of(res).get("safety.no_secrets", "?")
+
+    saved = calibrate.CLEARED_FILE
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        calibrate.CLEARED_FILE = base / "cleared.toml"
+        try:
+            root = repo(base, f'ANON = "{token}"\n')
+            check("記録が無ければ校正でも止める", secrets(root, True) == "fail")
+            audit.record(str(root), "src/demo.py:1", "jwt", "テスト用の demo JWT で、権限を持たない値",
+                         "test", "cleared", calibrate.CLEARED_FILE)
+            check("記録した値は校正で通す", secrets(root, True) == "pass")
+            check("本番のゲートは記録を読まず、同じ値でも止める", secrets(root, False) == "fail")
+            root = repo(base, f'ANON = "{token}"\nSERVICE = "{token[:-1]}X"\n')
+            check("記録の無い値が並べば止める", secrets(root, True) == "fail")
+            root = repo(base, f'ANON = "{token[:-1]}Y"\n')
+            check("値が変われば記録は失効して止める", secrets(root, True) == "fail")
+        finally:
+            calibrate.CLEARED_FILE = saved
+
+
 def main() -> int:
     print("コミットの固定")
     check_pinning()
+
+    print("\n人の判定の記録")
+    check_cleared()
 
     print("\nコーパスの宣言")
     corpus = calibrate.load_corpus()

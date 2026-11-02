@@ -39,6 +39,8 @@ from workos import _load_toml  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 CORPUS_FILE = ROOT / "calibration" / "corpus.toml"
 RESULTS_DIR = ROOT / "calibration" / "results"
+# 人が実物を見て「秘密ではない」と判定した値の記録。形は registry の audit.toml と同じ。
+CLEARED_FILE = ROOT / "calibration" / "cleared.toml"
 # 論文の PDF まで抱えたリポ（openai/math は作業ツリー 3.6GB）は 300 秒で終わらない。
 CLONE_TIMEOUT = 900
 # 対照群を service とみなして観測し直したものの印。実在の slug と混ざらないように付ける。
@@ -184,13 +186,32 @@ def has_manifest(root: Path, manifests: list[str]) -> bool:
 # 観測
 # --------------------------------------------------------------------------- #
 
+def with_cleared(lanes_cfg: dict) -> dict:
+    """block の pattern_absent に、人の判定（calibration/cleared.toml）を受け付けさせる。
+
+    値の形だけでは本物の秘密と分けられないものがある。基準のリポ yt-dlp は各サイトの
+    Web プレイヤーが配る鍵を、supabase/cli はローカル開発用の demo JWT を置いている
+    （2026-11-02）。形で緩めると同じ形の本物の漏洩も通すので、検査は緩めない。
+    どの組織も使える仕組み（audit.toml、行の本文のハッシュで1件ずつ）で同じように
+    判定を記録し、その記録があるときだけ通す。基準を特別扱いしないためである。
+    記録が無い値は従来どおり止まり、値が変われば記録は失効する。
+    """
+    def overlay(chk: dict) -> dict:
+        if chk.get("kind") == "pattern_absent" and chk.get("severity") == "block":
+            return {**chk, "auditable": True, "audit_log": str(CLEARED_FILE)}
+        return chk
+    lanes = {name: {**lane, "checks": [overlay(c) for c in lane.get("checks", [])]}
+             for name, lane in lanes_cfg.get("lanes", {}).items()}
+    return {**lanes_cfg, "lanes": lanes}
+
+
 def evaluate(root: Path, lanes_cfg: dict, shape: str):
     """校正の物差し。外のリポなので、コマンドは走らせず、公開を意図したものとして当てる。
 
     観測の結果を使う側（ここと engine/upstream_audit.py）は、必ずこれを通す。
     呼び方が分かれると、同じ名前の物差しが2本になる。
     """
-    return release_gate.evaluate(root, lanes_cfg, execute=False,
+    return release_gate.evaluate(root, with_cleared(lanes_cfg), execute=False,
                                  assume_public=True, assume_shape=shape)
 
 
