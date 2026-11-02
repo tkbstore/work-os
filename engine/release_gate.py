@@ -475,6 +475,21 @@ def _scoped(files: list[tuple[str, Path]], globs: list[str],
             and not any(_match_glob(rel, g) for g in skip)]
 
 
+def _located(root: Path, name: str, chk: dict) -> Path | None:
+    """name を look_in のディレクトリから順に探す。宣言が無ければ直下だけを見る。
+
+    README の置き場所は直下だけではない。GitHub は .github/・直下・docs/ の順に探し、
+    見つけたものをリポの README として表示する。直下しか見ないと、表示されている README を
+    「無い」と言う。実測: sherlock-project/sherlock は docs/README.md に置いていて、
+    基準のリポなのに第2段で止めていた（2026-11-02）。
+    """
+    for d in chk.get("look_in", [""]):
+        target = root / d / name
+        if target.exists():
+            return target
+    return None
+
+
 def obs_file_present(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list[str]]:
     """候補のいずれかが在るか。* を含む候補は追跡ファイル全体に当てる。
 
@@ -492,8 +507,8 @@ def obs_file_present(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list[s
             for rel, _ in ctx["files"]:
                 if _match_glob(rel, cand) and not any(_match_glob(rel, g) for g in skip):
                     return "pass", f"{cand} に該当（{rel}）", []
-        elif (root / cand).exists():
-            return "pass", f"{cand} を確認", []
+        elif (found := _located(root, cand, chk)) is not None:
+            return "pass", f"{found.relative_to(root)} を確認", []
     by_content = _present_by_content(chk, ctx, skip)
     if by_content:
         return "pass", by_content, []
@@ -576,8 +591,8 @@ def _present_per_workspace(root: Path, chk: dict,
 
 
 def obs_doc_section(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list[str]]:
-    target = root / chk.get("file", "README.md")
-    if not target.is_file():
+    target = _located(root, chk.get("file", "README.md"), chk)
+    if target is None or not target.is_file():
         return "fail", f"{chk.get('file')} が無い", []
     text = read_text(target) or ""
     for rx in chk.get("any_of", []):
@@ -587,8 +602,8 @@ def obs_doc_section(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list[st
 
 
 def obs_runnable_block(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list[str]]:
-    target = root / chk.get("file", "README.md")
-    if not target.is_file():
+    target = _located(root, chk.get("file", "README.md"), chk)
+    if target is None or not target.is_file():
         return "fail", f"{chk.get('file')} が無い", []
     text = read_text(target) or ""
     text, scope = _window(text, chk)

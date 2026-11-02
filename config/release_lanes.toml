@@ -169,6 +169,8 @@ question = "初めて来た他人が、誰にも聞かずに動かせるか"
 id = "readme_exists"
 kind = "file_present"
 any_of = ["README.md", "README.rst", "README"]
+# GitHub が README として表示する場所。直下だけ見ると docs/README.md を「無い」と言う
+look_in = [".github", "", "docs"]
 severity = "block"
 why = "入口が無ければ他人は始められない"
 
@@ -188,6 +190,7 @@ why = "ライセンスの無いコードは、法的には誰も使えない。�
 id = "install_section"
 kind = "doc_section"
 file = "README.md"
+look_in = [".github", "", "docs"]
 any_of = ["(?im)^#+.*(install|setup|getting started|requirement)",
           "(?im)^#+.*(インストール|導入|セットアップ|必要なもの|前提)"]
 # 2026-10-31 に warn に決めた。star の研究から来た検査で、分離は再現していない
@@ -201,6 +204,7 @@ why = "動かす前に何が要るかが書かれていない README は、書�
 id = "usage_section"
 kind = "doc_section"
 file = "README.md"
+look_in = [".github", "", "docs"]
 any_of = ["(?im)^#+.*(usage|quick ?start|example|how to|getting started|basic)",
           "(?im)^#+.*(使い方|使用例|クイックスタート|例|はじめ)"]
 severity = "warn"
@@ -210,6 +214,7 @@ why = "見出しの言葉は流派が分かれる。高star リポでも表記�
 id = "runnable_example"
 kind = "runnable_block"
 file = "README.md"
+look_in = [".github", "", "docs"]
 min = 1
 # 2026-11-02 に warn に決めた。基準のリポ anthropics/claude-plugins-official は、導入の
 # 手順を文中のコード（`/plugin install …`）で書き、囲みのブロックを持たない。django も
@@ -693,6 +698,7 @@ question = "初めて来た人が、最初の成功に何手で辿り着くか"
 id = "command_appears_early"
 kind = "runnable_block"
 file = "README.md"
+look_in = [".github", "", "docs"]
 # 実測: 高star リポの最初のコマンドは README の 6〜25%、低star は 28〜73% に現れた。
 # 絶対行数ではなく割合。短い README では割合が意味を失うので 40 行を下限にする。
 #
@@ -798,6 +804,7 @@ why = "結果を読めなければ次の手が打てない。人間向けの整�
 id = "install_free_start"
 kind = "doc_section"
 file = "README.md"
+look_in = [".github", "", "docs"]
 any_of = ['\b(npx|uvx|bunx|pipx run)\b', 'curl [^\n|]*\|\s*(sh|bash)',
           '\b(brew install|go install|cargo install)\b']
 severity = "warn"

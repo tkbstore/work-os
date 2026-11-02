@@ -632,6 +632,27 @@ def main() -> int:
             check(f"{name} をライセンスとして認める",
                   states(res).get("license_exists") == "pass")
 
+        # GitHub は .github/・直下・docs/ の README をリポの README として表示する。
+        # 実測: sherlock-project/sherlock は docs/README.md に置き、第2段で止めていた。
+        print("\nREADME の置き場所")
+        readme = HEALTHY_FILES["README.md"]
+        for where in (".github", "docs"):
+            moved = build(Path(td) / f"readme_{where}",
+                          {k: v for k, v in HEALTHY_FILES.items() if k != "README.md"} |
+                          {f"{where}/README.md": readme})
+            _, res = run(moved)
+            st = states(res)
+            check(f"{where}/README.md を README として認める",
+                  st.get("readme_exists") == "pass")
+            check(f"{where}/README.md の節を読む",
+                  st.get("usage_section") == st.get("install_section") == "pass")
+        stray = build(Path(td) / "readme_stray",
+                      {k: v for k, v in HEALTHY_FILES.items() if k != "README.md"} |
+                      {"src/README.md": readme})
+        _, res = run(stray)
+        check("GitHub が表示しない場所の README は数えない",
+              states(res).get("readme_exists") == "fail")
+
         # *在ること* を見る観測が除外を守らないと、偽陽性ではなく偽陰性になる。
         # 実測: vendor した PyYAML の LICENSE を自分のものと数え、ライセンスを
         # 持たない2リポジトリが「公開可」に化けた。
