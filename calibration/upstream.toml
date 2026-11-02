@@ -44,3 +44,13 @@ kind = "release"
 [[upstream]]
 slug = "google/adk-python"
 kind = "release"
+
+# --------------------------------------------------------------------------- #
+# 基準として取り込むコーパスの群（calibration/corpus.toml）。書き写さない。
+# --------------------------------------------------------------------------- #
+# 「広く使われている」に当たる群だけを取り込む。tests/test_reference_repos.py は、
+# ここに並ぶリポがすべて今のゲートで全段に届くことを求める。
+#   入れない群: not_adopted（対照群。止まるのはゲートが働いている証拠）、
+#   formal（公開済みだが、広く使われているとは言えない）。
+[reference_corpus]
+groups = ["adopted", "landmark", "agent_native"]

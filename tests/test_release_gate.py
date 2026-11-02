@@ -616,6 +616,22 @@ def main() -> int:
         for cid in ("cli_entry_point", "no_form_auth", "headless_escape"):
             check(f"{cid} の欠落を検出する", st.get(cid) == "fail")
 
+        # 環境変数でトークンを渡すのも逃げ道。実測: 基準のリポ railwayapp/cli は
+        # `RAILWAY_TOKEN=xxx railway up` で認証し、フラグを持たないので止めていた。
+        for name, extra in (
+                ("手順での代入", {"README.md": HEALTHY_README + "\n```bash\nSAMPLE_TOKEN=xxx sample up\n```\n"}),
+                ("コードでの読み出し", {"src/auth.py": 'import os\nT = os.environ.get("SAMPLE_API_TOKEN")\n'})):
+            env = build(Path(td) / f"env_{len(name)}", {
+                **HEALTHY_FILES,
+                "work.toml": HEALTHY_FILES["work.toml"].replace(
+                    'intent = "public"', 'intent = "public"\nshape = "service"'),
+                "src/mod.py": "def f():\n    return 1\n",
+                **extra,
+            })
+            _, res = run(env)
+            check(f"環境変数のトークン（{name}）を headless の逃げ道と認める",
+                  states(res).get("headless_escape") == "pass")
+
         # --- ** の展開 -----------------------------------------------------
         # 実際に起きた事故: `**/` が 0セグメントを食う場合しか当たらず、
         # `**/tests/*` が `a/tests/t.py` に当たらなかった。除外の宣言が効かない
@@ -631,6 +647,27 @@ def main() -> int:
             _, res = run(dual)
             check(f"{name} をライセンスとして認める",
                   states(res).get("license_exists") == "pass")
+
+        # GitHub は .github/・直下・docs/ の README をリポの README として表示する。
+        # 実測: sherlock-project/sherlock は docs/README.md に置き、第2段で止めていた。
+        print("\nREADME の置き場所")
+        readme = HEALTHY_FILES["README.md"]
+        for where in (".github", "docs"):
+            moved = build(Path(td) / f"readme_{where}",
+                          {k: v for k, v in HEALTHY_FILES.items() if k != "README.md"} |
+                          {f"{where}/README.md": readme})
+            _, res = run(moved)
+            st = states(res)
+            check(f"{where}/README.md を README として認める",
+                  st.get("readme_exists") == "pass")
+            check(f"{where}/README.md の節を読む",
+                  st.get("usage_section") == st.get("install_section") == "pass")
+        stray = build(Path(td) / "readme_stray",
+                      {k: v for k, v in HEALTHY_FILES.items() if k != "README.md"} |
+                      {"src/README.md": readme})
+        _, res = run(stray)
+        check("GitHub が表示しない場所の README は数えない",
+              states(res).get("readme_exists") == "fail")
 
         # *在ること* を見る観測が除外を守らないと、偽陽性ではなく偽陰性になる。
         # 実測: vendor した PyYAML の LICENSE を自分のものと数え、ライセンスを

@@ -115,6 +115,35 @@ def check_survey() -> None:
           bool(errors) and "version" in errors[0][1])
 
 
+def check_corpus_import() -> None:
+    print("\nコーパスの群を取り込む")
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        decl = base / "upstream.toml"
+        corpus = base / "corpus.toml"
+        corpus.write_text('[groups.g]\nshape = "service"\nslugs = ["a/x", "o/r"]\n'
+                          '[groups.h]\nslugs = ["b/y"]\n', encoding="utf-8")
+        decl.write_text('[[upstream]]\nslug = "o/r"\nkind = "release"\n'
+                        '[reference_corpus]\ngroups = ["g"]\n', encoding="utf-8")
+        got = upstream.load_decls(decl, corpus)
+        by = {d["slug"]: d for d in got}
+        check("群のリポを head として取り込む",
+              by.get("a/x", {}).get("kind") == "head" and by["a/x"].get("shape") == "service")
+        check("明示した上流は明示したほうを使う", by.get("o/r", {}).get("kind") == "release"
+              and sum(d.get("slug") == "o/r" for d in got) == 1)
+        check("取り込んでいない群は入らない", "b/y" not in by)
+        check("取り込んだ宣言に矛盾が無い", not upstream.lint_decls(got))
+        decl.write_text('[reference_corpus]\ngroups = ["nope"]\n', encoding="utf-8")
+        check("無い群の名前を通さない",
+              any("nope" in p for p in upstream.lint_decls(upstream.load_decls(decl, corpus))))
+
+    head = {"slug": "a/x", "kind": "head"}
+    now = upstream.current(head, fake({"repos/a/x/commits/HEAD": {"sha": "f" * 40}}))
+    check("head は既定ブランチの先頭を見る", now == Seen("HEAD@" + "f" * 12, "f" * 40))
+    check("head の先頭が動いたら moved",
+          upstream.step_of(Seen("HEAD@aaa", "a"), Seen("HEAD@bbb", "b")) == "moved")
+
+
 def check_record() -> None:
     print("\n記録")
     with tempfile.TemporaryDirectory() as tmp:
@@ -129,6 +158,7 @@ def main() -> int:
     check_decls()
     check_steps()
     check_survey()
+    check_corpus_import()
     check_record()
     print()
     if failed:
