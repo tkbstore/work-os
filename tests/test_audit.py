@@ -32,7 +32,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _registry import borrow_terms, require  # noqa: E402
 
 require("private_terms.toml", "release_lanes.toml", "secret_patterns.toml")
-AUDIT = ROOT / "engine" / "audit.py"
+sys.path.insert(0, str(ROOT / "engine"))
+# E402 の抑制。engine/ は上の sys.path の後でしか解決しない
+from audit import line_key  # noqa: E402
+
+AUDIT =ROOT / "engine" / "audit.py"
 GATE = ROOT / "engine" / "deliverable_gate.py"
 REPO_GATE = ROOT / "engine" / "release_gate.py"
 
@@ -295,6 +299,23 @@ def main() -> int:
               after.get(two, 0) == before.get(two, 0))
         check("抑制した件数を注記に出す", "人の判定で抑制" in out)
         check("記録の規模を出す", "判定の記録" in out)
+
+        # --- 記録が値を写さない --------------------------------------------
+        # 抜粋は参考で、判定には使わない。そこに当たった値を写すと、通すための
+        # 記録が秘密をもう1箇所に書き出す。鍵（line_key）は元の行から作るので、
+        # 伏せても抑制は変わらない。
+        print("\n記録は当たった値を写さない")
+        token = "AKIAQ3EXAMPLE7KEY9ZZ"
+        line = f"ACCESS = '{token}'  # 公開クライアントの鍵"
+        srepo = make_repo(td, "secretline", "x\n", {"src/client.py": line + "\n"})
+        log = td / "cleared.toml"
+        rc, _ = run_audit(reg, "--log", str(log), "--clear", str(srepo),
+                          "src/client.py:1", "aws_access_key", "--why", REASON, "--who", "t")
+        text = log.read_text(encoding="utf-8") if log.is_file() else ""
+        check("記録できる", rc == 0 and "[[entry]]" in text)
+        check("抜粋に当たった値が残らない", token not in text)
+        check("抜粋から行の形は読める", "ACCESS = " in text)
+        check("鍵は伏せる前の行から作る", f'line_key = "{line_key(line)}"' in text)
 
         # --- 記録が読めないとき ----------------------------------------------
         print("\n記録が読めないとき")
