@@ -4,7 +4,7 @@
   "commit": "84878e532142f0ac584953695658b324eb9e5b80",
   "shape": "service",
   "audited_on": "2026-11-02",
-  "gate": "7ef8bf6b3c82129d",
+  "gate": "eeee44c3a0c5a3b7",
   "states": {
     "agent_ready.agent_surface": "pass",
     "agent_ready.cli_entry_point": "pass",
@@ -23,6 +23,7 @@
     "entry.issue_template": "pass",
     "entry.license_exists": "pass",
     "entry.readme_exists": "pass",
+    "entry.readme_refs_resolve": "pass",
     "entry.runnable_example": "pass",
     "entry.usage_section": "fail",
     "history.history_erased": "pass",

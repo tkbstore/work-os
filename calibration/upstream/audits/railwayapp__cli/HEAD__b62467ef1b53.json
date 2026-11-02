@@ -4,11 +4,11 @@
   "commit": "b62467ef1b5303e3e340283ed96425dcf9612993",
   "shape": "service",
   "audited_on": "2026-11-02",
-  "gate": "7ef8bf6b3c82129d",
+  "gate": "eeee44c3a0c5a3b7",
   "states": {
     "agent_ready.agent_surface": "fail",
     "agent_ready.cli_entry_point": "pass",
-    "agent_ready.headless_escape": "fail",
+    "agent_ready.headless_escape": "pass",
     "agent_ready.install_free_start": "fail",
     "agent_ready.machine_readable_output": "pass",
     "agent_ready.no_form_auth": "pass",
@@ -23,6 +23,7 @@
     "entry.issue_template": "fail",
     "entry.license_exists": "pass",
     "entry.readme_exists": "pass",
+    "entry.readme_refs_resolve": "pass",
     "entry.runnable_example": "pass",
     "entry.usage_section": "fail",
     "history.history_erased": "pass",
@@ -46,9 +47,7 @@
     "usability.help_available": "skip",
     "usability.zero_config_start": "fail"
   },
-  "publishable": false,
-  "reached": "internal",
-  "blocks": [
-    "public:agent_ready.headless_escape"
-  ]
+  "publishable": true,
+  "reached": "public",
+  "blocks": []
 }

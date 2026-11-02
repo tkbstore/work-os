@@ -4,7 +4,7 @@
   "commit": "c588d7c8b476df9f9c84912a05d1430fb8cdcdae",
   "shape": "tool",
   "audited_on": "2026-11-02",
-  "gate": "7ef8bf6b3c82129d",
+  "gate": "eeee44c3a0c5a3b7",
   "states": {
     "correctness.e2e_passes": "skip",
     "correctness.gate_runs_in_repo": "fail",
@@ -13,12 +13,13 @@
     "correctness.tests_exist": "pass",
     "correctness.tutorial_runs": "skip",
     "entry.contributing": "fail",
-    "entry.install_section": "fail",
+    "entry.install_section": "pass",
     "entry.issue_template": "pass",
     "entry.license_exists": "pass",
-    "entry.readme_exists": "fail",
-    "entry.runnable_example": "fail",
-    "entry.usage_section": "fail",
+    "entry.readme_exists": "pass",
+    "entry.readme_refs_resolve": "skip",
+    "entry.runnable_example": "pass",
+    "entry.usage_section": "pass",
     "history.history_erased": "pass",
     "history.no_private_terms_in_history": "skip",
     "history.no_private_terms_since_release": "skip",
@@ -40,9 +41,7 @@
     "usability.help_available": "skip",
     "usability.zero_config_start": "pass"
   },
-  "publishable": false,
-  "reached": "internal",
-  "blocks": [
-    "public:entry.readme_exists"
-  ]
+  "publishable": true,
+  "reached": "public",
+  "blocks": []
 }

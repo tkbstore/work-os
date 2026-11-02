@@ -4,7 +4,7 @@
   "commit": "190dd5aee1053dd2093d2a5c3937f604860310a3",
   "shape": "tool",
   "audited_on": "2026-11-02",
-  "gate": "7ef8bf6b3c82129d",
+  "gate": "eeee44c3a0c5a3b7",
   "states": {
     "correctness.e2e_passes": "skip",
     "correctness.gate_runs_in_repo": "fail",
@@ -17,6 +17,7 @@
     "entry.issue_template": "pass",
     "entry.license_exists": "pass",
     "entry.readme_exists": "pass",
+    "entry.readme_refs_resolve": "pass",
     "entry.runnable_example": "pass",
     "entry.usage_section": "pass",
     "history.history_erased": "pass",

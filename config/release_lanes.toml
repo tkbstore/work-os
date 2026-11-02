@@ -810,7 +810,7 @@ except_presets = ["fixtures", "vendored"]
 patterns = ['--with-token', 'readPastedCodes', 'paste the code',
             '--non-?interactive', '--headless', '--token[ =]',
             '\b[A-Z][A-Z0-9_]*_TOKEN=',
-            '''(?:env::var|getenv|environ(?:\.get)?|process\.env)\W+[A-Z][A-Z0-9_]*_TOKEN''']
+            '(?:env::var|getenv|environ(?:\.get)?|process\.env)\W+[A-Z][A-Z0-9_]*_TOKEN']
 severity = "block"
 why = "ブラウザを開けない場所で動くのがエージェント。逃げ道が無いと全部が無駄になる"
 
