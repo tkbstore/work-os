@@ -19,7 +19,7 @@ verdict = "cleared"
 why = "ローカル開発用の demo JWT。iss=supabase-demo で、同じファイルに載る既定の JWT secret（super-secret-jwt-token-with-at-least-32-characters-long）で署名が通ることを確かめた。誰でも知っている鍵で署名された値で、何の権限も漏らさない"
 who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
 when = "2026-11-02"
-excerpt = "anon key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9."
+excerpt = "anon key: eyJh….eyJp…."
 
 [[entry]]
 repo = "supabase__cli"
@@ -30,7 +30,7 @@ verdict = "cleared"
 why = "ローカル開発用の demo JWT。iss=supabase-demo で、同じファイルに載る既定の JWT secret（super-secret-jwt-token-with-at-least-32-characters-long）で署名が通ることを確かめた。誰でも知っている鍵で署名された値で、何の権限も漏らさない"
 who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
 when = "2026-11-02"
-excerpt = "service_role key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4c"
+excerpt = "service_role key: eyJh….eyJp…"
 
 [[entry]]
 repo = "supabase__cli"
@@ -41,7 +41,7 @@ verdict = "cleared"
 why = "ローカル開発用の demo JWT。iss=supabase-demo で、同じファイルに載る既定の JWT secret（super-secret-jwt-token-with-at-least-32-characters-long）で署名が通ることを確かめた。誰でも知っている鍵で署名された値で、何の権限も漏らさない"
 who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
 when = "2026-11-02"
-excerpt = "ANON_KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9."
+excerpt = "ANON_KEY=\"eyJh….eyJp…."
 
 [[entry]]
 repo = "supabase__cli"
@@ -52,7 +52,7 @@ verdict = "cleared"
 why = "ローカル開発用の demo JWT。iss=supabase-demo で、同じファイルに載る既定の JWT secret（super-secret-jwt-token-with-at-least-32-characters-long）で署名が通ることを確かめた。誰でも知っている鍵で署名された値で、何の権限も漏らさない"
 who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
 when = "2026-11-02"
-excerpt = "SERVICE_ROLE_KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4c"
+excerpt = "SERV…\"eyJh….eyJp…"
 
 [[entry]]
 repo = "supabase__cli"
@@ -63,7 +63,7 @@ verdict = "cleared"
 why = "ローカル開発用の demo JWT。iss=supabase-demo で、同じファイルに載る既定の JWT secret（super-secret-jwt-token-with-at-least-32-characters-long）で署名が通ることを確かめた。誰でも知っている鍵で署名された値で、何の権限も漏らさない"
 who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
 when = "2026-11-02"
-excerpt = "SUPABASE_ANON_KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4"
+excerpt = "SUPA…\"eyJh….eyJp…"
 
 [[entry]]
 repo = "supabase__cli"
@@ -74,7 +74,7 @@ verdict = "cleared"
 why = "ローカル開発用の demo JWT。iss=supabase-demo で、同じファイルに載る既定の JWT secret（super-secret-jwt-token-with-at-least-32-characters-long）で署名が通ることを確かめた。誰でも知っている鍵で署名された値で、何の権限も漏らさない"
 who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
 when = "2026-11-02"
-excerpt = "SUPABASE_SERVICE_KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsI"
+excerpt = "SUPA…\"eyJh….eyJp…"
 
 [[entry]]
 repo = "home-assistant__core"
@@ -85,7 +85,7 @@ verdict = "cleared"
 why = "Growatt の API が返すフィールドの名前（コメントに Key returned by V1 API）。値は英単語と略語（SOC・bdc）をつないだ識別子で、乱数ではない"
 who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
 when = "2026-11-02"
-excerpt = "api_key=\"wchargeSOCLowLimit\",  # Key returned by V1 API"
+excerpt = "api_key=\"wcha…\",  # Key returned by V1 API"
 
 [[entry]]
 repo = "home-assistant__core"
@@ -96,7 +96,7 @@ verdict = "cleared"
 why = "Growatt の API が返すフィールドの名前（コメントに Key returned by V1 API）。値は英単語と略語（SOC・bdc）をつないだ識別子で、乱数ではない"
 who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
 when = "2026-11-02"
-excerpt = "api_key=\"wdisChargeSOCLowLimit\",  # Key returned by V1 API (off-grid)"
+excerpt = "api_key=\"wdis…\",  # Key returned by V1 API (off-grid)"
 
 [[entry]]
 repo = "home-assistant__core"
@@ -107,7 +107,7 @@ verdict = "cleared"
 why = "Growatt の API が返すフィールドの名前（コメントに Key returned by V1 API）。値は英単語と略語（SOC・bdc）をつないだ識別子で、乱数ではない"
 who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
 when = "2026-11-02"
-excerpt = "api_key=\"onGridDischargeStopSOC\",  # Key returned by V1 API (on-grid)"
+excerpt = "api_key=\"onGr…\",  # Key returned by V1 API (on-grid)"
 
 [[entry]]
 repo = "home-assistant__core"
@@ -118,7 +118,7 @@ verdict = "cleared"
 why = "Growatt の API が返すフィールドの名前（コメントに Key returned by V1 API）。値は英単語と略語（SOC・bdc）をつないだ識別子で、乱数ではない"
 who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
 when = "2026-11-02"
-excerpt = "api_key=\"edischarge1Today\","
+excerpt = "api_key=\"edis…\","
 
 [[entry]]
 repo = "home-assistant__core"
@@ -129,7 +129,7 @@ verdict = "cleared"
 why = "Growatt の API が返すフィールドの名前（コメントに Key returned by V1 API）。値は英単語と略語（SOC・bdc）をつないだ識別子で、乱数ではない"
 who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
 when = "2026-11-02"
-excerpt = "api_key=\"edischarge1Total\","
+excerpt = "api_key=\"edis…\","
 
 [[entry]]
 repo = "home-assistant__core"
@@ -140,7 +140,7 @@ verdict = "cleared"
 why = "Growatt の API が返すフィールドの名前（コメントに Key returned by V1 API）。値は英単語と略語（SOC・bdc）をつないだ識別子で、乱数ではない"
 who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
 when = "2026-11-02"
-excerpt = "api_key=\"bdc1DischargePower\","
+excerpt = "api_key=\"bdc1…\","
 
 [[entry]]
 repo = "home-assistant__core"
@@ -151,7 +151,7 @@ verdict = "cleared"
 why = "Growatt の API が返すフィールドの名前（コメントに Key returned by V1 API）。値は英単語と略語（SOC・bdc）をつないだ識別子で、乱数ではない"
 who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
 when = "2026-11-02"
-excerpt = "api_key=\"bdc1DischargeTotal\","
+excerpt = "api_key=\"bdc1…\","
 
 [[entry]]
 repo = "home-assistant__core"
@@ -162,7 +162,7 @@ verdict = "cleared"
 why = "Growatt の API が返すフィールドの名前（コメントに Key returned by V1 API）。値は英単語と略語（SOC・bdc）をつないだ識別子で、乱数ではない"
 who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
 when = "2026-11-02"
-excerpt = "api_key=\"bdc2DischargePower\","
+excerpt = "api_key=\"bdc2…\","
 
 [[entry]]
 repo = "home-assistant__core"
@@ -173,7 +173,7 @@ verdict = "cleared"
 why = "Growatt の API が返すフィールドの名前（コメントに Key returned by V1 API）。値は英単語と略語（SOC・bdc）をつないだ識別子で、乱数ではない"
 who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
 when = "2026-11-02"
-excerpt = "api_key=\"bdc2DischargeTotal\","
+excerpt = "api_key=\"bdc2…\","
 
 [[entry]]
 repo = "yt-dlp__yt-dlp"
@@ -184,4 +184,37 @@ verdict = "cleared"
 why = "_TESTS（テストケース）の URL に含まれる署名付き再生トークン。exp=1600609319（2020-09-20）で失効済み"
 who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
 when = "2026-11-02"
-excerpt = "'url': 'https://watch.cloudflarestream.com/eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJraWQiOiJmYTA0YjViMzQ2NDkwYTM5NWJiNzQ1"
+excerpt = "'url': 'https://watch.clou….com/….eyJr…"
+
+[[entry]]
+repo = "yt-dlp__yt-dlp"
+path = "yt_dlp/extractor/adultswim.py"
+declaration = "jwt"
+line_key = "fc33119b70bc1e84"
+verdict = "cleared"
+why = "Adult Swim の Web プレイヤーが全訪問者に配る CDN トークン用の appId。コメントの出所 https://d2gg02c3xr550i.cloudfront.net/assets/asvp.e9c8bef24322d060ef87.bundle.js を 2026-11-02 に取得し、同じ JWT が含まれることを確かめた（Wayback 2018 の写しも同じ）。中身は appId/product/platform/iat だけ"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-02"
+excerpt = "'appId': 'eyJh….eyJh…"
+
+[[entry]]
+repo = "yt-dlp__yt-dlp"
+path = "yt_dlp/extractor/shahid.py"
+declaration = "aws_access_key"
+line_key = "9d9d8186eaa513d3"
+verdict = "cleared"
+why = "Shahid の Web アプリが全訪問者に配っていた API Gateway 署名用の鍵の対。Wayback 20180110045308 の https://shahid.mbc.net/static/client.js に shahid:{access:…,secret:…} として同じ鍵の対があることを確かめた。2017-12 に youtube-dl 78466fcab5 で入った"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-02"
+excerpt = "'access_key': 'AKIA…',"
+
+[[entry]]
+repo = "yt-dlp__yt-dlp"
+path = "yt_dlp/extractor/tver.py"
+declaration = "api_key"
+line_key = "b7fc4078377926d3"
+verdict = "cleared"
+why = "TVer オリンピックサイトのライブ再生（projectId tver-olympic-live）用に、Web プレイヤーが全訪問者に配っていた Streaks の API キー。Wayback 20260129201237 の tver.jp/olympic/milanocortina2026/_next/static/chunks/0e1d6be8b9063209.js に apiKey として同じ値があることを確かめた"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-02"
+excerpt = "api_key = 'a35e…'"

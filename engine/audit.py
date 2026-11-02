@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 from dataclasses import dataclass
 from datetime import date
@@ -66,6 +67,19 @@ VERDICTS = ("cleared", "leak")
 MIN_REASON = 12
 # 鍵の長さ。衝突より、目で読める長さを優先する（16 桁 = 64 bit）。
 KEY_LEN = 16
+# 抜粋で伏せる連なり。秘密の正規表現は宣言ごとに違うので、宣言を見ずに乱数の形
+# （長い英数字・base64 の連なり）で伏せる。ドットは含めない（パスや JWT の区切りは残す）。
+TOKEN_RUN = re.compile(r"[A-Za-z0-9+/=_-]{16,}")
+
+
+def redact(body: str) -> str:
+    """抜粋から、値になりうる長い連なりを頭の4文字だけ残して伏せる。
+
+    抜粋は人が読む参考で、判定には使わない（鍵は line_key）。そこに当たった値を
+    写すと、通すための記録が秘密をもう1箇所に書き出す。実測 2026-11-02: yt-dlp の
+    公開クライアント鍵を記録した cleared.toml を、work-os 自身の公開ゲートが止めた。
+    """
+    return TOKEN_RUN.sub(lambda m: m.group()[:4] + "…", body)
 
 
 def line_key(body: str) -> str:
@@ -242,7 +256,7 @@ def record(repo: str, target: str, declaration: str, why: str,
     entry = Entry(repo=Path(repo).resolve().name, path=rel, declaration=declaration,
                   line_key=line_key(body), verdict=verdict, why=why.strip(),
                   who=who, when=date.today().isoformat(),
-                  excerpt=body.strip()[:120])
+                  excerpt=redact(body.strip())[:120])
     where = where or registry_path(AUDIT_FILE)
     if not where.parent.is_dir():
         print(f"記録の置き場がありません: {where.parent}\n"
