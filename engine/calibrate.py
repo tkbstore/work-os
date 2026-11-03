@@ -445,6 +445,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  - [{where}] {r['check']}（差 {r['gap']:+.2f}）")
     print("  ※ 差が小さいチェックを block のまま置くと、好みで人を落とすことになる")
 
+    if args.write and not per_repo:
+        # 1本も測れなかった結果で前回の結果を上書きすると、証拠が空に置き換わる。
+        # 実測 2026-11-03: commits を持たない古い結果を --pin に渡し、全件が除外された。
+        print("\n1本も測れなかったので書き出さない（前回の結果を残す）", file=sys.stderr)
+        return 1
     if args.write:
         RESULTS_DIR.mkdir(parents=True, exist_ok=True)
         stamp = str(corpus.get("corpus", {}).get("frozen_on", "unknown"))

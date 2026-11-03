@@ -1313,6 +1313,17 @@ def main() -> int:
             "src/num.py": 'X = dict(api_key="aBcdEfgHIjklMnopQrst")\n'})
         check("大文字が続く乱数は camelCase の除外に紛れない",
               states(run(rand, "--assume-public")[1]).get("no_secrets") == "fail")
+        # 名前が secret_key でも値が乱数なら秘密。実測 2026-11-02: yt-dlp の shahid.py は
+        # AWS の鍵を access_key / secret_key の対で持ち、aws_secret* の名前に縛った形は
+        # 対の片方（secret 側）を素通りしていた。名前は分割して書く（このファイル自体を当てない）。
+        name = "secret" + "_key"
+        for desc, val, want in (
+                ("名前が secret_key の乱数は当たる", "Q4WuJxFvtTkXbaWTDv7Mh+0LqoYDWfEnUXoW", "fail"),
+                ("secret_key の見本（your_...）は当たらない", "your_" + name + "_here", "pass"),
+                ("secret_key の値が語のつながりなら当たらない", "django_tests_" + name, "pass")):
+            sk = build(Path(td) / f"sk-{want}-{len(val)}", {
+                "src/api.py": f"CRED = {{'{name}': '{val}'}}\n"})
+            check(desc, states(run(sk, "--assume-public")[1]).get("no_secrets") == want)
         for host in ("x.test.evil.com", "remote.testing.com", "myexample.com",
                      "x.internal.evil.com"):
             real = build(Path(td) / f"real-{host}", {
