@@ -15,7 +15,10 @@ kind = path（モノレポの中の1つ）でも、ゲートはリポの直下�
 
   python3 engine/upstream_audit.py                 新しい版を当て直して結果を出す（書かない）
   python3 engine/upstream_audit.py --write         結果と見た版を記録する
-  python3 engine/upstream_audit.py --cache DIR     clone の置き場所（既定は一時領域）
+  python3 engine/upstream_audit.py --cache DIR     clone を DIR に残して使い回す（既定は持たない）
+
+置き場を指定しなければ、clone は1本測るごとに消す。終了時にまとめて消していたときは、
+測っている間に基準のリポを全部抱え、途中でディスクが溢れた（2026-11-06、33 本で 2.8GB）。
 
 終了コード: 0 = 全部当て直せた / 1 = 宣言が壊れている / 3 = 見られなかった・当て直せなかった
 上流がある（当て直していないことを「変化なし」と同じ顔で出さない）。
@@ -27,6 +30,7 @@ import argparse
 import hashlib
 import json
 import re
+import shutil
 import sys
 import tempfile
 from datetime import date
@@ -81,10 +85,22 @@ def audit_path(key: str, version: str, base: Path = AUDITS_DIR) -> Path:
     return base / slot(key) / f"{slot(version)}.json"
 
 
-def audit(decl: dict, seen: upstream.Seen, cache: Path, lanes_cfg: dict) -> dict:
-    """その版のコミットを取ってきてゲートを当てる。当てられなければ RuntimeError。"""
+def audit(decl: dict, seen: upstream.Seen, cache: Path, lanes_cfg: dict,
+          keep: bool = True) -> dict:
+    """その版のコミットを取ってきてゲートを当てる。当てられなければ RuntimeError。
+
+    keep=False なら、測り終えた clone を成否を問わずその場で消す。
+    """
+    dest = cache / slot(decl["slug"])
+    try:
+        return _audit_at(decl, seen, dest, lanes_cfg)
+    finally:
+        if not keep:
+            shutil.rmtree(dest, ignore_errors=True)
+
+
+def _audit_at(decl: dict, seen: upstream.Seen, dest: Path, lanes_cfg: dict) -> dict:
     slug = decl["slug"]
-    dest = cache / slot(slug)
     err = calibrate.clone(slug, dest, int(decl.get("max_clone_mb", DEFAULT_MAX_MB)), seen.commit)
     if err:
         raise RuntimeError(f"{seen.commit[:12]} を取れない: {err}")
@@ -132,7 +148,8 @@ def version_key(version: str) -> tuple[int, ...]:
 
 def run(decls: list[dict], seen: dict[str, upstream.Seen], cache: Path, lanes_cfg: dict,
         fetch: upstream.Fetch = upstream.gh_api,
-        base: Path = AUDITS_DIR) -> tuple[list[dict], dict[str, upstream.Seen], list[tuple[str, str]]]:
+        base: Path = AUDITS_DIR, keep: bool = True
+        ) -> tuple[list[dict], dict[str, upstream.Seen], list[tuple[str, str]]]:
     """新しい版を当て直す。返すのは（結果, 次の記録, 当て直せなかったもの）。"""
     changes, errors = upstream.survey(decls, seen, fetch)
     by_key = {upstream.key_of(d): d for d in decls}
@@ -142,7 +159,7 @@ def run(decls: list[dict], seen: dict[str, upstream.Seen], cache: Path, lanes_cf
         if c.step == "same" and audit_path(c.key, c.after.version, base).exists():
             continue
         try:
-            results.append(audit(by_key[c.key], c.after, cache, lanes_cfg))
+            results.append(audit(by_key[c.key], c.after, cache, lanes_cfg, keep))
         except RuntimeError as exc:
             errors.append((c.key, str(exc)))
             continue
@@ -155,8 +172,8 @@ def latest(key: str, base: Path = AUDITS_DIR) -> dict | None:
     return previous(key, "", base)
 
 
-def recheck(decls: list[dict], cache: Path, lanes_cfg: dict, base: Path = AUDITS_DIR
-            ) -> tuple[list[tuple[dict, dict]], list[tuple[str, str]]]:
+def recheck(decls: list[dict], cache: Path, lanes_cfg: dict, base: Path = AUDITS_DIR,
+            keep: bool = True) -> tuple[list[tuple[dict, dict]], list[tuple[str, str]]]:
     """最新の結果と同じコミットを、今のゲートで測り直す。返すのは（(前, 後) の組, 失敗）。
 
     ゲートを直したら、基準のリポを止めなくなったかを同じ版で確かめる。版を動かすと、
@@ -171,7 +188,7 @@ def recheck(decls: list[dict], cache: Path, lanes_cfg: dict, base: Path = AUDITS
             errors.append((k, "当て直した結果が無い（先に upstream_audit.py --write）"))
             continue
         try:
-            new = audit(d, upstream.Seen(old["version"], old["commit"]), cache, lanes_cfg)
+            new = audit(d, upstream.Seen(old["version"], old["commit"]), cache, lanes_cfg, keep)
         except RuntimeError as exc:
             errors.append((k, str(exc)))
             continue
@@ -206,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="上流の新しい版を公開ゲートで当て直す")
     ap.add_argument("--write", action="store_true", help="結果と見た版を記録する")
     ap.add_argument("--cache", metavar="DIR", default="",
-                    help="clone の置き場所。省略すると一時領域を使い、終了時に消す")
+                    help="clone を残して使い回す置き場所。省略すると1本測るごとに消す")
     ap.add_argument("--recheck", action="store_true",
                     help="最新の結果と同じコミットを今のゲートで測り直す（ゲートを直した後に使う）")
     args = ap.parse_args(argv)
@@ -221,10 +238,12 @@ def main(argv: list[str] | None = None) -> int:
     lanes_cfg = release_gate.load_lanes()
     with tempfile.TemporaryDirectory() as tmp:
         cache = Path(args.cache).expanduser().resolve() if args.cache else Path(tmp)
+        keep = bool(args.cache)
         if args.recheck:
-            pairs, errors = recheck(decls, cache, lanes_cfg)
+            pairs, errors = recheck(decls, cache, lanes_cfg, keep=keep)
         else:
-            results, nxt, errors = run(decls, upstream.load_seen(), cache, lanes_cfg)
+            results, nxt, errors = run(decls, upstream.load_seen(), cache, lanes_cfg,
+                                       keep=keep)
     if args.recheck:
         for old, new in pairs:
             moved = state_diff(old, new)

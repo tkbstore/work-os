@@ -130,6 +130,28 @@ def main() -> int:
         except RuntimeError as exc:
             check("そのコミットに無いパスは当て直せないと言う", "plugins/p" in str(exc))
 
+        print("\nclone を持たない")
+        # 置き場を指定しなければ、測り終えた clone はその場で消す。全部を抱えてから
+        # 消すと、基準のリポを全部足した容量が一度に要り、途中でディスクが溢れる。
+        loose = base / "loose"
+        r = ua.audit(DECL, Seen("v2.0.0", new), loose, lanes, keep=False)
+        check("測った結果は残る", r["commit"] == new)
+        check("測り終えた clone は残さない", not any(loose.glob("*")),
+              detail=str(list(loose.glob("*"))))
+        try:
+            ua.audit(DECL, Seen("v3.0.0", "0" * 40), loose, lanes, keep=False)
+        except RuntimeError:
+            pass
+        check("測れなかった clone も残さない", not any(loose.glob("*")),
+              detail=str(list(loose.glob("*"))))
+        ua.write_results(res4, audits)
+        pairs, rerr = ua.recheck([DECL], loose, lanes, audits, keep=False)
+        check("測り直しでも clone を残さない",
+              len(pairs) == 1 and not rerr and not any(loose.glob("*")),
+              detail=f"{rerr} {list(loose.glob('*'))}")
+        r = ua.audit(DECL, Seen("v2.0.0", new), loose, lanes)
+        check("置き場を指定したときは使い回せるよう残す", any(loose.glob("*")))
+
         print("\nファイル名")
         check("鍵の / と : を潰す", ua.slot("o/mono:plugins/p") == "o__mono__plugins__p")
         check("版の / も潰す", ua.audit_path("a/b", "release/1.0", audits).name == "release__1.0.json")
