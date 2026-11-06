@@ -90,10 +90,15 @@ youtube-dl の shahid 2 件と adultswim（yt-dlp で確かめた行と本文が
 規則どおり止めたままのもの: `PKUBlockchain/PKUBA-Colearn-25-Fall` の追跡された `.env.local`
 （`bbvch-ai/aihub-core` の `.env.dev` と同じ扱い）。
 
-**まだ確かめていないもの:** `ytdl-org/youtube-dl` の `nhk.py:22`・`vtm.py:49`。yt-dlp には
-無い値で、配信元の JS を Wayback Machine で探す必要がありますが、2026-11-06 は
-Internet Archive が停止していました。yt-dlp の残り 2 件（`tver.py:349`・`polskieradio.py:261`）と
-合わせて、基準のリポのうち 2 本がこのために止まっています。
+Internet Archive の復旧後に配信元の JS で確かめ、cleared.toml に記録したもの:
+`ytdl-org/youtube-dl` の `nhk.py:22`（今の NHK WORLD の `common.js`）と `vtm.py:49`
+（Wayback 2021 の vtm.be の bundle）、`yt-dlp/yt-dlp` の `polskieradio.py:261`（Wayback 2022 の
+Trójka の chunk）。これで youtube-dl は公開まで届きます。
+
+**確かめられなかったもの:** `yt-dlp/yt-dlp` の `tver.py:349`（TVer オリンピックの見逃し配信用の
+キー）。Wayback に残るオリンピックサイトの chunk のうち、取れた 366 本には無く、7 本は取れませんでした。
+再生ページだけが読む chunk が保存されていない可能性があり、無かったとは言えません。確かめられない値は
+記録しないので、基準のリポのうち yt-dlp の 1 本がこのために止まっています。
 
 ### この結果の限界
 
