@@ -1,6 +1,6 @@
 {
   "frozen_on": "2026-11-06",
-  "pinned_from": "",
+  "pinned_from": "calibration/results/2026-11-06.json",
   "commits": {
     "psf/requests": "3c7baaa05ab4aa49cc819ce3a819d260de19c157",
     "fastapi/fastapi": "5cb6272ed7e3e07eaf6978e1e65b94aca76fa8e0",
@@ -223,32 +223,32 @@
     {
       "slug": "Significant-Gravitas/AutoGPT",
       "group": "adopted",
-      "why": "498MB は上限 400MB を超える"
+      "why": "固定元でも除外: 498MB は上限 400MB を超える"
     },
     {
       "slug": "Metta-AI/coworld-builder",
       "group": "not_adopted",
-      "why": "マニフェストが無い（動かすものではない）"
+      "why": "固定元でも除外: マニフェストが無い（動かすものではない）"
     },
     {
       "slug": "breathe-OSS/api",
       "group": "not_adopted",
-      "why": "マニフェストが無い（動かすものではない）"
+      "why": "固定元でも除外: マニフェストが無い（動かすものではない）"
     },
     {
       "slug": "cecyours/maninagar-lectures",
       "group": "not_adopted",
-      "why": "983MB は上限 400MB を超える"
+      "why": "固定元でも除外: 983MB は上限 400MB を超える"
     },
     {
       "slug": "tim-montmorency/compendium",
       "group": "not_adopted",
-      "why": "5957MB は上限 400MB を超える"
+      "why": "固定元でも除外: 5957MB は上限 400MB を超える"
     },
     {
       "slug": "NyxFoundation/lean4-speedup",
       "group": "formal",
-      "why": "マニフェストが無い（動かすものではない）"
+      "why": "固定元でも除外: マニフェストが無い（動かすものではない）"
     }
   ],
   "per_repo": {
@@ -794,7 +794,7 @@
     },
     "langgenius/dify": {
       "safety.excluded_paths_not_tracked": "pass",
-      "safety.no_secrets": "fail",
+      "safety.no_secrets": "pass",
       "safety.no_secrets_in_docs": "pass",
       "safety.no_public_client_secrets": "pass",
       "safety.env_example_not_real": "pass",
@@ -974,7 +974,7 @@
     },
     "Comfy-Org/ComfyUI": {
       "safety.excluded_paths_not_tracked": "pass",
-      "safety.no_secrets": "fail",
+      "safety.no_secrets": "pass",
       "safety.no_secrets_in_docs": "pass",
       "safety.no_public_client_secrets": "pass",
       "safety.env_example_not_real": "pass",
@@ -2234,7 +2234,7 @@
     },
     "BenchBox-dev/benchbox": {
       "safety.excluded_paths_not_tracked": "pass",
-      "safety.no_secrets": "fail",
+      "safety.no_secrets": "pass",
       "safety.no_secrets_in_docs": "pass",
       "safety.no_public_client_secrets": "pass",
       "safety.env_example_not_real": "pass",
@@ -2270,7 +2270,7 @@
     },
     "BenchBox-dev/benchbox (service とみなす)": {
       "safety.excluded_paths_not_tracked": "pass",
-      "safety.no_secrets": "fail",
+      "safety.no_secrets": "pass",
       "safety.no_secrets_in_docs": "pass",
       "safety.no_public_client_secrets": "pass",
       "safety.env_example_not_real": "pass",
@@ -2936,7 +2936,7 @@
     },
     "HarvardMadSys/hybridInference": {
       "safety.excluded_paths_not_tracked": "pass",
-      "safety.no_secrets": "fail",
+      "safety.no_secrets": "pass",
       "safety.no_secrets_in_docs": "pass",
       "safety.no_public_client_secrets": "pass",
       "safety.env_example_not_real": "pass",
@@ -2972,7 +2972,7 @@
     },
     "HarvardMadSys/hybridInference (service とみなす)": {
       "safety.excluded_paths_not_tracked": "pass",
-      "safety.no_secrets": "fail",
+      "safety.no_secrets": "pass",
       "safety.no_secrets_in_docs": "pass",
       "safety.no_public_client_secrets": "pass",
       "safety.env_example_not_real": "pass",
@@ -5143,23 +5143,6 @@
       "verdict": "分けていない"
     },
     {
-      "check": "safety.no_secrets",
-      "left": {
-        "group": "adopted",
-        "pass": 25,
-        "n": 29,
-        "rate": 0.862
-      },
-      "right": {
-        "group": "not_adopted",
-        "pass": 26,
-        "n": 28,
-        "rate": 0.929
-      },
-      "gap": -0.067,
-      "verdict": "分けていない"
-    },
-    {
       "check": "safety.no_secrets_in_docs",
       "left": {
         "group": "adopted",
@@ -5174,6 +5157,23 @@
         "rate": 0.964
       },
       "gap": -0.068,
+      "verdict": "分けていない"
+    },
+    {
+      "check": "safety.no_secrets",
+      "left": {
+        "group": "adopted",
+        "pass": 27,
+        "n": 29,
+        "rate": 0.931
+      },
+      "right": {
+        "group": "not_adopted",
+        "pass": 28,
+        "n": 28,
+        "rate": 1.0
+      },
+      "gap": -0.069,
       "verdict": "分けていない"
     }
   ],
@@ -5621,23 +5621,6 @@
       "verdict": "分けていない"
     },
     {
-      "check": "safety.no_secrets",
-      "left": {
-        "group": "agent_native",
-        "pass": 6,
-        "n": 6,
-        "rate": 1.0
-      },
-      "right": {
-        "group": "not_adopted_as_service",
-        "pass": 26,
-        "n": 28,
-        "rate": 0.929
-      },
-      "gap": 0.071,
-      "verdict": "分けていない"
-    },
-    {
       "check": "correctness.tests_exist",
       "left": {
         "group": "agent_native",
@@ -5774,6 +5757,23 @@
       "verdict": "分けていない"
     },
     {
+      "check": "safety.no_secrets",
+      "left": {
+        "group": "agent_native",
+        "pass": 6,
+        "n": 6,
+        "rate": 1.0
+      },
+      "right": {
+        "group": "not_adopted_as_service",
+        "pass": 28,
+        "n": 28,
+        "rate": 1.0
+      },
+      "gap": 0.0,
+      "verdict": "分けていない"
+    },
+    {
       "check": "robustness.no_bare_except",
       "left": {
         "group": "agent_native",
@@ -5875,12 +5875,12 @@
     "microsoft/markitdown": true,
     "huggingface/transformers": true,
     "AUTOMATIC1111/stable-diffusion-webui": true,
-    "langgenius/dify": false,
+    "langgenius/dify": true,
     "langflow-ai/langflow": true,
     "langchain-ai/langchain": true,
     "github/spec-kit": true,
     "nextlevelbuilder/ui-ux-pro-max-skill": true,
-    "Comfy-Org/ComfyUI": false,
+    "Comfy-Org/ComfyUI": true,
     "Shubhamsaboo/awesome-llm-apps": true,
     "Graphify-Labs/graphify": true,
     "ytdl-org/youtube-dl": false,
@@ -5901,7 +5901,7 @@
     "UEFN-Ducky/UEFN-Ducky": true,
     "cluebotng/reviewer": true,
     "TartarusCode/ModelWatch": true,
-    "BenchBox-dev/benchbox": false,
+    "BenchBox-dev/benchbox": true,
     "warpforgedotco/core-pdf": true,
     "apache/spark-connect-rust": true,
     "fungible-farm/wattson": true,
@@ -5910,7 +5910,7 @@
     "neo4j-partners/neo4j-aws-cloudformation": true,
     "LVTD-LLC/rowset": false,
     "sagemathinc/sagebrush": true,
-    "HarvardMadSys/hybridInference": false,
+    "HarvardMadSys/hybridInference": true,
     "akvo/drought-map-hub": false,
     "awslabs/unified-kg-rag-on-aws": true,
     "GMISWE/tinker-cloud": true,
@@ -5964,12 +5964,12 @@
     "microsoft/markitdown": "public",
     "huggingface/transformers": "public",
     "AUTOMATIC1111/stable-diffusion-webui": "public",
-    "langgenius/dify": "",
+    "langgenius/dify": "public",
     "langflow-ai/langflow": "public",
     "langchain-ai/langchain": "public",
     "github/spec-kit": "public",
     "nextlevelbuilder/ui-ux-pro-max-skill": "public",
-    "Comfy-Org/ComfyUI": "",
+    "Comfy-Org/ComfyUI": "public",
     "Shubhamsaboo/awesome-llm-apps": "public",
     "Graphify-Labs/graphify": "public",
     "ytdl-org/youtube-dl": "",
@@ -5990,7 +5990,7 @@
     "UEFN-Ducky/UEFN-Ducky": "public",
     "cluebotng/reviewer": "public",
     "TartarusCode/ModelWatch": "public",
-    "BenchBox-dev/benchbox": "",
+    "BenchBox-dev/benchbox": "public",
     "warpforgedotco/core-pdf": "public",
     "apache/spark-connect-rust": "public",
     "fungible-farm/wattson": "public",
@@ -5999,7 +5999,7 @@
     "neo4j-partners/neo4j-aws-cloudformation": "public",
     "LVTD-LLC/rowset": "internal",
     "sagemathinc/sagebrush": "public",
-    "HarvardMadSys/hybridInference": "",
+    "HarvardMadSys/hybridInference": "public",
     "akvo/drought-map-hub": "internal",
     "awslabs/unified-kg-rag-on-aws": "public",
     "GMISWE/tinker-cloud": "public",
@@ -6039,14 +6039,14 @@
   },
   "gate_rates": {
     "adopted": {
-      "pass": 25,
+      "pass": 27,
       "n": 29,
-      "internal": 25
+      "internal": 27
     },
     "not_adopted": {
-      "pass": 21,
+      "pass": 23,
       "n": 28,
-      "internal": 24
+      "internal": 26
     },
     "agent_native": {
       "pass": 6,
