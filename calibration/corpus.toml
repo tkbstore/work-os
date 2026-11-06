@@ -38,6 +38,10 @@ GitHub の star 降順（language:python, stars:>30000）から上位を取り�
 機械的な条件は manifest_required の通り。
 """
 shape = "tool"
+# この群は calibration/upstream.toml の [reference_corpus] で基準のリポにもなる。基準は
+# 全部が全段に届くことを求めるので、測れないまま置けない。既定の 400MB では
+# Significant-Gravitas/AutoGPT（498MB）が測られずに外れていた（2026-11-06）。
+max_clone_mb = 1000
 slugs = [
   "psf/requests",
   "fastapi/fastapi",

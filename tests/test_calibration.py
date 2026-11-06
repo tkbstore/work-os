@@ -169,6 +169,20 @@ def main() -> int:
         check("1本も測れなければ失敗で終わる", proc.returncode != 0)
         check("前回の結果を書き換えない", before == after)
 
+        # 固定元で除外したものは、固定元のコミットを持たない。理由を持ち越さないと、
+        # 容量やマニフェストで外したものまで「コミットが記録されていない」に化ける。
+        slug = calibrate.load_corpus()["groups"]["adopted"]["slugs"][0]
+        pin.write_text(json.dumps({"commits": {}, "excluded": [
+            {"slug": slug, "group": "adopted", "why": "498MB は上限 400MB を超える"}]}),
+            encoding="utf-8")
+        proc = subprocess.run([sys.executable, str(ROOT / "engine" / "calibrate.py"), "--pin", str(pin),
+                               "--cache", str(Path(tmp) / "cache")],
+                              capture_output=True, text=True, timeout=300)
+        check("固定元で除外した理由を持ち越す",
+              "固定元でも除外: 498MB は上限 400MB を超える" in proc.stdout, proc.stdout[-300:])
+        check("固定元に無いものは、コミットが無いと言う",
+              "固定するコミットが --pin の結果に記録されていない" in proc.stdout)
+
     print("\nコーパスの宣言")
     corpus = calibrate.load_corpus()
     problems = calibrate.lint_corpus(corpus)
