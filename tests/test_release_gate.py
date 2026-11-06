@@ -916,6 +916,8 @@ def main() -> int:
             check(f"{rel} の実体は落ちる", env_state(rel) == "fail")
         for rel in (".env.example", "apps/web/.env.local.example", ".env.sample",
                     ".env.template", ".env.vault", ".env.defaults", ".envrc",
+                    # 実測 2026-11-06: AutoGPT が雛形の .env.default を3つ持っていた
+                    ".env.default", "apps/backend/.env.default",
                     "tests/fixtures/.env", "examples/next/.env.production",
                     "node_modules/pkg/.env"):
             check(f"{rel} は見本・作法・他人の木なので通る", env_state(rel) == "pass")
@@ -1354,6 +1356,11 @@ def main() -> int:
                  "{\"api_key_label\": \"abfrageparameterliste\"}\n", "pass"),
                 ("1語に数字が混ざれば当たる",
                  "{\"api_key_label\": \"Abfrage4parameterQ\"}\n", "fail"),
+                # 実測 2026-11-06: AutoGPT の "/profile/api-keys": "/settings/api-keys"
+                ("語を / でつないだパスは当たらない",
+                 "{\"/profile/api-keys\": \"/settings/api-keys\"}\n", "pass"),
+                ("/ を含んでも乱数は当たる",
+                 "{\"/profile/api-keys\": \"/s3/Q4WuJxFvtTkXbaWTDv\"}\n", "fail"),
                 ("大文字始まりでも乱数は当たる",
                  "CRED = {'" + name + "': 'Q4WuJxFvtTkXbaWTDv7Mh'}\n", "fail"),
                 ("* で伏せた表示用の値は当たらない",
