@@ -25,6 +25,71 @@ python3 engine/calibrate.py --pin calibration/results/<日付>.json   # その�
 
 ---
 
+## 2026-11-06 の結果: 採られた群と採られていない群を、宣言した引き方で約3倍にした
+
+2026-10-28 の結果では、採られていない群は 6 本でした。1 本の出入りで通過率が 17 ポイント
+動くので、`min_gap` 0.40 の判定は偶然と区別できませんでした。そこで検査を足す前に、
+比べる本数を足しました。
+
+`corpus.toml` の `adopted` / `not_adopted` に `[draw]`（検索条件・並び順・所有者の種類・
+1つの所有者から引く上限）を宣言し、`engine/sample_corpus.py` がそれを実行して足します。
+手で選ばないのは、選んだ人の目が群に混ざるためです。前の集合は差し替えずに残しています。
+
+```bash
+python3 engine/sample_corpus.py --group not_adopted --n 24          # 候補を出すだけ
+python3 engine/sample_corpus.py --group not_adopted --n 24 --write  # corpus.toml に足す
+```
+
+結果は [results/2026-11-06.json](./results/2026-11-06.json)。測れたのは 87 本、除外は 6 本
+（容量の上限超え 3 本、マニフェストが無い 3 本）です。
+
+| 群 | 本数 | 第1段に届いた | 公開可 |
+|---|---|---|---|
+| adopted | 29 | 25/29 | 25/29 |
+| not_adopted | 28 | 24/28 | 21/28 |
+| agent_native | 6 | 6/6 | 6/6 |
+| landmark | 2 | 2/2 | 2/2 |
+| formal | 22 | 22/22 | 10/22 |
+
+### 本数を増やしても、分けている検査は1つだけだった
+
+採られた群と採られていない群の差が `min_gap` を超えたのは、前回と同じ `entry.issue_template`
+（23/29 対 7/28、差 +0.54）だけです。前回の 6 本で見えていた他の差（`install_section` +0.30、
+`no_debug_print_left` +0.23 など）は、本数を増やすと +0.12 と +0.01 に縮みました。
+小さい群の差は偶然だったということです。
+
+**今のゲートの公開可は、採られた群 86%・採られていない群 75% で、ほぼ分けていません。**
+秘密を入れない・`.gitignore` を置く・README を置く、といった衛生の床としては働いていますが、
+「広く採られる水準か」はまだ判定できていません。
+
+エージェント対応レーンの比較（agent_native 6 本 対 not_adopted 28 本）は前回より多くの検査が
+`agent_lane_min_gap` 0.50 を超えましたが、左の群が 6 本のままなので同じ留保が付きます。
+
+### 新しく第1段で止めた 6 本（未確認）
+
+前回からの 2 本（`yt-dlp/yt-dlp`・`bbvch-ai/aihub-core`、上の 2026-10-28 の表）に加えて、
+新しく 6 本を第1段で止めました。**まだ1件ずつ見ていません。** 偽陽性かどうかは、
+yt-dlp と同じく値ごとに出どころを確かめるまで言えません。
+
+| リポ | 群 | 当たった検査 |
+|---|---|---|
+| `langgenius/dify` | adopted | `no_secrets`（api_key 3・jwt 1・anthropic 1） |
+| `Comfy-Org/ComfyUI` | adopted | `no_secrets`（api_key 1） |
+| `ytdl-org/youtube-dl` | adopted | `no_secrets`（api_key 3・aws_access_key 1・jwt 1） |
+| `BenchBox-dev/benchbox` | not_adopted | `no_secrets`（aws_access_key 1） |
+| `HarvardMadSys/hybridInference` | not_adopted | `no_secrets`（aws_access_key 2、`.gitleaks.toml`） |
+| `PKUBlockchain/PKUBA-Colearn-25-Fall` | not_adopted | 追跡された `.env.local`（4 件） |
+
+### この結果の限界
+
+- `not_adopted` は `sort:updated` で引くので、引いた日に更新されていたものに偏ります。
+  同じ日に何本も更新した組織が群を埋めないよう、1つの所有者から 1 本までにしています
+  （試し引きでは 24 本中 6 本が同じ組織でした）
+- `adopted` は star 順なので、上位から順に足していくと、時期をおいても同じものが並びます。
+  この群を増やすほど star の少ない側（30000 に近い側）へ寄ります
+
+---
+
 ## 2026-10-28 の結果: 形式証明の組織を足し、ワークスペースを測れるようにした
 
 `formal` 群（`gh search repos --owner openai --language Lean` と `--owner NyxFoundation
