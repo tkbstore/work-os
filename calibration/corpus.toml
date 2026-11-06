@@ -19,7 +19,7 @@
 #   下の rule は、同じ手順で別の人が別の母集団を引ける粒度で書くこと。
 
 [corpus]
-frozen_on = "2026-10-28"
+frozen_on = "2026-11-06"
 # 2026-08-26 の凍結結果は results/2026-08-26.json に残してある。群を足したので日付を進めた
 # （同じ日付で書くと前回の結果を上書きしてしまう）。
 # star 数は凍結時点の値。変動するので、判定には使わず記録だけする。
@@ -49,7 +49,33 @@ slugs = [
   "nvbn/thefuck",
   "sherlock-project/sherlock",
   "home-assistant/core",
+  "vinta/awesome-python",  # 2026-11-06 に draw で引いた
+  "TheAlgorithms/Python",  # 2026-11-06 に draw で引いた
+  "microsoft/markitdown",  # 2026-11-06 に draw で引いた
+  "Significant-Gravitas/AutoGPT",  # 2026-11-06 に draw で引いた
+  "huggingface/transformers",  # 2026-11-06 に draw で引いた
+  "AUTOMATIC1111/stable-diffusion-webui",  # 2026-11-06 に draw で引いた
+  "langgenius/dify",  # 2026-11-06 に draw で引いた
+  "langflow-ai/langflow",  # 2026-11-06 に draw で引いた
+  "langchain-ai/langchain",  # 2026-11-06 に draw で引いた
+  "github/spec-kit",  # 2026-11-06 に draw で引いた
+  "nextlevelbuilder/ui-ux-pro-max-skill",  # 2026-11-06 に draw で引いた
+  "Comfy-Org/ComfyUI",  # 2026-11-06 に draw で引いた
+  "Shubhamsaboo/awesome-llm-apps",  # 2026-11-06 に draw で引いた
+  "Graphify-Labs/graphify",  # 2026-11-06 に draw で引いた
+  "ytdl-org/youtube-dl",  # 2026-11-06 に draw で引いた
+  "harry0703/MoneyPrinterTurbo",  # 2026-11-06 に draw で引いた
+  "TauricResearch/TradingAgents",  # 2026-11-06 に draw で引いた
+  "browser-use/browser-use",  # 2026-11-06 に draw で引いた
+  "Panniantong/Agent-Reach",  # 2026-11-06 に draw で引いた
+  "pytorch/pytorch",  # 2026-11-06 に draw で引いた
 ]
+# 上の rule のうち機械で引ける部分。engine/sample_corpus.py がこれを実行して足す。
+# 「動かすもの」の足切り（manifest_required）は測るときに calibrate.py が掛ける。
+[groups.adopted.draw]
+q = "language:python stars:>30000 archived:false"
+sort = "stars"
+owner_type = ""
 
 # --------------------------------------------------------------------------- #
 # not_adopted — 同じくソフトウェアだが、採られていない
@@ -73,7 +99,40 @@ slugs = [
   "Geological-Survey-of-Western-Australia/skippy",
   "powerset-co/powerpacks",
   "breathe-OSS/api",
+  "google-deepmind/reaf-sim",  # 2026-11-06 に draw で引いた
+  "cecyours/maninagar-lectures",  # 2026-11-06 に draw で引いた
+  "PKUBlockchain/PKUBA-Colearn-25-Fall",  # 2026-11-06 に draw で引いた
+  "kolega-ai/kolega-code",  # 2026-11-06 に draw で引いた
+  "UEFN-Ducky/UEFN-Ducky",  # 2026-11-06 に draw で引いた
+  "cluebotng/reviewer",  # 2026-11-06 に draw で引いた
+  "TartarusCode/ModelWatch",  # 2026-11-06 に draw で引いた
+  "BenchBox-dev/benchbox",  # 2026-11-06 に draw で引いた
+  "warpforgedotco/core-pdf",  # 2026-11-06 に draw で引いた
+  "apache/spark-connect-rust",  # 2026-11-06 に draw で引いた
+  "fungible-farm/wattson",  # 2026-11-06 に draw で引いた
+  "snowholt-labs/plan-validation",  # 2026-11-06 に draw で引いた
+  "uberblick-ai/ub-agents",  # 2026-11-06 に draw で引いた
+  "neo4j-partners/neo4j-aws-cloudformation",  # 2026-11-06 に draw で引いた
+  "LVTD-LLC/rowset",  # 2026-11-06 に draw で引いた
+  "sagemathinc/sagebrush",  # 2026-11-06 に draw で引いた
+  "HarvardMadSys/hybridInference",  # 2026-11-06 に draw で引いた
+  "akvo/drought-map-hub",  # 2026-11-06 に draw で引いた
+  "awslabs/unified-kg-rag-on-aws",  # 2026-11-06 に draw で引いた
+  "GMISWE/tinker-cloud",  # 2026-11-06 に draw で引いた
+  "astral-experiments/imre",  # 2026-11-06 に draw で引いた
+  "Daily-Nerd/Scar",  # 2026-11-06 に draw で引いた
+  "merge-demo/mergequeue-st",  # 2026-11-06 に draw で引いた
+  "tim-montmorency/compendium",  # 2026-11-06 に draw で引いた
 ]
+# 上の rule のうち機械で引ける部分。個人アカウントの除外は owner_type で掛ける。
+[groups.not_adopted.draw]
+q = "language:python stars:1..50 archived:false"
+sort = "updated"
+owner_type = "Organization"
+# 1 つの所有者から 1 本まで。updated 順だと、同じ日に何本も更新した組織が群を埋める
+# （2026-11-06 の試し引きで 24 本中 6 本が同じ組織だった）。1 つの書き手の癖を
+# 6 倍に数えると、群の性質ではなくその組織の性質を測ることになる。
+max_per_owner = 1
 
 # --------------------------------------------------------------------------- #
 # agent_native — 人が画面を触らずに登録まで到達できると分かっているサービスの CLI
