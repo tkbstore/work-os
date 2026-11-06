@@ -214,14 +214,33 @@ check("--callers が答えられる範囲の限界を書く",
       and "走ったことと、何かを測ったことは別" in rep.stdout, rep.stdout[-400:])
 
 # code（自動で走る経路）と docs（人が叩く案内）を混ぜない。
-# calibrate は README / CONTRIBUTING に手順として書かれているが、自動で走る経路が無い。
 # 混ぜると「書いてあるだけの入口」が「呼ばれている」に見える。
-cal_code, cal_docs = cli.callers("calibrate", cli.entries()["calibrate"])
-check("案内だけの入口を自動に数えない（calibrate の自動は0）", cal_code == [], str(cal_code))
-check("その入口に案内は在る（この検査が空回りしていない）", len(cal_docs) > 0, str(cal_docs))
-check("--callers が案内だけの入口に印をつける",
-      "★" in rep.stdout and "calibrate" in rep.stdout.split("★ = ")[-1],
-      rep.stdout[-400:])
+# 以前は実在の calibrate を「案内だけの入口」の見本にしていたが、テストが calibrate.py を
+# 呼ぶようになった時点（2026-11-03）で見本が成り立たなくなった。どの入口が案内だけかは
+# 木が変われば変わるので、手元に作った木で性質だけを見る。
+with tempfile.TemporaryDirectory() as tmp:
+    fake = Path(tmp)
+    (fake / "engine").mkdir()
+    for n in ("docsonly", "called"):
+        (fake / "engine" / f"{n}.py").write_text("", encoding="utf-8")
+    (fake / "README.md").write_text(
+        "python3 engine/docsonly.py\npython3 engine/called.py\n", encoding="utf-8")
+    (fake / "run.sh").write_text("python3 engine/called.py\n", encoding="utf-8")
+    saved_root = cli.ROOT
+    cli.ROOT = fake
+    try:
+        d_code, d_docs = cli.callers("docsonly", fake / "engine" / "docsonly.py")
+        c_code, _ = cli.callers("called", fake / "engine" / "called.py")
+        fake_rep = cli.callers_report({"docsonly": fake / "engine" / "docsonly.py",
+                                       "called": fake / "engine" / "called.py"})
+    finally:
+        cli.ROOT = saved_root
+check("案内だけの入口を自動に数えない", d_code == [], str(d_code))
+check("その入口に案内は在る（この検査が空回りしていない）", d_docs == ["README.md"], str(d_docs))
+check("自動で走る経路は自動に数える", c_code == ["run.sh"], str(c_code))
+orphans = fake_rep.split("★ = ")[-1]
+check("--callers が案内だけの入口に印をつけ、呼ばれている入口にはつけない",
+      "docsonly" in orphans and "called" not in orphans, fake_rep[-400:])
 for name in cli.entries():
     check(f"--callers に {name} が出る", name.replace("_", "-") in rep.stdout)
 
