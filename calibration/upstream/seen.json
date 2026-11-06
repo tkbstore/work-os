@@ -3,61 +3,129 @@
     "version": "HEAD@fafa083a4fb2",
     "commit": "fafa083a4fb274bba9cabde0b6e2f50ba6da0622"
   },
+  "AUTOMATIC1111/stable-diffusion-webui": {
+    "version": "HEAD@82a973c04367",
+    "commit": "82a973c04367123ae98bd9abdf80d9eda9b910e2"
+  },
+  "Comfy-Org/ComfyUI": {
+    "version": "HEAD@63e5bf594339",
+    "commit": "63e5bf594339f676b4b15e072529873e3448409e"
+  },
+  "Graphify-Labs/graphify": {
+    "version": "HEAD@16218bfc80d4",
+    "commit": "16218bfc80d4ca2799734d045039f7ed1a5fa9fb"
+  },
   "NousResearch/hermes-agent": {
-    "version": "HEAD@edf1495a314f",
-    "commit": "edf1495a314f24745a65aeffd5f11b87da9ee595"
+    "version": "HEAD@b524c8a43005",
+    "commit": "b524c8a4300561689fdb7628e5d3fcd76ec17d5c"
+  },
+  "Panniantong/Agent-Reach": {
+    "version": "HEAD@47898829204a",
+    "commit": "47898829204ad27521d8a1719e3aeca3b8a3e0ca"
+  },
+  "Shubhamsaboo/awesome-llm-apps": {
+    "version": "HEAD@c129f31036f5",
+    "commit": "c129f31036f5ba0bba42cbb63937a66946fdf2c0"
+  },
+  "Significant-Gravitas/AutoGPT": {
+    "version": "HEAD@9cb76f9026d3",
+    "commit": "9cb76f9026d388c9bf2e098af2beae1cc864f055"
+  },
+  "TauricResearch/TradingAgents": {
+    "version": "HEAD@9fa1196fffbc",
+    "commit": "9fa1196fffbcfd9de5146d2dd2869df84ab99838"
+  },
+  "TheAlgorithms/Python": {
+    "version": "HEAD@574d100b7181",
+    "commit": "574d100b7181956e9c8384552fd078165e4cc326"
   },
   "anthropics/anthropic-sdk-python": {
-    "version": "v2.3.0",
-    "commit": "202db72c87d7c6eaa72129c67ce67fd343a3a20c"
+    "version": "v2.6.0",
+    "commit": "4c7b598466b88559583f98216139be8e9b34c1fc"
   },
   "anthropics/claude-code": {
-    "version": "v2.1.316",
-    "commit": "80c6959d28c4c30ecd14fc1cdf172f19d9adad81"
+    "version": "v2.1.318",
+    "commit": "646b74189c735abbccf78ef5cb7ddd38a07a36eb"
   },
   "anthropics/claude-plugins-official:plugins/claude-security": {
     "version": "0.12.0",
     "commit": "ca08d5e47d6402db586d37780c559a0c4c7ded9a"
   },
   "astral-sh/ruff": {
-    "version": "HEAD@05631cff6b91",
-    "commit": "05631cff6b91b3d23fe1bad577e382cefd8073a3"
+    "version": "HEAD@bd1f9e366f50",
+    "commit": "bd1f9e366f50c1fa27f46f2fb0f64cd40d494b36"
+  },
+  "browser-use/browser-use": {
+    "version": "HEAD@b49a68e4060a",
+    "commit": "b49a68e4060acb226da8f784194fef301c53a6d7"
   },
   "cli/cli": {
-    "version": "HEAD@9490d204a2ba",
-    "commit": "9490d204a2ba95434153dedce99898ce9f281426"
+    "version": "HEAD@eeb44bc432c0",
+    "commit": "eeb44bc432c0107de002dadd34a61b4e2bd15882"
   },
   "django/django": {
-    "version": "HEAD@a05e16a7230f",
-    "commit": "a05e16a7230fe33d3f43f4a3aaed103cebb42efc"
+    "version": "HEAD@8e3dec67c42f",
+    "commit": "8e3dec67c42f1557fe0ecb11b620ed707b01f498"
   },
   "fastapi/fastapi": {
-    "version": "HEAD@45cb2252c737",
-    "commit": "45cb2252c737906f37544f5ba6bee0295fb81468"
+    "version": "HEAD@1ca09c13584c",
+    "commit": "1ca09c13584ca45aa0921e5e40b31d49c5e3135a"
+  },
+  "github/spec-kit": {
+    "version": "HEAD@3ca735b846af",
+    "commit": "3ca735b846afcbcf3304d571f296ec542464e08c"
   },
   "google-gemini/gemini-cli": {
-    "version": "v0.66.0",
-    "commit": "970413207732f5d4d8c50540c7fc359c44fdaaf2"
+    "version": "v0.67.0",
+    "commit": "dc6602cec4a6e823aa33937144245dc421e5165f"
   },
   "google/adk-python": {
     "version": "v2.13.0",
     "commit": "d68ca857d5e3bab8e968d4e5f98ef028eb37dc87"
   },
+  "harry0703/MoneyPrinterTurbo": {
+    "version": "HEAD@ace6c8f3a8dd",
+    "commit": "ace6c8f3a8dd9508776dbbf6f0bdc9b2d973254a"
+  },
   "home-assistant/core": {
-    "version": "HEAD@4faa2f334e91",
-    "commit": "4faa2f334e91ec223f78ecb04a13679171ddf2d6"
+    "version": "HEAD@b0452f150f93",
+    "commit": "b0452f150f9354eb5d3c0a7b3df1f3557b7bc775"
+  },
+  "huggingface/transformers": {
+    "version": "HEAD@6df64031b9fa",
+    "commit": "6df64031b9fa0ecebe50161df8ad42ed8d36595c"
+  },
+  "langchain-ai/langchain": {
+    "version": "HEAD@bb6a25a87852",
+    "commit": "bb6a25a878527136dcb1a20507d5c20049427f96"
+  },
+  "langflow-ai/langflow": {
+    "version": "HEAD@60999cc9a735",
+    "commit": "60999cc9a7350e44dde3ef641baae864e10861f0"
+  },
+  "langgenius/dify": {
+    "version": "HEAD@ccbc37868458",
+    "commit": "ccbc378684581272e8b881b448b871b91440c4d5"
+  },
+  "microsoft/markitdown": {
+    "version": "HEAD@7482c092d9c0",
+    "commit": "7482c092d9c0074a89803c9fdb63a969e7fe17fc"
+  },
+  "nextlevelbuilder/ui-ux-pro-max-skill": {
+    "version": "HEAD@b7d5353e0130",
+    "commit": "b7d5353e0130feb8c5574ef1251f8a1db1873ccb"
   },
   "nvbn/thefuck": {
     "version": "HEAD@c7e7e1d884d3",
     "commit": "c7e7e1d884d3bb241ea6448f72a989434c2a35ec"
   },
   "openai/codex": {
-    "version": "rust-v0.166.0",
-    "commit": "6ff1e1ca3b30fc8b914720681fcf5fe62e95f856"
+    "version": "rust-v0.167.0",
+    "commit": "086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a"
   },
   "openai/openai-python": {
-    "version": "v3.42.1",
-    "commit": "190dd5aee1053dd2093d2a5c3937f604860310a3"
+    "version": "v3.47.0",
+    "commit": "561ef6b4753f961782f0afc795276e91d5ea8d1d"
   },
   "openai/whisper": {
     "version": "HEAD@86098128c0b4",
@@ -67,32 +135,44 @@
     "version": "HEAD@3c7baaa05ab4",
     "commit": "3c7baaa05ab4aa49cc819ce3a819d260de19c157"
   },
+  "pytorch/pytorch": {
+    "version": "HEAD@8c02927b3a32",
+    "commit": "8c02927b3a320f2c6ab424e1b331446990b20057"
+  },
   "railwayapp/cli": {
-    "version": "HEAD@b62467ef1b53",
-    "commit": "b62467ef1b5303e3e340283ed96425dcf9612993"
+    "version": "HEAD@bd4d490c11d0",
+    "commit": "bd4d490c11d084c39d7cdea114708a9995d1ccc0"
   },
   "sherlock-project/sherlock": {
     "version": "HEAD@c588d7c8b476",
     "commit": "c588d7c8b476df9f9c84912a05d1430fb8cdcdae"
   },
   "stripe/stripe-cli": {
-    "version": "HEAD@3292c3301c85",
-    "commit": "3292c3301c85bcf9ab034e6e6146dbcf67c27416"
+    "version": "HEAD@a4935dc8502f",
+    "commit": "a4935dc8502f7eb03b958e6eeabd0071ed441f23"
   },
   "supabase/cli": {
-    "version": "HEAD@a728de052709",
-    "commit": "a728de052709bf3eb105a5567fbb987625afac78"
+    "version": "HEAD@3394a548cacf",
+    "commit": "3394a548cacf8db6a20f63440a49f261bd0cdec3"
   },
   "superfly/flyctl": {
-    "version": "HEAD@064225295020",
-    "commit": "064225295020103c31d380cae9e21720d1fd63d1"
+    "version": "HEAD@58f001348295",
+    "commit": "58f0013482951ea0c39ade35b2fb3601890f41c4"
   },
   "vercel/vercel": {
     "version": "HEAD@84878e532142",
     "commit": "84878e532142f0ac584953695658b324eb9e5b80"
   },
+  "vinta/awesome-python": {
+    "version": "HEAD@5a515fd80e51",
+    "commit": "5a515fd80e512fc6ec9fdd73bd7617945465a01a"
+  },
   "yt-dlp/yt-dlp": {
-    "version": "HEAD@b77c9304e1c4",
-    "commit": "b77c9304e1c4220cca450c583491904daf8455af"
+    "version": "HEAD@412e7f0a4b05",
+    "commit": "412e7f0a4b0588fe884a02b344ac66a06538475b"
+  },
+  "ytdl-org/youtube-dl": {
+    "version": "HEAD@bc069d2bb40b",
+    "commit": "bc069d2bb40bcbc5bdfdf352ca15bf586c7792cb"
   }
 }

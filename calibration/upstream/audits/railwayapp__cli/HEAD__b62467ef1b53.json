@@ -3,8 +3,8 @@
   "version": "HEAD@b62467ef1b53",
   "commit": "b62467ef1b5303e3e340283ed96425dcf9612993",
   "shape": "service",
-  "audited_on": "2026-11-03",
-  "gate": "2c1ebef7693bcc09",
+  "audited_on": "2026-11-06",
+  "gate": "397794b5ec8e37af",
   "states": {
     "agent_ready.agent_surface": "fail",
     "agent_ready.cli_entry_point": "pass",

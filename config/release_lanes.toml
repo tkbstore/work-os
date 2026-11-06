@@ -129,6 +129,9 @@ fixtures = ["**/tests/*", "**/test/*", "**/testdata/*", "**/fixtures/*",
             # 見本の名前だけを足す。実体の名前を足してはいけない。
             "**/.env.template", "**/.env.*.template", "**/.env.dist",
             "**/.env.defaults", "**/.env.vault",
+            # 単数形も同じ雛形の名前。実測 2026-11-06: AutoGPT の .env.default は
+            # 「このファイルは公開されるので値は空にしてある」と書いた雛形だった。
+            "**/.env.default",
             # 置き場（ディレクトリ）だけを見ていると、テストを *隣に置く* 流儀を
             # まるごと取りこぼす。実測: openclaw / cline / codex は src/ の中の
             # *.test.ts と *_tests.rs のダミー値で safety レーンに落ちていた。

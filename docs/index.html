@@ -71,13 +71,13 @@ workos-gate --checks</code></pre>
 <div class="table-wrap"><table>
 <thead><tr><th>Group</th><th>Measured</th><th>Reached stage 1</th><th>Reached stage 2</th></tr></thead>
 <tbody>
-<tr><td>Widely adopted Python tools</td><td>29</td><td>25/29</td><td>25/29</td></tr>
-<tr><td>Rarely adopted tools (organisation-owned)</td><td>28</td><td>24/28</td><td>21/28</td></tr>
+<tr><td>Widely adopted Python tools</td><td>29</td><td>27/29</td><td>27/29</td></tr>
+<tr><td>Rarely adopted tools (organisation-owned)</td><td>28</td><td>26/28</td><td>23/28</td></tr>
 <tr><td>Agent-friendly CLIs</td><td>6</td><td>6/6</td><td>6/6</td></tr>
 <tr><td>Canaries (must not fail)</td><td>2</td><td>2/2</td><td>2/2</td></tr>
 <tr><td>Published Lean / formal-proof repositories</td><td>22</td><td>22/22</td><td>10/22</td></tr>
 </tbody></table></div>
-<p>8 published repositories were stopped at stage 1. Each is a false-positive candidate and is examined by hand in <a href='https://github.com/tkbstore/work-os/blob/main/calibration/README.md'>calibration/README.md</a>.</p><ul class='cols'><li><code>BenchBox-dev/benchbox</code></li><li><code>Comfy-Org/ComfyUI</code></li><li><code>HarvardMadSys/hybridInference</code></li><li><code>PKUBlockchain/PKUBA-Colearn-25-Fall</code></li><li><code>bbvch-ai/aihub-core</code></li><li><code>langgenius/dify</code></li><li><code>yt-dlp/yt-dlp</code></li><li><code>ytdl-org/youtube-dl</code></li></ul>
+<p>4 published repositories were stopped at stage 1. Each is a false-positive candidate and is examined by hand in <a href='https://github.com/tkbstore/work-os/blob/main/calibration/README.md'>calibration/README.md</a>.</p><ul class='cols'><li><code>PKUBlockchain/PKUBA-Colearn-25-Fall</code></li><li><code>bbvch-ai/aihub-core</code></li><li><code>yt-dlp/yt-dlp</code></li><li><code>ytdl-org/youtube-dl</code></li></ul>
 <p class="note">Stage 2 is not a popularity score. On this corpus the gate does not separate widely adopted projects from rarely adopted ones, and we say so in <a href="https://github.com/tkbstore/work-os/blob/main/calibration/README.md">calibration/README.md</a>. Commands from other people's repositories are never executed during calibration, so execution checks are unmeasured there.</p>
 
 <h2>Kernel invariants, proved in Lean 4</h2>

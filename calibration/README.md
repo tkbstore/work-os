@@ -41,12 +41,14 @@ python3 engine/sample_corpus.py --group not_adopted --n 24 --write  # corpus.tom
 ```
 
 結果は [results/2026-11-06.json](./results/2026-11-06.json)。測れたのは 87 本、除外は 6 本
-（容量の上限超え 3 本、マニフェストが無い 3 本）です。
+（容量の上限超え 3 本、マニフェストが無い 3 本）です。下の表は、新しく止めたものを
+1件ずつ見てゲートを直した後に、同じコミットに固定して測り直した数字です
+（直す前は adopted 25/29、not_adopted 24/28 が第1段に届いていました）。
 
 | 群 | 本数 | 第1段に届いた | 公開可 |
 |---|---|---|---|
-| adopted | 29 | 25/29 | 25/29 |
-| not_adopted | 28 | 24/28 | 21/28 |
+| adopted | 29 | 27/29 | 27/29 |
+| not_adopted | 28 | 26/28 | 23/28 |
 | agent_native | 6 | 6/6 | 6/6 |
 | landmark | 2 | 2/2 | 2/2 |
 | formal | 22 | 22/22 | 10/22 |
@@ -58,27 +60,40 @@ python3 engine/sample_corpus.py --group not_adopted --n 24 --write  # corpus.tom
 `no_debug_print_left` +0.23 など）は、本数を増やすと +0.12 と +0.01 に縮みました。
 小さい群の差は偶然だったということです。
 
-**今のゲートの公開可は、採られた群 86%・採られていない群 75% で、ほぼ分けていません。**
+**今のゲートの公開可は、採られた群 93%・採られていない群 82% で、ほぼ分けていません。**
 秘密を入れない・`.gitignore` を置く・README を置く、といった衛生の床としては働いていますが、
 「広く採られる水準か」はまだ判定できていません。
 
 エージェント対応レーンの比較（agent_native 6 本 対 not_adopted 28 本）は前回より多くの検査が
 `agent_lane_min_gap` 0.50 を超えましたが、左の群が 6 本のままなので同じ留保が付きます。
 
-### 新しく第1段で止めた 6 本（未確認）
+### 新しく第1段で止めたものを1件ずつ見た
 
-前回からの 2 本（`yt-dlp/yt-dlp`・`bbvch-ai/aihub-core`、上の 2026-10-28 の表）に加えて、
-新しく 6 本を第1段で止めました。**まだ1件ずつ見ていません。** 偽陽性かどうかは、
-yt-dlp と同じく値ごとに出どころを確かめるまで言えません。
+群を増やして最初に測ったとき、前回からの 2 本（`yt-dlp/yt-dlp`・`bbvch-ai/aihub-core`）に
+加えて 6 本を第1段で止めました。採られた群は `calibration/upstream.toml` の
+`[reference_corpus]` で基準のリポにもなるので、止めた時点でゲートの誤りの候補です。
+上限を上げて初めて測れた `Significant-Gravitas/AutoGPT` も同じく止まっていました。
 
-| リポ | 群 | 当たった検査 |
+形で直したもの（戻すと落ちるテストと、緩めすぎると落ちるテストを置いた）:
+
+| リポ | 当たったもの | 直し方 |
 |---|---|---|
-| `langgenius/dify` | adopted | `no_secrets`（api_key 3・jwt 1・anthropic 1） |
-| `Comfy-Org/ComfyUI` | adopted | `no_secrets`（api_key 1） |
-| `ytdl-org/youtube-dl` | adopted | `no_secrets`（api_key 3・aws_access_key 1・jwt 1） |
-| `BenchBox-dev/benchbox` | not_adopted | `no_secrets`（aws_access_key 1） |
-| `HarvardMadSys/hybridInference` | not_adopted | `no_secrets`（aws_access_key 2、`.gitleaks.toml`） |
-| `PKUBlockchain/PKUBA-Colearn-25-Fall` | not_adopted | 追跡された `.env.local`（4 件） |
+| `BenchBox-dev/benchbox`・`HarvardMadSys/hybridInference` | AWS の文書の見本の鍵 ID | 末尾が `EXAMPLE` の鍵 ID を外す（AWS の見本の作法） |
+| `langgenius/dify` | ヘッダー名 `Enterprise-Api-Secret-Key`、ドイツ語の訳 `Abfrageparameter` | Train-Case の名前と、区切りの無い英字1語を外す |
+| `Comfy-Org/ComfyUI` | 先頭だけ見せて残りを `*` で伏せた表示用の値 | 続きが `*` の値を外す |
+| `Significant-Gravitas/AutoGPT` | 画面の移行表のパス `/settings/api-keys`、雛形の `.env.default` | 語を `/` でつないだパスを外す、`.env.default` を見本の名前に足す |
+
+形では分けられないので [cleared.toml](./cleared.toml) に値ごとに記録したもの:
+hybridInference の連番の見本の鍵、dify のモック用の Anthropic の値と契約テストの JWT、
+youtube-dl の shahid 2 件と adultswim（yt-dlp で確かめた行と本文が同じ）。
+
+規則どおり止めたままのもの: `PKUBlockchain/PKUBA-Colearn-25-Fall` の追跡された `.env.local`
+（`bbvch-ai/aihub-core` の `.env.dev` と同じ扱い）。
+
+**まだ確かめていないもの:** `ytdl-org/youtube-dl` の `nhk.py:22`・`vtm.py:49`。yt-dlp には
+無い値で、配信元の JS を Wayback Machine で探す必要がありますが、2026-11-06 は
+Internet Archive が停止していました。yt-dlp の残り 2 件（`tver.py:349`・`polskieradio.py:261`）と
+合わせて、基準のリポのうち 2 本がこのために止まっています。
 
 ### この結果の限界
 

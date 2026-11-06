@@ -167,6 +167,17 @@ def load_pins(path: Path) -> dict[str, str]:
     return {str(k): str(v) for k, v in data.get("commits", {}).items()}
 
 
+def load_pinned_exclusions(path: Path) -> dict[str, str]:
+    """前回の結果で除外した理由。固定して測り直すとき、コミットが無いのはこのせいである。
+
+    持ち越さないと、容量の上限やマニフェストの無さで外したものまで「固定するコミットが
+    記録されていない」に化け、なぜ測らなかったかが結果から消える（実測 2026-11-06）。
+    """
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {str(e["slug"]): str(e.get("why", "")) for e in data.get("excluded", [])
+            if e.get("slug") and e.get("why")}
+
+
 def has_manifest(root: Path, manifests: list[str]) -> bool:
     """直下か、どこかのワークスペースにマニフェストが在るか。
 
@@ -322,6 +333,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     pins = load_pins(Path(args.pin)) if args.pin else {}
+    pinned_out = load_pinned_exclusions(Path(args.pin)) if args.pin else {}
     lanes_cfg = release_gate.load_lanes()
     filters = corpus.get("filters", {})
     manifests = list(filters.get("manifest_required", []))
@@ -353,7 +365,8 @@ def main(argv: list[str] | None = None) -> int:
                 dest = cache / slug.replace("/", "__")
                 print(f"  取得 {slug} ...", flush=True)
                 if args.pin and slug not in pins:
-                    err = "固定するコミットが --pin の結果に記録されていない"
+                    err = (f"固定元でも除外: {pinned_out[slug]}" if slug in pinned_out
+                           else "固定するコミットが --pin の結果に記録されていない")
                 else:
                     err = clone(slug, dest, g_max_mb, pins.get(slug, ""))
                 if err:
