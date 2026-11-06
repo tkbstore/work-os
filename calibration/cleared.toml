@@ -317,3 +317,36 @@ why = "yt-dlp の adultswim.py:156 と行の本文が同じ（line_key fc33119b7
 who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
 when = "2026-11-06"
 excerpt = "'appId': 'eyJh….eyJh….BzSC…',"
+
+[[entry]]
+repo = "ytdl-org__youtube-dl"
+path = "youtube_dl/extractor/nhk.py"
+declaration = "api_key"
+line_key = "68cc877c5368163e"
+verdict = "cleared"
+why = "NHK WORLD-JAPAN のサイトが全訪問者に配る API キー。2026-11-06 に https://www3.nhk.or.jp/nhkworld/common/js/common.js を取得し、window.nw_api_key の既定値として同じ値があることを確かめた（同じ行に nw_api_prefix //api.nhk.or.jp/nhkworld/）"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-06"
+excerpt = "m_id, query={'apikey': 'EJfK…'})['data']['episodes'] or []"
+
+[[entry]]
+repo = "yt-dlp__yt-dlp"
+path = "yt_dlp/extractor/polskieradio.py"
+declaration = "api_key"
+line_key = "787448559c236840"
+verdict = "cleared"
+why = "Polskie Radio Trójka のサイトが全訪問者に配っていた x-api-key。Wayback 20220429123618 の https://trojka.polskieradio.pl/_next/static/chunks/pages/_app-967ccba17baeff42.js に fetch の headers {\"x-api-key\":…} として同じ値があることを確かめた。今のサイトは別の値を同じ形で配っている"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-06"
+excerpt = "query=query, headers={'x-api-key': '9bf6…'})"
+
+[[entry]]
+repo = "ytdl-org__youtube-dl"
+path = "youtube_dl/extractor/vtm.py"
+declaration = "api_key"
+line_key = "456f9b9b2980de68"
+verdict = "cleared"
+why = "vtm.be の Web アプリが全訪問者に配っていた AWS AppSync の公開用 API キー（da2- 形式）。Wayback 20210306225644 の https://vtm.be/static/js/bundle.1dbf27d5.js に graphqlApiKey として、同じエンドポイント omc4vm23offuhaxx6hekxtzspi.appsync-api.eu-west-1.amazonaws.com と並んで同じ値があることを確かめた"
+who = "claude-opus-5-5（方針は TK が 2026-11-02 に承認。値ごとの確認は PR で）"
+when = "2026-11-06"
+excerpt = "'x-api-key': 'da2-…',"
