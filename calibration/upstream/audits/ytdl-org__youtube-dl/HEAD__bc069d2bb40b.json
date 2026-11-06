@@ -4,7 +4,7 @@
   "commit": "bc069d2bb40bcbc5bdfdf352ca15bf586c7792cb",
   "shape": "tool",
   "audited_on": "2026-11-06",
-  "gate": "1620047c6833b0df",
+  "gate": "807ae48a863b87eb",
   "states": {
     "correctness.e2e_passes": "skip",
     "correctness.gate_runs_in_repo": "fail",
@@ -35,16 +35,13 @@
     "safety.excluded_paths_not_tracked": "pass",
     "safety.gitignore_exists": "pass",
     "safety.no_public_client_secrets": "pass",
-    "safety.no_secrets": "fail",
+    "safety.no_secrets": "pass",
     "safety.no_secrets_in_docs": "pass",
     "usability.command_appears_early": "fail",
     "usability.help_available": "skip",
     "usability.zero_config_start": "pass"
   },
-  "publishable": false,
-  "reached": "",
-  "blocks": [
-    "internal:safety.no_secrets",
-    "public:safety.no_secrets"
-  ]
+  "publishable": true,
+  "reached": "public",
+  "blocks": []
 }
