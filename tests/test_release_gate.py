@@ -68,7 +68,9 @@ def a_private_term(group: str = "clients") -> str:
     return "placeholderterm"
 
 
-FAKE_KEY = "AKIA" + "IOSFODNN7EXAMPLE"          # 形だけの AWS アクセスキー
+# 形だけの AWS アクセスキー。AWS の文書の見本（…EXAMPLE）は 2026-11-06 から当たらない
+# ので、見本の形を避けた乱数の形にする。
+FAKE_KEY = "AKIA" + "Q4WUJXFVTTKXBAWT"
 BARE_EXCEPT = "    " + "except" + ":\n        " + "pass\n"
 HOME_PATH = str(Path.home()) + "/somewhere/"
 
@@ -282,7 +284,7 @@ def main() -> int:
         # 見たいのは「どのレーンも黙って素通りしない」ことなので、そう書く。
         check("どのレーンも黙って素通りしない",
               bool(res) and all(l["blocked"] or l["warnings"] for l in res[0]["lanes"]))
-        check("第1段で止まる（どこにも出せない）",
+        check("第1段で止まる（手元だけ）",
               bool(res) and res[0]["reached"] == "" and res[0]["blocked_at"] == "internal")
 
         # --- 健全リポ: 誤爆しないこと -------------------------------------
@@ -1330,6 +1332,31 @@ def main() -> int:
                 "src/check.py": f'URL = "postgresql://u:s3cret@{host}:5432/db"\n'})
             check(f"名前の途中にあるだけの {host} は引き続き当たる",
                   states(run(real, "--assume-public")[1]).get("no_secrets") == "fail")
+
+        # 値は分割して書く（このファイルが他の走査器に当たらないように）。
+        # 実測 2026-11-06: BenchBox と hybridInference が、秘密の走査器の設定に書いた
+        # AWS の見本の鍵で第1段に止まっていた。AWS は文書の見本の鍵 ID を EXAMPLE で終える。
+        # 同じ日に dify はヘッダー名 "Enterprise-Api-Secret-Key"、ComfyUI は先頭だけ見せて
+        # 残りを * で伏せた表示用の値で止まっていた。
+        akia = "AKIA"
+        for desc, body, want in (
+                ("AWS の見本の鍵 ID（末尾 EXAMPLE）は当たらない",
+                 f"PATTERNS = ['{akia}IOSFODNN7EXAMPLE']\n", "pass"),
+                ("EXAMPLE で終わらない鍵 ID は当たる",
+                 f"PATTERNS = ['{akia}Q4WUJXFVTTKXBAWT']\n", "fail"),
+                ("EXAMPLE が途中にあるだけの鍵 ID は当たる",
+                 f"PATTERNS = ['{akia}EXAMPLEQ4WUJXFVT']\n", "fail"),
+                ("ヘッダー名（Train-Case）は当たらない",
+                 "class C:\n    " + name + "_header = \"Enterprise-Api-Secret-Key\"\n", "pass"),
+                ("大文字始まりでも乱数は当たる",
+                 "CRED = {'" + name + "': 'Q4WuJxFvtTkXbaWTDv7Mh'}\n", "fail"),
+                ("* で伏せた表示用の値は当たらない",
+                 "#  \"api_key_x\": \"Q87d01e28dWuJxFvt" + "*" * 40 + "\"\n", "pass"),
+                ("伏せ字が無ければ同じ先頭の値は当たる",
+                 "#  \"api_key_x\": \"Q87d01e28dWuJxFvtTkXbaW\"\n", "fail")):
+            r = build(Path(td) / f"shape-{abs(hash(desc))}", {"src/conf.py": body})
+            got = states(run(r, "--assume-public")[1]).get("no_secrets")
+            check(f"{desc}（got={got}）" if got != want else desc, got == want)
 
     print()
     if failed:
