@@ -3,8 +3,8 @@
   "version": "HEAD@84878e532142",
   "commit": "84878e532142f0ac584953695658b324eb9e5b80",
   "shape": "service",
-  "audited_on": "2026-11-06",
-  "gate": "807ae48a863b87eb",
+  "audited_on": "2026-11-07",
+  "gate": "be26e53e9fb1d91f",
   "states": {
     "agent_ready.agent_surface": "pass",
     "agent_ready.cli_entry_point": "pass",

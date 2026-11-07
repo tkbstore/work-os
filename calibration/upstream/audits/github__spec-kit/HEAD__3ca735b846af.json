@@ -3,8 +3,8 @@
   "version": "HEAD@3ca735b846af",
   "commit": "3ca735b846afcbcf3304d571f296ec542464e08c",
   "shape": "tool",
-  "audited_on": "2026-11-06",
-  "gate": "807ae48a863b87eb",
+  "audited_on": "2026-11-07",
+  "gate": "be26e53e9fb1d91f",
   "states": {
     "correctness.e2e_passes": "skip",
     "correctness.gate_runs_in_repo": "fail",
