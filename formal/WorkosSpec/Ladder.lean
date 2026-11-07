@@ -5,6 +5,8 @@
 - warn だけのレーンは止まらない。
 - block の観測を走らせていない（pending）段は「通った」にならない。
   走らせなかったことと、走らせて通ったことを同じ結論にしない。
+  見ようとして見られなかった（unseen: 前提が無い・読めない）観測も同じ扱い。
+  「対象が無かった」と「見られなかった」を同じ結論にしない。
 - 届いた段は先頭から連続する。落ちた段より上には届かない。
 - 公開可 ⇔ 全段に届いた。
 -/
@@ -19,6 +21,8 @@ structure Finding where
   severity : Severity
   /-- 実行を伴う観測を、まだ走らせていない。 -/
   pending : Bool
+  /-- 見ようとして見られなかった（前提が無い・読めない）。 -/
+  unseen : Bool
 
 abbrev Lane := List Finding
 abbrev Stage := List Lane
@@ -26,7 +30,7 @@ abbrev Stage := List Lane
 def Lane.blocked (l : Lane) : Bool :=
   l.any fun f => f.state == .fail && f.severity == .block
 def Lane.unproven (l : Lane) : Bool :=
-  l.any fun f => f.pending && f.severity == .block
+  l.any fun f => (f.pending || f.unseen) && f.severity == .block
 def Stage.blocked (s : Stage) : Bool := s.any Lane.blocked
 def Stage.unproven (s : Stage) : Bool := s.any Lane.unproven
 def Stage.settled (s : Stage) : Bool := !s.blocked && !s.unproven
@@ -53,6 +57,18 @@ theorem pending_block_unsettles (s : Stage) (l : Lane) (f : Finding)
   have : s.unproven = true := by
     simp only [Stage.unproven, List.any_eq_true]
     exact ⟨l, hl, hu⟩
+  simp [Stage.settled, this]
+
+/-- 見られなかった block も、段を「通った」にしない。 -/
+theorem unseen_block_unsettles (s : Stage) (l : Lane) (f : Finding)
+    (hl : l ∈ s) (hf : f ∈ l) (hu : f.unseen = true) (hb : f.severity = .block) :
+    s.settled = false := by
+  have hl' : l.unproven = true := by
+    simp only [Lane.unproven, List.any_eq_true]
+    exact ⟨f, hf, by simp [hu, hb]⟩
+  have : s.unproven = true := by
+    simp only [Stage.unproven, List.any_eq_true]
+    exact ⟨l, hl, hl'⟩
   simp [Stage.settled, this]
 
 theorem reached_le (ss : List Stage) : reached ss ≤ ss.length := by
@@ -114,7 +130,9 @@ theorem publishable_iff (ss : List Stage) :
       · omega
 
 -- 第1段が warn だけ、第2段に未実行の block がある → 第1段まで。公開可ではない。
-#guard reached [[[⟨.fail, .warn, false⟩]], [[⟨.skip, .block, true⟩]]] == 1
-#guard !publishable [[[⟨.fail, .warn, false⟩]], [[⟨.skip, .block, true⟩]]]
+#guard reached [[[⟨.fail, .warn, false, false⟩]], [[⟨.skip, .block, true, false⟩]]] == 1
+#guard !publishable [[[⟨.fail, .warn, false, false⟩]], [[⟨.skip, .block, true, false⟩]]]
+-- 第1段の block が見られなかった → どこにも届かない（「対象無し」で通していた形）。
+#guard reached [[[⟨.skip, .block, false, true⟩]], [[⟨.pass, .block, false, false⟩]]] == 0
 
 end WorkosSpec

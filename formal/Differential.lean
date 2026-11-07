@@ -47,7 +47,8 @@ def runLayer (j : Json) : Except String Json := do
 def parseFinding (j : Json) : Except String Finding := do
   return { state := ← parseState (← j.getObjValAs? String "state")
            severity := ← parseSeverity (← j.getObjValAs? String "severity")
-           pending := ← j.getObjValAs? Bool "pending" }
+           pending := ← j.getObjValAs? Bool "pending"
+           unseen := ← j.getObjValAs? Bool "unseen" }
 
 /-- 段 → レーン → 観測の入れ子の配列 → 届いた段の数と公開可か。 -/
 def runLadder (j : Json) : Except String Json := do
