@@ -76,7 +76,8 @@ def gen_ladder(rng: random.Random) -> list:
     def finding() -> dict:
         return {"state": rng.choice(("pass", "fail", "skip")),
                 "severity": rng.choice(("block", "warn")),
-                "pending": rng.random() < 0.2}
+                "pending": rng.random() < 0.2,
+                "unseen": rng.random() < 0.2}
     return [[[finding() for _ in range(rng.randint(0, 3))]
              for _ in range(rng.randint(0, 3))] for _ in range(rng.randint(0, 4))]
 
@@ -131,7 +132,7 @@ def py_ladder(stages: list) -> dict:
         StageResult(name=f"s{i}", title="", question="", lanes=[
             LaneResult(name="l", title="", question="", findings=[
                 Finding(check_id="c", kind="k", severity=f["severity"], state=f["state"],
-                        why="", pending=f["pending"]) for f in lane])
+                        why="", pending=f["pending"], unseen=f["unseen"]) for f in lane])
             for lane in st])
         for i, st in enumerate(stages)])
     top = repo.reached

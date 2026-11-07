@@ -55,6 +55,10 @@ RUNNABLE_LANGS = {"", "sh", "bash", "zsh", "shell", "console",
 # 罫線・矢印を含むブロックは図であって手順ではない。無印のコードブロックに
 # 構成図を置く README は多く、これを「実行できる行」と数えると意味が壊れる。
 DIAGRAM_CHARS = set("─│┌┐└┘├┤┬┴┼━┃╴╶▶▼◀▲→←↑↓╔╗╚╝║═")
+# 観測が「見ようとして見られなかった」ときに返す state。Finding では skip に畳み、
+# unseen=True を立てる。pass と混ぜると、前提が欠けた検査が通ったと報告される
+# （2026-11-07 の監査: git リポでない木の鍵、読めない顧客名の一覧）。
+UNSEEN = "unseen"
 MAX_BYTES = 512_000       # これを超えるファイルは本文検査から外す（生成物・データ）
 MAX_EXAMPLES = 3          # 失敗の例示は何件まで出すか
 # 当たった宣言を何種まで名指しするか。例示（場所）とは別に数えるのは、当たった語が
@@ -79,6 +83,9 @@ class Finding:
     # --execute を付ければ実際に走る観測か。skip の理由は1つではないので、
     # 「走らなかった」と「そもそも走らない」を state では区別できない。
     pending: bool = False
+    # 見ようとして見られなかったか（前提が無い・読めない）。「対象が無かった」とは
+    # 別の結論で、block なら段を保留にする。観測は UNSEEN を返し、ここで skip に畳む。
+    unseen: bool = False
 
 
 @dataclass
@@ -110,7 +117,8 @@ class LaneResult:
         後者は結論ではない。severity=block の観測が後者のとき、その段は
         「通った」ではなく「まだ確かめていない」である。
         """
-        return [f for f in self.findings if f.pending and f.severity == "block"]
+        return [f for f in self.findings
+                if (f.pending or f.unseen) and f.severity == "block"]
 
 
 @dataclass
@@ -382,6 +390,23 @@ def read_text(path: Path) -> str | None:
     if b"\x00" in raw[:4096]:      # バイナリ
         return None
     return raw.decode("utf-8", errors="ignore")
+
+
+def pattern_file_found(name: str) -> bool:
+    """宣言ファイルが骨格か registry のどちらかに置かれているか。
+
+    load_pattern_file は「無い」と「空」を同じ空リストで返す。空のファイルは
+    「語は無い」という宣言だが、無いのは宣言が届いていないだけである。
+    """
+    return any(p.is_file() for p in (LANES_DEFAULT.parent / name, REGISTRY / name))
+
+
+def _specs_unseen(chk: dict) -> tuple[str, str, list[str]] | None:
+    """宣言したパターンのファイルが置かれていなければ UNSEEN を返す。"""
+    name = chk.get("patterns_from")
+    if name and not pattern_file_found(name):
+        return UNSEEN, f"{name} が置かれていない（registry: {REGISTRY}）", []
+    return None
 
 
 def load_pattern_file(name: str,
@@ -812,8 +837,13 @@ def _apply_audit(root: Path, chk: dict,
 def obs_pattern_absent(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list[str]]:
     files = _scoped(ctx["files"], chk.get("globs", ["**/*"]),
                     _except_globs(chk, ctx["lanes_cfg"]))
+    if ctx.get("files_unseen"):
+        return UNSEEN, ctx["files_unseen"], []
     if not files:
         return "pass", "対象ファイル無し", []
+    missing = _specs_unseen(chk)
+    if missing:
+        return missing
     specs: list[tuple[str, str]] = [("inline", p) for p in chk.get("patterns", [])]
     literal = False
     if chk.get("patterns_from"):
@@ -860,6 +890,8 @@ def obs_pattern_absent(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list
 def obs_pattern_max(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list[str]]:
     files = _scoped(ctx["files"], chk.get("globs", ["**/*"]),
                     _except_globs(chk, ctx["lanes_cfg"]))
+    if ctx.get("files_unseen"):
+        return UNSEEN, ctx["files_unseen"], []
     if not files:
         return "pass", "対象ファイル無し", []
     try:
@@ -1033,7 +1065,7 @@ def obs_history_erased(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list
     """
     count = _git_out(root, ["rev-list", "--count", "HEAD"])
     if count is None:
-        return "skip", "git リポジトリではない（履歴が無いので確かめられない）", []
+        return UNSEEN, "git リポジトリではない（履歴が無いので確かめられない）", []
     n = int(count.strip() or 0)
     roots = [ln for ln in (_git_out(root, ["rev-list", "--max-parents=0", "HEAD"]) or "").split() if ln]
     if len(roots) > 1:
@@ -1186,6 +1218,9 @@ def obs_history_pattern_absent(root: Path, chk: dict,
                                           list(chk.get("categories", [])))
         specs += loaded
         literal = not is_rx
+    missing = _specs_unseen(chk)
+    if missing:
+        return missing
     if not specs:
         return "skip", "パターンが宣言されていない", []
 
@@ -1205,7 +1240,7 @@ def obs_history_pattern_absent(root: Path, chk: dict,
             return "skip", "[publish] released_at の宣言なし（まだ公開していない）", []
         head = _git_out(root, ["rev-parse", "--verify", f"{since}^{{commit}}"])
         if head is None:
-            return "skip", f"[publish] released_at のコミットが無い: {since}", []
+            return UNSEEN, f"[publish] released_at のコミットが無い: {since}", []
         # 公開されるのは HEAD ではなく、push した（これから push する）ref 全部である。
         # 以前は `起点..HEAD` で切っていて、チェックアウトしていないブランチを見て
         # いなかった。実測 2026-10-03: 別ブランチのコミットメッセージに顧客名が入って
@@ -1214,7 +1249,7 @@ def obs_history_pattern_absent(root: Path, chk: dict,
 
     listing = _git_out(root, ["rev-list", "--objects", *scope], timeout=120)
     if listing is None:
-        return "skip", "git リポジトリではない", []
+        return UNSEEN, "git リポジトリではない", []
     names = _history_targets(root, scope, listing, chk, ctx.get("lanes_cfg", {}))
     if names is None:
         return "skip", "履歴の差分を読めなかった（globs の範囲を決められない）", []
@@ -1369,6 +1404,10 @@ def evaluate(root: Path, lanes_cfg: dict, execute: bool = False,
             owned_note = f"統治クラス {klass} — 自組織の観測は当てない（{note}）"
     ctx = {
         "files": tracked_files(root, list(pub.get("exclude", []))),
+        # 追跡ファイルを数えられない（git リポでない）なら、空の集合は「対象が無い」
+        # ではない。ファイルを見る観測はこれを見て UNSEEN を返す。
+        "files_unseen": ("" if _git_out(root, ["rev-parse", "--show-toplevel"]) is not None
+                         else "git リポジトリではない（追跡ファイルを数えられない）"),
         "exclude": list(pub.get("exclude", [])),
         "commands": dict(pub.get("commands", {})),
         "execute": execute,
@@ -1449,6 +1488,9 @@ def _run_lane(lane_name: str, cfg: dict, root: Path, ctx: dict,
                 "engine が知らない観測の種類", f"kind={kind}"))
             continue
         state, detail, examples = observer(root, chk, ctx)
+        unseen = state == UNSEEN
+        if unseen:
+            state = "skip"
         # 案内文が数えるのはここ。宣言の無いコマンドは --execute を付けても
         # 走らないので、未実走としては数えない（付ければ走ると言えなくなる）。
         pending = (kind == "command_exit_zero" and state == "skip"
@@ -1458,7 +1500,7 @@ def _run_lane(lane_name: str, cfg: dict, root: Path, ctx: dict,
             check_id=chk.get("id", "?"), kind=kind,
             severity=check_severity(chk, stage_name), state=state,
             why=str(chk.get("why", "")), detail=detail, examples=examples,
-            pending=pending))
+            pending=pending, unseen=unseen))
     return lane
 
 
@@ -1509,10 +1551,20 @@ def render(result: RepoResult, verbose: bool = False) -> None:
             print(f"     → この段で止まる。欠けているレーン: {', '.join(blocked)}")
             break
         if stage.unproven:
-            ids = ", ".join(f.check_id for f in stage.unproven)
-            print(f"     → この段は確かめていない。走らせていない観測: {ids}"
-                  f"（--execute で実走）")
+            print(f"     → この段は確かめていない。{unproven_note(stage.unproven)}")
             break
+
+
+def unproven_note(found: list[Finding]) -> str:
+    """保留の理由を、直し方の違う2つに分けて言う（走らせる / 前提を置く）。"""
+    parts = []
+    ran = [f.check_id for f in found if f.pending]
+    if ran:
+        parts.append(f"走らせていない観測: {', '.join(ran)}（--execute で実走）")
+    for f in found:
+        if f.unseen:
+            parts.append(f"見られなかった観測: {f.check_id}（{f.detail}）")
+    return " / ".join(parts)
 
 
 def to_dict(result: RepoResult) -> dict:
@@ -1534,7 +1586,8 @@ def to_dict(result: RepoResult) -> dict:
             {"name": l.name, "blocked": l.blocked, "warnings": l.warnings,
              "findings": [
                  {"id": f.check_id, "kind": f.kind, "severity": f.severity,
-                  "state": f.state, "detail": f.detail, "examples": f.examples}
+                  "state": f.state, "detail": f.detail, "examples": f.examples,
+                  "unseen": f.unseen}
                  for f in l.findings]}
             for l in result.lanes
         ],
@@ -1604,10 +1657,9 @@ def require_stage(results: list[RepoResult], required: str, lanes_cfg: dict) -> 
             if r.unproven_at:
                 # 落ちたのではない。走らせていないので結論が出ていない。
                 # 同じ「届いていない」でも、直し方が違う（欠陥を直す / 走らせる）。
-                ids = ", ".join(f.check_id for st in r.stages for f in st.unproven)
+                found = [f for st in r.stages for f in st.unproven]
                 short.append((r, f"到達 = {REACHED.get(r.reached, r.reached)}"
-                                 f" / {r.unproven_at} を確かめていない: {ids}"
-                                 f"（--execute で実走）"))
+                                 f" / {r.unproven_at} を確かめていない。{unproven_note(found)}"))
             else:
                 short.append((r, f"到達 = {REACHED.get(r.reached, r.reached)}"
                                  f" / 落ちた段 = {r.blocked_at or '-'}"))

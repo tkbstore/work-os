@@ -12,7 +12,7 @@ python3 tests/test_formal_differential.py   # 仕様と実装に同じ入力を�
 |---|---|---|
 | `WorkosSpec/Layers.lean` | `engine/workos.py` `layer_of` | 宣言の無いパスは local。local 以外を返すなら、それを宣言した一致パターンがある。一致のうち最長が選ばれ、同じ長さなら先に宣言したほうが勝つ |
 | `WorkosSpec/Promotion.lean` | `engine/promotion.py` / `promote.py` | 昇格は1段ずつ。experimental → proposed は3社ルールを要する。`*` は件数に数えない |
-| `WorkosSpec/Ladder.lean` | `engine/release_gate.py` の段の判定 | warn は止めない。未実行の block は「通った」にならない。落ちた段より上に届かない。公開可 ⇔ 全段に届いた |
+| `WorkosSpec/Ladder.lean` | `engine/release_gate.py` の段の判定 | warn は止めない。未実行の block も、見られなかった（前提が無い・読めない）block も「通った」にならない。落ちた段より上に届かない。公開可 ⇔ 全段に届いた |
 | `WorkosSpec/Workspace.lean` | `release_gate._present_per_workspace` | 直下がワークスペースなら直下を要求する。**知らないマニフェストは見逃しうる**（反例） |
 
 ## 仕様が証明していないこと

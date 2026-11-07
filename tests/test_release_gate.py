@@ -962,6 +962,60 @@ def main() -> int:
         state, _, _ = obs_history_pattern_absent(pubd, sec, ctx_pushed)
         check("remote に入った後は、直しようのない過去として数えない", state == "pass")
 
+        # --- 見られなかったものを通さない -------------------------------------
+        # 「対象が無かった」と「見られなかった」は別の結論である。以前は両方を
+        # pass にしていて、git リポでない木に鍵を置いても no_secrets が「対象
+        # ファイル無し」で通り、顧客名の一覧が読めなくても --require public が
+        # 0 を返した（2026-11-07 の監査で実測）。見られなかった block は、走らせて
+        # いない観測と同じく段を保留にする。
+        print("\n見られなかったもの")
+
+        def seen(desc: str, ok: bool, detail: str = "") -> None:
+            check(desc + (f"  ({detail})" if detail and not ok else ""), ok)
+        bare = Path(td) / "not-a-repo"
+        bare.mkdir()
+        for name, body in HEALTHY_FILES.items():
+            (bare / name).parent.mkdir(parents=True, exist_ok=True)
+            (bare / name).write_text(body, encoding="utf-8")
+        (bare / "src" / "cfg.py").write_text(f'k = "{FAKE_KEY}"\n', encoding="utf-8")
+        code, res = run(bare, "--assume-public", "--require", "internal")
+        seen("git リポでなければ no_secrets を通さない",
+              states(res).get("no_secrets") == "skip", detail=str(states(res).get("no_secrets")))
+        seen("git リポでなければ段に届かない（保留）",
+              bool(res) and res[0]["reached"] == "" and bool(res[0]["unproven_at"])
+              and code != 0, detail=f"{code} {res[0]['reached'] if res else res}")
+
+        empty = Path(td) / "empty-repo"
+        empty.mkdir()
+        subprocess.run(["git", "init", "-q", str(empty)], check=True, timeout=30)
+        state, detail, _ = obs_pattern_absent(
+            empty, {"id": "x", "patterns": ["ZZQQ"]}, {"files": [], "lanes_cfg": {}})
+        seen("追跡ファイルが本当に無いリポは、見たうえで対象無し", state == "pass", detail=detail)
+
+        state, detail, _ = obs_pattern_absent(
+            rel, {"id": "x", "patterns_from": "no_such_terms_zz.toml"},
+            {"files": [(r, rel / r) for r in ("README.md",)], "lanes_cfg": {}})
+        seen("宣言したパターンのファイルが無ければ、見られなかったと言う",
+              state == "unseen", detail=f"{state} {detail}")
+        state, detail, _ = obs_history_pattern_absent(
+            rel, {"id": "x", "patterns": ["ZZQQ"], "since": "released_at"},
+            {"released_at": "0" * 40, "lanes_cfg": {}})
+        seen("宣言した起点のコミットが無ければ、見られなかったと言う",
+              state == "unseen", detail=f"{state} {detail}")
+
+        reg_gone = temp_registry(Path(td) / "gone", None)
+        (reg_gone / "private_terms.toml").unlink(missing_ok=True)
+        code, res = run_in(reg_gone, rel, "--owned", "--require", "public")
+        unproven = [i for st in (res[0]["stages"] if res else []) for i in st["unproven"]]
+        seen("顧客名の一覧が無ければ、公開に届いたと言わない",
+              "no_private_terms" in unproven and code != 0, detail=f"{code} {unproven}")
+        reg_none = temp_registry(Path(td) / "none", None)
+        (reg_none / "private_terms.toml").write_text("", encoding="utf-8")
+        _, res = run_in(reg_none, rel, "--owned")
+        unproven = [i for st in (res[0]["stages"] if res else []) for i in st["unproven"]]
+        seen("空の一覧は「語は無い」という宣言として進む",
+              "no_private_terms" not in unproven, detail=str(unproven))
+
         # --- 追跡された .env の実体 -------------------------------------------
         # 以前は直下の3名しか見ておらず、入れ子と別名が素通りしていた。
         print("\n追跡された .env")

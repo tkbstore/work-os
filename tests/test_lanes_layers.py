@@ -131,11 +131,12 @@ with tempfile.TemporaryDirectory() as td:
           any("ファイルに該当なし" in ln or "件該当" in ln for ln in secret_lines),
           str(secret_lines))
 
-    # 事実の観測は宣言が無いので skip。黙って pass にしない
+    # 事実の観測は宣言が無いので skip。黙って pass にしない。「宣言していない」
+    # ではなく「宣言が置かれていない」と言う（見られなかったので段は保留になる）
     private_lines = [ln.strip() for ln in vout.splitlines() if "no_private_terms:" in ln]
     check("固有名詞の観測が出る", bool(private_lines), vout[:300])
     check("固有名詞の観測は skip になる",
-          bool(private_lines) and all("パターンが宣言されていない" in ln
+          bool(private_lines) and all(ln.startswith("--") and "private_terms.toml が置かれていない" in ln
                                       for ln in private_lines), str(private_lines))
 
 
