@@ -1039,6 +1039,18 @@ def obs_history_erased(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list
     if len(roots) > 1:
         return "fail", f"root コミットが {len(roots)} 個ある（別の履歴が接がれている）", roots[:5]
 
+    # 公開済みの remote（--published）が root を持っていれば、起点より前はもう
+    # 公開されていて消しようがない。宣言ではなく呼び出し側の観測（gh で visibility
+    # を引いた）なので、released_at を手で書かせない。root が remote に無い
+    # （初めて出す・remote を作り直した）ときは、下の「公開前」の問いに落とす。
+    published = list(ctx.get("published") or [])
+    if published and roots:
+        pub_roots = set((_git_out(root, ["rev-list", "--max-parents=0", *published]) or "").split())
+        if roots[0] in pub_roots:
+            ahead = _git_out(root, ["rev-list", "--count", "HEAD", "--not", *published])
+            return "pass", (f"root {roots[0][:12]} は公開済みの remote にある（未公開 "
+                            f"{int((ahead or '0').strip() or 0)} コミット）。起点より前は無い"), []
+
     released = str(ctx.get("released_at") or "").strip()
     if released:
         full = _git_out(root, ["rev-parse", "--verify", f"{released}^{{commit}}"])
@@ -1181,7 +1193,13 @@ def obs_history_pattern_absent(root: Path, chk: dict,
     # 見る。起点そのもの（公開した木）は公開時に一度見ており、以後は変えられない。
     # 見るべきは「公開した後に積んだもの」で、そこは毎回変わる。
     scope, since = ["--all"], ""
-    if chk.get("since") == "released_at":
+    published = list(ctx.get("published") or [])
+    if chk.get("since") == "released_at" and published:
+        # 公開済みの remote が持つ commit は、もう出ている。見るのはまだ remote に
+        # 無いものだけ（ブランチを問わない理由は下と同じ）。
+        since = "published"
+        scope = ["--branches", "--remotes", "--tags", "--not", *published]
+    elif chk.get("since") == "released_at":
         since = str(ctx.get("released_at") or "").strip()
         if not since:
             return "skip", "[publish] released_at の宣言なし（まだ公開していない）", []
@@ -1201,7 +1219,7 @@ def obs_history_pattern_absent(root: Path, chk: dict,
     if names is None:
         return "skip", "履歴の差分を読めなかった（globs の範囲を決められない）", []
     if not names:
-        return "pass", ("公開の起点より後に対象が無い" if since else "履歴が空"), []
+        return "pass", (f"{_since_label(since)}に対象が無い" if since else "履歴が空"), []
 
     objects = _read_objects(root, list(names))
     if objects is None:
@@ -1227,11 +1245,15 @@ def obs_history_pattern_absent(root: Path, chk: dict,
                 break
         if len(hits) >= MAX_EXAMPLES:
             break
-    where = "公開の起点より後の " if since else ""
+    where = f"{_since_label(since)}の " if since else ""
     if hits:
         return "fail", f"{len(hits)} 件該当（{where}{len(names)} オブジェクト走査）", hits[:MAX_EXAMPLES]
     tail = "に該当なし" if chk.get("globs") else "とコミットメッセージに該当なし"
     return "pass", f"{where}{len(names)} オブジェクト{tail}", []
+
+
+def _since_label(since: str) -> str:
+    return "remote にまだ無い commit" if since == "published" else "公開の起点より後"
 
 
 def obs_doc_refs_resolve(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list[str]]:
@@ -1285,9 +1307,23 @@ OBSERVERS = {
 # 判定
 # --------------------------------------------------------------------------- #
 
+def published_tips(root: Path, remote: str) -> list[str]:
+    """remote-tracking ref（refs/remotes/<remote>/*）が指す commit。
+
+    公開かどうかはここでは決めない。呼び出し側（publish-gate）が gh で visibility を
+    引いて公開と確かめた remote だけを渡す。手元から private と public は区別できない
+    （obs_history_erased の docstring）。remote を渡さない、または追跡 ref が無ければ空。
+    """
+    if not remote:
+        return []
+    out = _git_out(root, ["for-each-ref", "--format=%(objectname)", f"refs/remotes/{remote}/"])
+    return sorted({ln for ln in (out or "").split() if ln})
+
+
 def evaluate(root: Path, lanes_cfg: dict, execute: bool = False,
              timeout: int = 300, assume_public: bool = False,
-             assume_shape: str = "", owned: bool = False) -> RepoResult | None:
+             assume_shape: str = "", owned: bool = False,
+             published: str = "") -> RepoResult | None:
     root = Path(root).resolve()
     pub = load_publish(root)
     intent = str(pub.get("intent", "")).strip()
@@ -1345,6 +1381,8 @@ def evaluate(root: Path, lanes_cfg: dict, execute: bool = False,
         # 公開した起点。宣言があれば history レーンの問いが「消したか」から
         # 「以後を保てているか」へ変わる（obs_history_erased の docstring）。
         "released_at": str(pub.get("released_at", "")).strip(),
+        # 公開済みの remote が持つ commit（--published）。released_at より優先する。
+        "published": published_tips(root, published),
     }
     result = RepoResult(name=root.name, root=root, intent=intent,
                        intent_source=source, owned_note=owned_note,
@@ -1598,6 +1636,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--owned", action="store_true",
                     help="検査対象が自組織のリポであると主張する"
                          "（顧客名・絶対パスの観測はこれが無いと当たらない）")
+    ap.add_argument("--published", metavar="REMOTE", default="",
+                    help="この remote が公開済みだと主張する（その追跡 ref が持つ commit を"
+                         "公開済みとして扱う。publish-gate が visibility を確かめてから渡す）")
     ap.add_argument("--require", metavar="STAGE",
                     help="この段に届かなければ exit 2（ローカルゲートから呼ぶための口）")
     ap.add_argument("--checks", action="store_true",
@@ -1622,7 +1663,8 @@ def main(argv: list[str] | None = None) -> int:
     # --scan は自分の木を歩くので、そこに在るものは自組織のリポである。
     owned = args.owned or bool(args.scan)
     results = [r for r in (evaluate(root, lanes_cfg, args.execute, args.timeout,
-                                    args.assume_public, args.assume_shape, owned)
+                                    args.assume_public, args.assume_shape, owned,
+                                    args.published)
                            for root in roots) if r is not None]
 
     if args.json:
