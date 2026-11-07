@@ -36,6 +36,8 @@ sys.path.insert(0, str(ROOT / "engine"))
 from release_gate import _match_glob, check_severity  # noqa: E402
 # 理由は上と同じ（engine/ を sys.path に挿したあとでしか import できない）。
 from release_gate import load_lanes, obs_pattern_absent  # noqa: E402
+# 理由は上と同じ。観測を差し替えるので、名前でなくモジュールを持つ。
+import release_gate  # noqa: E402
 from workos import _load_toml, registry_root  # noqa: E402
 
 
@@ -784,7 +786,7 @@ def main() -> int:
         ctx_no = {"released_at": "", "lanes_cfg": {}}
         ctx_yes = {"released_at": base, "lanes_cfg": {}}
         state, detail, _ = obs_history_pattern_absent(scoped, chk, ctx_no)
-        check("起点の宣言が無ければ、起点以降の観測は当たらない", state == "skip")
+        check("起点の宣言が無ければ、起点以降の観測は当たらない", state == release_gate.NA)
         state, detail, _ = obs_history_pattern_absent(scoped, chk, ctx_yes)
         check("木から消しても、起点以降の履歴には残っている", state == "fail")
         state, _, _ = obs_history_pattern_absent(
@@ -864,7 +866,7 @@ def main() -> int:
         check("公開後に入れて消した鍵は、履歴で落ちる", state == "fail")
         state, _, _ = obs_history_pattern_absent(
             leaked, sec, {"released_at": "", "lanes_cfg": cfg})
-        check("公開の起点が無ければ当たらない（公開前は squash が消す）", state == "skip")
+        check("公開の起点が無ければ当たらない（公開前は squash が消す）", state == release_gate.NA)
 
         # docs は上の block が外している。外した分を warn で拾う観測が要る。
         # 無いと、公開後に README へ貼って消した鍵は何も出なかった（2026-10-03）。
@@ -1015,6 +1017,63 @@ def main() -> int:
         unproven = [i for st in (res[0]["stages"] if res else []) for i in st["unproven"]]
         seen("空の一覧は「語は無い」という宣言として進む",
               "no_private_terms" not in unproven, detail=str(unproven))
+
+        # --- 見たと言えないものは既定で「見られなかった」 ----------------------
+        # 見られなかった場所を1つずつ数えて UNSEEN を返させる形では、数え漏れた
+        # 場所が黙って skip（＝段を止めない）になる。既定を逆にして、観測が
+        # 「当たらない」と明示したとき（NA）だけを普通の skip にする。
+        print("\n見たと言えないもの")
+        lane_ctx = {"owned": False, "execute": False, "commands": {}, "files": [],
+                    "lanes_cfg": {}}
+
+        def lane_of(*checks: dict) -> dict[str, tuple[str, bool]]:
+            lane = release_gate._run_lane("t", {"checks": list(checks)}, rel, lane_ctx)
+            return {f.check_id: (f.state, f.unseen) for f in lane.findings}
+        saved = dict(release_gate.OBSERVERS)
+        try:
+            release_gate.OBSERVERS["zz_skip"] = lambda r, c, x: ("skip", "理由なし", [])
+            release_gate.OBSERVERS["zz_na"] = lambda r, c, x: (release_gate.NA, "当たらない", [])
+
+            def boom(r: Path, c: dict, x: dict) -> tuple[str, str, list[str]]:
+                raise RuntimeError("壊れた観測")
+            release_gate.OBSERVERS["zz_boom"] = boom
+            got = lane_of({"id": "a", "kind": "zz_skip", "severity": "block"},
+                          {"id": "b", "kind": "zz_na", "severity": "block"},
+                          {"id": "c", "kind": "zz_boom", "severity": "block"},
+                          {"id": "d", "kind": "zz_unknown", "severity": "block"})
+        finally:
+            release_gate.OBSERVERS.clear()
+            release_gate.OBSERVERS.update(saved)
+        seen("理由を言わない skip は、見られなかったとして数える",
+             got.get("a") == ("skip", True), detail=str(got.get("a")))
+        seen("「当たらない」と明示した観測だけが普通の skip",
+             got.get("b") == ("skip", False), detail=str(got.get("b")))
+        seen("観測が落ちても止まらずに、見られなかったと言う",
+             got.get("c") == ("skip", True), detail=str(got.get("c")))
+        seen("engine が知らない観測は、見られなかったと言う",
+             got.get("d") == ("skip", True), detail=str(got.get("d")))
+
+        big = build(Path(td) / "big", {**HEALTHY_FILES,
+                                       "data/dump.txt": "x\n" * 300_000 + f'k = "{FAKE_KEY}"\n'})
+        _, res = run(big, "--assume-public")
+        seen("大きいファイルの中の鍵も見る",
+             states(res).get("no_secrets") == "fail", detail=str(states(res).get("no_secrets")))
+
+        locked = build(Path(td) / "locked", {**HEALTHY_FILES, "src/locked.py": "x = 1\n"})
+        (locked / "src" / "locked.py").chmod(0)
+        try:
+            _, res = run(locked, "--assume-public")
+        finally:
+            (locked / "src" / "locked.py").chmod(0o644)
+        f = next((f for l in (res[0]["lanes"] if res else []) for f in l["findings"]
+                  if f["id"] == "no_secrets"), {})
+        seen("読めないファイルがあれば、該当なしと言わない",
+             f.get("state") == "skip" and f.get("unseen") is True, detail=str(f))
+
+        lane_ctx["files"] = [("README.md", rel / "README.md")]
+        got = lane_of({"id": "e", "kind": "pattern_max", "pattern": "(", "severity": "block"})
+        seen("不正なパターンは、見られなかったと言う",
+             got.get("e") == ("skip", True), detail=str(got.get("e")))
 
         # --- 追跡された .env の実体 -------------------------------------------
         # 以前は直下の3名しか見ておらず、入れ子と別名が素通りしていた。

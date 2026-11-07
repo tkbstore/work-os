@@ -71,6 +71,27 @@ theorem unseen_block_unsettles (s : Stage) (l : Lane) (f : Finding)
     exact ⟨l, hl, hl'⟩
   simp [Stage.settled, this]
 
+/-- 観測が返すもの。`na` は「この木には当たらない」の明示、`other` はそれ以外の
+    すべて（理由付きの unseen、理由を言わない skip、観測が落ちた、知らない種類）。 -/
+inductive Observed where | pass | fail | na | pending | other deriving DecidableEq, Repr
+
+/-- 観測の結果を Finding に畳む。既定は「見られなかった」で、明示した `na` と
+    未実走だけがそれを外す。数え漏れた場所が黙って段を通らないための向き。 -/
+def toFinding (o : Observed) (sev : Severity) : Finding :=
+  match o with
+  | .pass => ⟨.pass, sev, false, false⟩
+  | .fail => ⟨.fail, sev, false, false⟩
+  | .na => ⟨.skip, sev, false, false⟩
+  | .pending => ⟨.skip, sev, true, false⟩
+  | .other => ⟨.skip, sev, false, true⟩
+
+/-- 段を「通った」にできる skip は、当たらないと明示したものだけ。 -/
+theorem skip_settles_only_if_na (o : Observed) (sev : Severity)
+    (hs : (toFinding o sev).state = .skip)
+    (hn : (toFinding o sev).pending = false ∧ (toFinding o sev).unseen = false) :
+    o = .na := by
+  cases o <;> simp_all [toFinding]
+
 theorem reached_le (ss : List Stage) : reached ss ≤ ss.length := by
   induction ss with
   | nil => simp [reached]

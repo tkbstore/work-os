@@ -22,7 +22,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "engine"))
 # E402 は「import が先頭に無い」の指摘。engine/ を sys.path に挿した後でしか解決しない。
-from release_gate import obs_doc_refs_resolve, tracked_files  # noqa: E402
+from release_gate import NA, obs_doc_refs_resolve, tracked_files  # noqa: E402
 
 GIT_ENV = {**os.environ,
            "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
@@ -171,7 +171,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as td:
         repo = build(Path(td), {"a.txt": ""})
         state, _, _ = observe(repo)
-        check("README が無ければ skip（無いことは readme_exists が見る）", state == "skip")
+        check("README が無ければ当たらない（無いことは readme_exists が見る）", state == NA)
 
     print()
     if failed:
