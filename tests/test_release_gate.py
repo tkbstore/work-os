@@ -896,6 +896,72 @@ def main() -> int:
         state, _, _ = obs_history_pattern_absent(leaked, docs_sec, ctx_pub)
         check("コミットメッセージは docs の観測では見ない", state == "pass")
 
+        # --- 公開済みの remote を起点にする -----------------------------------
+        # 公開リポへの push は、remote が公開だと gh で確かめてから呼ばれる。その
+        # 事実を渡さないと、released_at を手で書くまで公開済みの履歴で毎回止まり、
+        # 宣言は手元の work.toml に書くしかなかった（2026-11-07、それを公開リポへ
+        # commit してしまった。issue #24）。--published <remote> で、remote が
+        # 持っている commit を公開済みとして扱う。
+        print("\n公開済みの remote")
+        pubd = build(Path(td) / "published", HEALTHY_FILES)
+
+        def sha(repo: Path, rev: str = "HEAD") -> str:
+            return subprocess.run(["git", "-C", str(repo), "rev-parse", rev],
+                                  capture_output=True, text=True, timeout=30).stdout.strip()
+
+        def track(repo: Path, ref: str, rev: str) -> None:
+            subprocess.run(["git", "-C", str(repo), "update-ref", f"refs/remotes/{ref}", rev],
+                           check=True, timeout=30)
+
+        (pubd / "src" / "later.py").write_text("later = 1\n", encoding="utf-8")
+        commit(pubd, "feat: 公開済み")
+        track(pubd, "origin/main", sha(pubd))
+        (pubd / "src" / "new.py").write_text("new = 1\n", encoding="utf-8")
+        commit(pubd, "feat: これから push する")
+        _, res = run(pubd)
+        check("渡さなければ今までどおり落ちる", states(res).get("history_erased") == "fail")
+        _, res = run(pubd, "--published", "origin")
+        check("root が公開済みの remote にあれば、積んでいても落ちない",
+              states(res).get("history_erased") == "pass")
+        _, res = run(pubd, "--published", "upstream")
+        check("別の remote の名前では公開済みにならない",
+              states(res).get("history_erased") == "fail")
+
+        # まだ公開していない履歴を公開リポへ初めて出す push は、今どおり止める。
+        # remote の root が別物（作り直した公開リポ）でも同じ。
+        fresh = build(Path(td) / "fresh", HEALTHY_FILES)
+        (fresh / "src" / "b.py").write_text("b = 1\n", encoding="utf-8")
+        commit(fresh, "feat: 公開前の2コミット目")
+        _, res = run(fresh, "--published", "origin")
+        check("remote に何も無ければ、公開前として止める",
+              states(res).get("history_erased") == "fail")
+        here = subprocess.run(["git", "-C", str(fresh), "branch", "--show-current"],
+                              capture_output=True, text=True, timeout=30).stdout.strip()
+        subprocess.run(["git", "-C", str(fresh), "checkout", "-q", "--orphan", "other"],
+                       check=True, timeout=30)
+        commit(fresh, "chore: 別の root")
+        track(fresh, "origin/main", sha(fresh))
+        subprocess.run(["git", "-C", str(fresh), "checkout", "-qf", here], check=True, timeout=30)
+        subprocess.run(["git", "-C", str(fresh), "branch", "-qD", "other"], check=True, timeout=30)
+        _, res = run(fresh, "--published", "origin")
+        check("remote の root が別物なら、公開前として止める",
+              states(res).get("history_erased") == "fail")
+
+        # 起点以降の観測も、公開済みの remote を起点に走る。走らないと、
+        # history_erased だけ外れて公開後の検査が効かないままになる。
+        ctx_remote = {"released_at": "", "published": [sha(pubd)], "lanes_cfg": cfg}
+        state, _, _ = obs_history_pattern_absent(pubd, sec, ctx_remote)
+        check("公開済みの remote があれば、起点以降の観測が走る", state == "pass")
+        (pubd / "src" / "cfg.py").write_text(f'k = "{FAKE_KEY}"\n', encoding="utf-8")
+        commit(pubd, "feat: 鍵を入れてしまう")
+        (pubd / "src" / "cfg.py").unlink()
+        commit(pubd, "fix: 木からは消した")
+        state, _, _ = obs_history_pattern_absent(pubd, sec, ctx_remote)
+        check("remote にまだ無い commit の鍵で落ちる", state == "fail")
+        ctx_pushed = {**ctx_remote, "published": [sha(pubd)]}
+        state, _, _ = obs_history_pattern_absent(pubd, sec, ctx_pushed)
+        check("remote に入った後は、直しようのない過去として数えない", state == "pass")
+
         # --- 追跡された .env の実体 -------------------------------------------
         # 以前は直下の3名しか見ておらず、入れ子と別名が素通りしていた。
         print("\n追跡された .env")
