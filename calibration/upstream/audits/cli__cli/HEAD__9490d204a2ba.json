@@ -4,7 +4,7 @@
   "commit": "9490d204a2ba95434153dedce99898ce9f281426",
   "shape": "service",
   "audited_on": "2026-11-07",
-  "gate": "be26e53e9fb1d91f",
+  "gate": "c9d142e04df6459b",
   "states": {
     "agent_ready.agent_surface": "pass",
     "agent_ready.cli_entry_point": "pass",
