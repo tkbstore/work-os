@@ -1570,7 +1570,13 @@ def main() -> int:
                 ("* で伏せた表示用の値は当たらない",
                  "#  \"api_key_x\": \"Q87d01e28dWuJxFvt" + "*" * 40 + "\"\n", "pass"),
                 ("伏せ字が無ければ同じ先頭の値は当たる",
-                 "#  \"api_key_x\": \"Q87d01e28dWuJxFvtTkXbaW\"\n", "fail")):
+                 "#  \"api_key_x\": \"Q87d01e28dWuJxFvtTkXbaW\"\n", "fail"),
+                # 実測 2026-11-08: supabase/cli の生成物 contracts.ts（875KB）の操作名。
+                # 512KB 超を読まなかった間は見えていなかった。
+                ("版の接頭辞つきの camelCase（操作名）は当たらない",
+                 "{\"v1-create-project-api-key\": \"v1CreateProjectApiKey\"}\n", "pass"),
+                ("接頭辞のあとに数字が続けば当たる",
+                 "{\"v1-create-project-api-key\": \"v1CreateProject4piKey\"}\n", "fail")):
             r = build(Path(td) / f"shape-{abs(hash(desc))}", {"src/conf.py": body})
             got = states(run(r, "--assume-public")[1]).get("no_secrets")
             check(f"{desc}（got={got}）" if got != want else desc, got == want)
