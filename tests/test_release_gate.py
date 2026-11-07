@@ -1075,6 +1075,31 @@ def main() -> int:
         seen("不正なパターンは、見られなかったと言う",
              got.get("e") == ("skip", True), detail=str(got.get("e")))
 
+        # --- push の可否は release_gate が1つ返す --------------------------------
+        # publish-gate が lane を選び、state と unseen を自分で読んでいた。どの lane で
+        # 止めるか・見られなかったら止めるかは判定の一部なので、判定する側に置く。
+        # 0 = 通す / 1 = 止める（落ちた） / 3 = 判定できない。
+        print("\npush の可否")
+
+        def push(repo: Path, *args: str) -> tuple[int, str]:
+            proc = subprocess.run([sys.executable, str(GATE), str(repo), "--push", *args],
+                                  capture_output=True, text=True, timeout=180)
+            return proc.returncode, proc.stderr
+        code, err = push(good)
+        seen("健全なリポは通す（未実走の観測は push の判定に入らない）", code == 0,
+             detail=f"{code} {err[-300:]}")
+        code, err = push(bad)
+        seen("鍵があれば止める", code == 1 and "no_secrets" in err, detail=f"{code} {err[-300:]}")
+        nolic = build(Path(td) / "nolic", {k: v for k, v in HEALTHY_FILES.items()
+                                           if k != "LICENSE"})
+        code, err = push(nolic)
+        seen("入口（LICENSE）の欠けでは止めない", code == 0, detail=f"{code} {err[-300:]}")
+        code, err = push(bare, "--assume-public", "--owned")
+        seen("見られなかった検査があれば、判定できないと言う",
+             code == 3 and "no_secrets" in err, detail=f"{code} {err[-300:]}")
+        code, err = push(private)
+        seen("検査する対象が無ければ、判定できないと言う", code == 3, detail=f"{code} {err[-300:]}")
+
         # --- 追跡された .env の実体 -------------------------------------------
         # 以前は直下の3名しか見ておらず、入れ子と別名が素通りしていた。
         print("\n追跡された .env")

@@ -1720,6 +1720,58 @@ def require_stage(results: list[RepoResult], required: str, lanes_cfg: dict) -> 
     return 0
 
 
+PUSH_PASS, PUSH_BLOCK, PUSH_UNKNOWN = 0, 1, 3
+
+
+def push_verdict(results: list[RepoResult], lanes_cfg: dict) -> int:
+    """公開リポへ push してよいかを1つ返す。0 = 通す / 1 = 止める / 3 = 判定できない。
+
+    見るのは `[gate] push_lanes` の block だけ。落ちていれば 1。落ちていなくても、
+    見られなかった（または走らせていない）block が残っていれば 3。呼ぶ側
+    （publish-gate）は 0 以外を全部止める。判定できないことを通すかどうかを
+    呼ぶ側が決めると、呼ぶ側ごとに答えが割れる（2026-11-08 に TK が「判定できない
+    ときは止める」と決めた）。理由は stderr に出す。
+    """
+    def say(line: str) -> None:
+        print(f"[release_gate --push] {line}", file=sys.stderr)
+    lanes = set(lanes_cfg.get("gate", {}).get("push_lanes", []))
+    if not lanes:
+        say("判定できない: [gate] push_lanes が宣言されていない")
+        return PUSH_UNKNOWN
+    if not results:
+        say("判定できない: 検査する対象が無い（[publish] intent の宣言も --assume-public も無い）")
+        return PUSH_UNKNOWN
+    failed: dict[tuple[str, str], Finding] = {}
+    unseen: dict[tuple[str, str], Finding] = {}
+    for r in results:
+        for lane in r.lanes:
+            if lane.name not in lanes:
+                continue
+            for f in lane.findings:
+                if f.severity != "block":
+                    continue
+                # 段をまたいで同じ観測が当たるので、lane と id で1つにまとめる
+                if f.state == "fail":
+                    failed.setdefault((lane.name, f.check_id), f)
+                elif f.unseen or f.pending:
+                    unseen.setdefault((lane.name, f.check_id), f)
+    for (lane, cid), f in failed.items():
+        say(f"✗ {lane}/{cid}: {f.detail}")
+        for ex in f.examples[:MAX_EXAMPLES]:
+            say(f"    {ex}")
+    for (lane, cid), f in unseen.items():
+        say(f"? {lane}/{cid}: 検査していない（{f.detail}）")
+    if failed:
+        say("止める。release_gate は push しないローカルのブランチも見る（原因がそちらにあることもある）")
+        if any(cid == "history_erased" for _, cid in failed):
+            say("公開の起点を宣言するなら手元の work.toml（.git/info/exclude で除外）に書き、commit しない")
+        return PUSH_BLOCK
+    if unseen:
+        say("判定できない。見られなかった検査の前提を置いてから push し直す")
+        return PUSH_UNKNOWN
+    return PUSH_PASS
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="公開に耐えるかを観測する")
     ap.add_argument("repos", nargs="*", default=["."], help="検査するリポジトリ")
@@ -1741,6 +1793,8 @@ def main(argv: list[str] | None = None) -> int:
                          "公開済みとして扱う。publish-gate が visibility を確かめてから渡す）")
     ap.add_argument("--require", metavar="STAGE",
                     help="この段に届かなければ exit 2（ローカルゲートから呼ぶための口）")
+    ap.add_argument("--push", action="store_true",
+                    help="公開リポへ push してよいかだけを返す（0 = 通す / 1 = 止める / 3 = 判定できない）")
     ap.add_argument("--checks", action="store_true",
                     help="判定基準そのものを列挙する（リポジトリは見ない）")
     args = ap.parse_args(argv)
@@ -1769,6 +1823,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.json:
         print(json.dumps([to_dict(r) for r in results], ensure_ascii=False, indent=2))
+    elif args.push:
+        pass  # 理由は push_verdict が stderr に出す
     else:
         if not results:
             print("公開を宣言したリポジトリがありません"
@@ -1790,6 +1846,8 @@ def main(argv: list[str] | None = None) -> int:
                       "\n物差しだけ当てるなら --assume-public、宣言を生やすなら "
                       "engine/adopt.py <repo> --write。")
 
+    if args.push:
+        return push_verdict(results, lanes_cfg)
     if args.require:
         return require_stage(results, args.require, lanes_cfg)
 
