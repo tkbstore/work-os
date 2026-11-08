@@ -68,7 +68,8 @@ fi
 command -v tar >/dev/null 2>&1 || die "tar が無い。"
 
 TARBALL="${WORKOS_GATE_TARBALL:-https://github.com/$REPO/archive/$REF.tar.gz}"
-WORK="${TMPDIR:-/tmp}/workos-gate-install.$$"
+# 名前を推測されない作業場にする（$$ は他のユーザーが先回りして作れる）
+WORK=$(mktemp -d "${TMPDIR:-/tmp}/workos-gate-install.XXXXXX") || die "作業場を作れない。"
 STAGE="$WORK/stage"
 OLD="$WORK/old"
 # 途中で落ちたら中間物を残さない。$HOME_DIR 本体は「判定を返した」の後まで触らない。
