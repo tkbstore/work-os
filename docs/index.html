@@ -81,11 +81,12 @@ workos-gate --checks</code></pre>
 <p class="note">Stage 2 is not a popularity score. On this corpus the gate does not separate widely adopted projects from rarely adopted ones, and we say so in <a href="https://github.com/tkbstore/work-os/blob/main/calibration/README.md">calibration/README.md</a>. Commands from other people's repositories are never executed during calibration, so execution checks are unmeasured there.</p>
 
 <h2>Kernel invariants, proved in Lean 4</h2>
-<p>The rules the gate and the framework rely on are stated as 19 theorems in <a href="https://github.com/tkbstore/work-os/tree/main/formal"><code>formal/</code></a> and checked by <code>lake build</code>. The specification is not a proof that the Python implementation follows it; it is a precise statement that can be wrong in the open. Writing it already caught one false claim in our own code comments.</p>
+<p>The rules the gate and the framework rely on are stated as 20 theorems in <a href="https://github.com/tkbstore/work-os/tree/main/formal"><code>formal/</code></a> and checked by <code>lake build</code>. The specification is not a proof that the Python implementation follows it; it is a precise statement that can be wrong in the open. Writing it already caught one false claim in our own code comments.</p>
 <ul class="cols">
 <li><code>Ladder.warn_never_blocks</code></li>
 <li><code>Ladder.pending_block_unsettles</code></li>
 <li><code>Ladder.unseen_block_unsettles</code></li>
+<li><code>Ladder.skip_settles_only_if_na</code></li>
 <li><code>Ladder.reached_le</code></li>
 <li><code>Ladder.below_reached_settled</code></li>
 <li><code>Ladder.blocked_caps_reached</code></li>

@@ -59,7 +59,13 @@ DIAGRAM_CHARS = set("─│┌┐└┘├┤┬┴┼━┃╴╶▶▼◀▲�
 # unseen=True を立てる。pass と混ぜると、前提が欠けた検査が通ったと報告される
 # （2026-11-07 の監査: git リポでない木の鍵、読めない顧客名の一覧）。
 UNSEEN = "unseen"
-MAX_BYTES = 512_000       # これを超えるファイルは本文検査から外す（生成物・データ）
+# 観測が「この木には当たらない」と明示するときの state。Finding では skip に畳むが、
+# unseen は立てない。既定を逆にしてあるのが要点で、観測が NA でなく "skip" を返したら
+# 見られなかったものとして数える。見られなかった場所を1つずつ数えて UNSEEN を返す
+# 形では、数え漏れた場所が黙って段を通していた（2026-11-08 に TK が構造を変えると決めた）。
+NA = "n/a"
+MAX_BYTES = 512_000       # これを超えるファイルは見出しや手順の検査から外す（生成物・データ）。
+                          # 無いことを言う検査は大きさで外さない（外すと中の鍵が見えない）
 MAX_EXAMPLES = 3          # 失敗の例示は何件まで出すか
 # 当たった宣言を何種まで名指しするか。例示（場所）とは別に数えるのは、当たった語が
 # **分類の結果そのもの**であり、黙って切ると誤判定が見えなくなるためである。
@@ -380,9 +386,9 @@ def tracked_files(root: Path, exclude: list[str]) -> list[tuple[str, Path]]:
     return files
 
 
-def read_text(path: Path) -> str | None:
+def read_text(path: Path, limit: int | None = MAX_BYTES) -> str | None:
     try:
-        if path.stat().st_size > MAX_BYTES:
+        if limit is not None and path.stat().st_size > limit:
             return None
         raw = path.read_bytes()
     except OSError:
@@ -390,6 +396,26 @@ def read_text(path: Path) -> str | None:
     if b"\x00" in raw[:4096]:      # バイナリ
         return None
     return raw.decode("utf-8", errors="ignore")
+
+
+def unreadable(files: list[tuple[str, Path]]) -> list[str]:
+    """開けないファイル。read_text は「読めない」と「バイナリ」を同じ None で返す。
+
+    バイナリは中身を見たうえで文字列が無いと分かったものだが、開けないものは
+    何も見ていない。後者で「該当なし」と言うと、見ていないものを通すことになる。
+    """
+    bad = []
+    for rel, path in files:
+        try:
+            with path.open("rb"):
+                pass
+        except OSError:
+            bad.append(rel)
+    return bad
+
+
+def _unread_note(bad: list[str]) -> str:
+    return f"{len(bad)} ファイルを開けなかった（{', '.join(bad[:MAX_EXAMPLES])}）"
 
 
 def pattern_file_found(name: str) -> bool:
@@ -781,7 +807,7 @@ def _scan_specs(files: list[tuple[str, Path]], specs: list[tuple[str, str]],
     counts: dict[str, int] = {}
     found: dict[str, list[Match]] = {}
     for rel, path in files:
-        text = read_text(path)
+        text = read_text(path, limit=None)
         if text is None:
             continue
         lines = text.splitlines()
@@ -834,6 +860,14 @@ def _apply_audit(root: Path, chk: dict,
     return kept, notes
 
 
+def _no_specs(chk: dict) -> tuple[str, str, list[str]]:
+    """当てる語が1つも無いとき。空の宣言ファイルは「語は無い」という宣言なので
+    当たらない（NA）。何も宣言していない観測は、何かを見たとは言えない。"""
+    if chk.get("patterns_from"):
+        return NA, f"{chk['patterns_from']} に語が無い（無いという宣言）", []
+    return "skip", "パターンが宣言されていない", []
+
+
 def obs_pattern_absent(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list[str]]:
     files = _scoped(ctx["files"], chk.get("globs", ["**/*"]),
                     _except_globs(chk, ctx["lanes_cfg"]))
@@ -852,7 +886,7 @@ def obs_pattern_absent(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list
         specs += loaded
         literal = not is_rx
     if not specs:
-        return "skip", "パターンが宣言されていない", []
+        return _no_specs(chk)
     # 人の判定を受け付けるかは **観測ごとに config で宣言する**。既定は受け付けない。
     # 秘密の検査まで一律に抑制できる形にすると、抑制を宣言していない組織でも
     # 「誰かが cleared と書けば通る」経路が生まれる。auditable を engine の判断で
@@ -864,6 +898,9 @@ def obs_pattern_absent(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list
     notes: list[str] = []
     if auditable:
         hits, notes = _apply_audit(root, chk, hits)
+    bad = unreadable(files)
+    if not hits and bad:
+        return UNSEEN, _unread_note(bad), bad[:MAX_EXAMPLES]
     if not hits:
         if notes:
             # 全件が人の判定で消えたことを、最初から無かったことにはしない。
@@ -900,7 +937,7 @@ def obs_pattern_max(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list[st
         return "skip", f"パターンが不正: {exc}", []
     total, examples = 0, []
     for rel, path in files:
-        text = read_text(path)
+        text = read_text(path, limit=None)
         if text is None:
             continue
         text, _ = _window(text, chk)
@@ -912,6 +949,9 @@ def obs_pattern_max(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list[st
             if len(examples) < MAX_EXAMPLES:
                 examples.append(f"{rel}:{text.count(chr(10), 0, m.start()) + 1}")
     cap = int(chk.get("max", 0))
+    bad = unreadable(files) if total <= cap else []
+    if bad:
+        return UNSEEN, f"{total} 件（上限 {cap}）だが、{_unread_note(bad)}", bad[:MAX_EXAMPLES]
     if total <= cap:
         return "pass", f"{total} 件（上限 {cap}）", []
     return "fail", f"{total} 件（上限 {cap}）", examples
@@ -940,7 +980,7 @@ def obs_pattern_present(root: Path, chk: dict, ctx: dict) -> tuple[str, str, lis
 def obs_declared_command(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list[str]]:
     name = chk.get("name", "")
     if not ctx.get("declared", True):
-        return "skip", "[publish] 未宣言のため裁かない（校正モード）", []
+        return NA, "[publish] 未宣言のため裁かない（校正モード）", []
     cmd = ctx["commands"].get(name, "")
     if str(cmd).strip():
         return "pass", f"{name} = {cmd}", []
@@ -950,14 +990,14 @@ def obs_declared_command(root: Path, chk: dict, ctx: dict) -> tuple[str, str, li
 def obs_command_exit_zero(root: Path, chk: dict, ctx: dict) -> tuple[str, str, list[str]]:
     name = chk.get("name", "")
     if not ctx.get("declared", True):
-        return "skip", "[publish] 未宣言のため裁かない（校正モード）", []
+        return NA, "[publish] 未宣言のため裁かない（校正モード）", []
     cmd = str(ctx["commands"].get(name, "")).strip()
     if not cmd:
         if chk.get("optional"):
             # 宣言が在れば走らせる観測。無いこと自体は欠陥ではない。
             # e2e を持たない形のリポは在るので、fail にすると当たらないはずの
             # リポを毎回叱ることになる。無いものは「見ていない」と言う。
-            return "skip", f"[publish.commands] に {name} の宣言なし", []
+            return NA, f"[publish.commands] に {name} の宣言なし", []
         return "fail", f"[publish.commands] に {name} が無い", []
     if not ctx["execute"]:
         return "skip", f"未実行（--execute で実走）: {cmd}", []
@@ -1222,7 +1262,7 @@ def obs_history_pattern_absent(root: Path, chk: dict,
     if missing:
         return missing
     if not specs:
-        return "skip", "パターンが宣言されていない", []
+        return _no_specs(chk)
 
     # 走査範囲。既定は全履歴。since = "released_at" のときは公開の起点より後だけを
     # 見る。起点そのもの（公開した木）は公開時に一度見ており、以後は変えられない。
@@ -1237,7 +1277,7 @@ def obs_history_pattern_absent(root: Path, chk: dict,
     elif chk.get("since") == "released_at":
         since = str(ctx.get("released_at") or "").strip()
         if not since:
-            return "skip", "[publish] released_at の宣言なし（まだ公開していない）", []
+            return NA, "[publish] released_at の宣言なし（まだ公開していない）", []
         head = _git_out(root, ["rev-parse", "--verify", f"{since}^{{commit}}"])
         if head is None:
             return UNSEEN, f"[publish] released_at のコミットが無い: {since}", []
@@ -1300,7 +1340,7 @@ def obs_doc_refs_resolve(root: Path, chk: dict, ctx: dict) -> tuple[str, str, li
     rel = chk.get("file", "README.md")
     target = root / rel
     if not target.is_file():
-        return "skip", f"{rel} が無い（在るかは readme_exists が見る）", []
+        return NA, f"{rel} が無い（在るかは readme_exists が見る）", []
     files = {r for r, _ in ctx["files"]}
     dirs = {str(p) for r in files for p in Path(r).parents if str(p) != "."}
     present = (files | dirs).__contains__
@@ -1469,6 +1509,18 @@ def check_severity(chk: dict, stage_name: str) -> str:
     return str(sev)
 
 
+def _observe(kind: str, root: Path, chk: dict,
+             ctx: dict) -> tuple[str, str, list[str]]:
+    """観測を1つ当てる。当てられなかったことも結果として返し、止まらない。"""
+    observer = OBSERVERS.get(kind)
+    if observer is None:
+        return UNSEEN, f"engine が知らない観測の種類: kind={kind}", []
+    try:
+        return observer(root, chk, ctx)
+    except Exception as exc:  # 観測1つの欠陥で、他の観測の結果まで失わない
+        return UNSEEN, f"観測が落ちた: {type(exc).__name__}: {exc}", []
+
+
 def _run_lane(lane_name: str, cfg: dict, root: Path, ctx: dict,
               stage_name: str = "") -> LaneResult:
     owned = ctx["owned"]
@@ -1481,21 +1533,17 @@ def _run_lane(lane_name: str, cfg: dict, root: Path, ctx: dict,
                 chk.get("id", "?"), kind, check_severity(chk, stage_name), "skip",
                 str(chk.get("why", "")), "自組織のリポにのみ当てる観測（--owned で主張する）"))
             continue
-        observer = OBSERVERS.get(kind)
-        if observer is None:
-            lane.findings.append(Finding(
-                chk.get("id", "?"), kind, "warn", "skip",
-                "engine が知らない観測の種類", f"kind={kind}"))
-            continue
-        state, detail, examples = observer(root, chk, ctx)
-        unseen = state == UNSEEN
-        if unseen:
-            state = "skip"
+        state, detail, examples = _observe(kind, root, chk, ctx)
         # 案内文が数えるのはここ。宣言の無いコマンドは --execute を付けても
         # 走らないので、未実走としては数えない（付ければ走ると言えなくなる）。
         pending = (kind == "command_exit_zero" and state == "skip"
                    and not ctx["execute"]
                    and bool(str(ctx["commands"].get(chk.get("name", ""), "")).strip()))
+        # pass / fail / NA 以外は全部「見られなかった」。理由付きの UNSEEN も、
+        # 理由を言わない skip も同じ扱いにする。未実走は直し方が違うので分ける。
+        unseen = state not in ("pass", "fail", NA) and not pending
+        if state not in ("pass", "fail"):
+            state = "skip"
         lane.findings.append(Finding(
             check_id=chk.get("id", "?"), kind=kind,
             severity=check_severity(chk, stage_name), state=state,
@@ -1672,6 +1720,58 @@ def require_stage(results: list[RepoResult], required: str, lanes_cfg: dict) -> 
     return 0
 
 
+PUSH_PASS, PUSH_BLOCK, PUSH_UNKNOWN = 0, 1, 3
+
+
+def push_verdict(results: list[RepoResult], lanes_cfg: dict) -> int:
+    """公開リポへ push してよいかを1つ返す。0 = 通す / 1 = 止める / 3 = 判定できない。
+
+    見るのは `[gate] push_lanes` の block だけ。落ちていれば 1。落ちていなくても、
+    見られなかった（または走らせていない）block が残っていれば 3。呼ぶ側
+    （publish-gate）は 0 以外を全部止める。判定できないことを通すかどうかを
+    呼ぶ側が決めると、呼ぶ側ごとに答えが割れる（2026-11-08 に TK が「判定できない
+    ときは止める」と決めた）。理由は stderr に出す。
+    """
+    def say(line: str) -> None:
+        print(f"[release_gate --push] {line}", file=sys.stderr)
+    lanes = set(lanes_cfg.get("gate", {}).get("push_lanes", []))
+    if not lanes:
+        say("判定できない: [gate] push_lanes が宣言されていない")
+        return PUSH_UNKNOWN
+    if not results:
+        say("判定できない: 検査する対象が無い（[publish] intent の宣言も --assume-public も無い）")
+        return PUSH_UNKNOWN
+    failed: dict[tuple[str, str], Finding] = {}
+    unseen: dict[tuple[str, str], Finding] = {}
+    for r in results:
+        for lane in r.lanes:
+            if lane.name not in lanes:
+                continue
+            for f in lane.findings:
+                if f.severity != "block":
+                    continue
+                # 段をまたいで同じ観測が当たるので、lane と id で1つにまとめる
+                if f.state == "fail":
+                    failed.setdefault((lane.name, f.check_id), f)
+                elif f.unseen or f.pending:
+                    unseen.setdefault((lane.name, f.check_id), f)
+    for (lane, cid), f in failed.items():
+        say(f"✗ {lane}/{cid}: {f.detail}")
+        for ex in f.examples[:MAX_EXAMPLES]:
+            say(f"    {ex}")
+    for (lane, cid), f in unseen.items():
+        say(f"? {lane}/{cid}: 検査していない（{f.detail}）")
+    if failed:
+        say("止める。release_gate は push しないローカルのブランチも見る（原因がそちらにあることもある）")
+        if any(cid == "history_erased" for _, cid in failed):
+            say("公開の起点を宣言するなら手元の work.toml（.git/info/exclude で除外）に書き、commit しない")
+        return PUSH_BLOCK
+    if unseen:
+        say("判定できない。見られなかった検査の前提を置いてから push し直す")
+        return PUSH_UNKNOWN
+    return PUSH_PASS
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="公開に耐えるかを観測する")
     ap.add_argument("repos", nargs="*", default=["."], help="検査するリポジトリ")
@@ -1693,6 +1793,8 @@ def main(argv: list[str] | None = None) -> int:
                          "公開済みとして扱う。publish-gate が visibility を確かめてから渡す）")
     ap.add_argument("--require", metavar="STAGE",
                     help="この段に届かなければ exit 2（ローカルゲートから呼ぶための口）")
+    ap.add_argument("--push", action="store_true",
+                    help="公開リポへ push してよいかだけを返す（0 = 通す / 1 = 止める / 3 = 判定できない）")
     ap.add_argument("--checks", action="store_true",
                     help="判定基準そのものを列挙する（リポジトリは見ない）")
     args = ap.parse_args(argv)
@@ -1721,6 +1823,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.json:
         print(json.dumps([to_dict(r) for r in results], ensure_ascii=False, indent=2))
+    elif args.push:
+        pass  # 理由は push_verdict が stderr に出す
     else:
         if not results:
             print("公開を宣言したリポジトリがありません"
@@ -1742,6 +1846,8 @@ def main(argv: list[str] | None = None) -> int:
                       "\n物差しだけ当てるなら --assume-public、宣言を生やすなら "
                       "engine/adopt.py <repo> --write。")
 
+    if args.push:
+        return push_verdict(results, lanes_cfg)
     if args.require:
         return require_stage(results, args.require, lanes_cfg)
 
