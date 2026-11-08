@@ -236,7 +236,7 @@ def worktree_purpose(repo: Path) -> str:
     if not link or link[0] != "worktree":
         return ""
     _, parent, branch = link
-    on = f"（ブランチ {branch}）" if branch else ""
+    on = "（ブランチは読めなかった）" if branch is None else (f"（ブランチ {branch}）" if branch else "")
     return f"{parent} の git worktree{on}。別のリポジトリではなく、同じ remote の作業用の枝である。"
 
 

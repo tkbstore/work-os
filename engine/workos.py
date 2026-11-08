@@ -486,10 +486,11 @@ def iter_repo_dirs(scan_root: Path, *, require_git: bool = True) -> list[Path]:
     return out
 
 
-def git_link(repo: Path) -> tuple[str, str, str] | None:
+def git_link(repo: Path) -> tuple[str, str, str | None] | None:
     """`.git` がファイルなら、それが何へのポインタかを返す。clone なら None。
 
     戻り値は (種類, 本体のディレクトリ名, 枝の名前)。種類は "worktree" か "module"。
+    枝の名前は detached なら ""、HEAD を読めなければ None。
 
     「リポジトリとは何か」を答えるのが iter_repo_dirs である以上、「それは clone か、
     既にある clone に生えた枝か」もここで答える。存在だけを見ると両者は区別できない
@@ -527,13 +528,15 @@ def git_link(repo: Path) -> tuple[str, str, str] | None:
     # <本体>/.git/<marker>/<名前> の <本体> を取り出す
     idx = parts.index(".git") if ".git" in parts else -1
     parent = parts[idx - 1] if idx > 0 else ""
-    branch = ""
+    # 枝の名前。detached なら ""、HEAD を読めなければ None（枝が無いことと区別する）
+    branch: str | None = ""
     try:
         head = (gitdir / "HEAD").read_text(encoding="utf-8", errors="ignore").strip()
+    except OSError:
+        branch = None
+    else:
         if head.startswith("ref: refs/heads/"):
             branch = head[len("ref: refs/heads/"):]
-    except OSError:
-        pass
     return (kind, parent, branch)
 
 

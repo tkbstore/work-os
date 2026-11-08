@@ -350,6 +350,19 @@ with tempfile.TemporaryDirectory() as td:
           purpose_of_toml(catalog, "main-repo-topic") == v,
           purpose_of_toml(catalog, "main-repo-topic"))
 
+    # 枝が無い（detached）と、枝を読めなかったを同じ顔にしない
+    (gitdir / "HEAD").write_text("0123456789abcdef0123456789abcdef01234567\n", encoding="utf-8")
+    build(reg, fleet)
+    v = purpose_of_toml(catalog, "main-repo-topic")
+    check("detached なら枝の名前を出さない", "ブランチ" not in v, v)
+    (gitdir / "HEAD").chmod(0)
+    try:
+        build(reg, fleet)
+        v = purpose_of_toml(catalog, "main-repo-topic")
+    finally:
+        (gitdir / "HEAD").chmod(0o644)
+    check("HEAD を読めなければ、読めなかったと言う", "読めなかった" in v, v)
+
     # submodule は worktree ではない（同じ .git ファイル形式だが別物）
     sm = fleet / "sub"
     sm.mkdir()
