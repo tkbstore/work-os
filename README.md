@@ -38,18 +38,27 @@ python3 engine/scan.py ~/src --group my-domain
 一覧は `engine/*.py` を実際に見て `if __name__ == "__main__":` を持つものを拾います。
 名前の表を別に持たないので、入口を足した時点で一覧に出ます。
 
-フルパスを書かずにどこからでも呼びたいときは、作業ツリーを指す shim を置きます。
+フルパスを書かずにどこからでも呼びたいときは、repo の中の shim を PATH から指します。
 
 ```bash
-printf '#!/bin/sh\nexec python3 "%s/engine/cli.py" "$@"\n' "$PWD" > ~/.local/bin/workos
-chmod +x ~/.local/bin/workos
+ln -s "$PWD/scripts/workos" ~/.local/bin/workos   # Mac / Linux
 workos                      # 一覧
 workos release-gate --checks
 ```
 
+Windows は `scripts` ディレクトリを PATH に足します（`scripts\workos.cmd` が呼ばれます）。
+
+```powershell
+$p = [Environment]::GetEnvironmentVariable("Path", "User")   # $env:Path はシステムの分も含むので使わない
+[Environment]::SetEnvironmentVariable("Path", "$p;$PWD\scripts", "User")
+# 新しい PowerShell を開いてから
+workos
+```
+
 shim は作業ツリーを直に指します。複製を置くと、repo を直したあとも古い版が黙って走り、
 直したはずの挙動が返ってきません（上の `install.sh` が意図的に複製を置くのは、
-repo を持たない利用者向けだからです）。
+repo を持たない利用者向けだからです）。shim 自体も repo に在るので、`tests/test_cli.py` が
+リンク越しに呼べることを見ています。
 
 ## 必要なもの
 
@@ -72,11 +81,19 @@ CI は使わないので、Windows のマシンで手で回します。
 
 1. Python 3.9 以上を python.org のインストーラで入れる（`py` ランチャーが一緒に入ります）
 2. work-os を clone するか、GitHub の ZIP を展開する（`install.sh` は sh なので Windows では使いません）
-3. PowerShell で、宣言されたコマンドを実走させる
+3. 上の手順で `scripts` を PATH に足し、PowerShell で宣言されたコマンドを実走させる
 
 ```powershell
-py -3 work-os\engine\release_gate.py <path-to-a-repo> --execute
+workos release-gate <path-to-a-repo> --execute
 ```
+
+`workos.cmd` は `PYTHONUTF8=1` を立ててから走らせます。Windows の既定の文字コード（cp932）では、
+出力に含まれる「—」を書けずに落ち、git の出力にある UTF-8 のファイル名を読み違えるためです。
+shim を通さずに `py -3 engine\release_gate.py` を直接呼ぶときは、先に `$env:PYTHONUTF8 = "1"` を立てます。
+
+`--execute` が走らせるのは、対象のリポの `work.toml` に宣言されたコマンドそのものです。
+python.org のインストーラは `python3` という名前を置かないので、`python3 …` と宣言したリポは
+Windows ではコマンドが見つからずに落ちます。それはそのリポが Windows で動かないという観測です。
 
 ## 使い方
 

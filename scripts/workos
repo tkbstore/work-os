@@ -1,0 +1,32 @@
+#!/bin/sh
+# workos — work-os の入口（engine/cli.py）を、フルパスを書かずに呼ぶ。
+#
+#   ln -s "$PWD/scripts/workos" ~/.local/bin/workos     # Mac / Linux
+#   （Windows は同じディレクトリの workos.cmd）
+#
+# 作業ツリーを直に指す。スナップショットを複製しない: 複製すると、repo を直した
+# あとも古い版が黙って走り、直したはずの挙動が返ってこない。壊れ方が「間違った
+# 答えを自信たっぷりに返す」形になるので、複製しないほうが安全である。
+# 外部の利用者向けの install.sh（workos-gate）は別で、あちらは意図的に複製を置く。
+#
+# 作業ツリーは、リンクを辿った先のこのファイルの置き場から決める。パスを書き込むと、
+# clone する場所を変えた機械で黙って別の木を指すか、無いと言って落ちる。
+#
+#   WORKOS_HOME    作業ツリー（既定はこのファイルの1つ上）
+#   WORKOS_PYTHON  使う python（既定 python3）
+set -eu
+self=$0
+while [ -L "$self" ]; do
+    link=$(readlink "$self")
+    case $link in
+        /*) self=$link ;;
+        *) self=$(dirname "$self")/$link ;;
+    esac
+done
+HOME_DIR="${WORKOS_HOME:-$(cd "$(dirname "$self")/.." && pwd)}"
+CLI="$HOME_DIR/engine/cli.py"
+if [ ! -f "$CLI" ]; then
+    printf 'workos: %s が無い。WORKOS_HOME で作業ツリーを指す。\n' "$CLI" >&2
+    exit 1
+fi
+exec "${WORKOS_PYTHON:-python3}" "$CLI" "$@"
