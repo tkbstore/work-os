@@ -244,6 +244,36 @@ check("--callers が案内だけの入口に印をつけ、呼ばれている入
 for name in cli.entries():
     check(f"--callers に {name} が出る", name.replace("_", "-") in rep.stdout)
 
+# --- shim（scripts/workos・scripts/workos.cmd） ------------------------------ #
+# shim は repo の外（~/.local/bin や PATH）に置かれるので、壊れても repo の中の
+# 検査は何も言わない。だから実体を repo に持ち、ここで見る。
+SHIM = ROOT / "scripts" / "workos"
+SHIM_CMD = ROOT / "scripts" / "workos.cmd"
+with tempfile.TemporaryDirectory() as td:
+    bin_dir = Path(td) / "bin"
+    bin_dir.mkdir()
+    # ~/.local/bin に置くのと同じ形。リンクを2段にして、辿る処理を空回りさせない。
+    (bin_dir / "workos").symlink_to(SHIM)
+    (bin_dir / "workos2").symlink_to("workos")
+    shim_run = subprocess.run([str(bin_dir / "workos2")], capture_output=True, text=True,
+                              cwd=td, timeout=60)
+    check("リンク越しの shim が、別のディレクトリから一覧を出す",
+          shim_run.returncode == 0 and "release-gate" in shim_run.stdout,
+          shim_run.stderr[-300:])
+    gone = subprocess.run([str(bin_dir / "workos")], capture_output=True, text=True,
+                          cwd=td, timeout=60,
+                          env={"PATH": "/usr/bin:/bin", "WORKOS_HOME": str(Path(td) / "none")})
+    check("作業ツリーが無ければ shim は落ちる", gone.returncode != 0, gone.stdout[-200:])
+
+# workos.cmd は Mac では走らない。cmd.exe が読める形かどうかだけを見る
+# （実走は README「Windows で確かめる」）。
+raw = SHIM_CMD.read_bytes()
+check("workos.cmd は ASCII だけで書く（cmd.exe は cp932 で読む）",
+      all(b < 0x80 for b in raw))
+check("workos.cmd の改行は CRLF", b"\n" in raw and raw.count(b"\r\n") == raw.count(b"\n"))
+check("workos.cmd は UTF-8 モードを環境変数で立てる（子のプロセスにも効かせる）",
+      b'set "PYTHONUTF8=1"' in raw)
+
 print(f"[test_cli] {checked} 件検査")
 if failures:
     for f in failures:
