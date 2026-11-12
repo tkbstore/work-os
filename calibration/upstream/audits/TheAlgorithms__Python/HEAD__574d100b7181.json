@@ -3,8 +3,8 @@
   "version": "HEAD@574d100b7181",
   "commit": "574d100b7181956e9c8384552fd078165e4cc326",
   "shape": "tool",
-  "audited_on": "2026-11-08",
-  "gate": "9792442a9809da75",
+  "audited_on": "2026-11-12",
+  "gate": "b7ba605a841d40fc",
   "states": {
     "correctness.e2e_passes": "skip",
     "correctness.gate_runs_in_repo": "fail",
@@ -26,6 +26,7 @@
     "history.no_secrets_in_docs_since_release": "skip",
     "history.no_secrets_since_release": "skip",
     "portability.no_absolute_home_paths": "skip",
+    "portability.no_mac_only_calls": "skip",
     "provenance.no_private_terms": "skip",
     "robustness.no_bare_except": "pass",
     "robustness.no_debug_print_left": "pass",

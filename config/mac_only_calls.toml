@@ -1,0 +1,31 @@
+# mac_only_calls.toml — Mac にしか無い呼び出しの形。config 層。
+#
+# release_lanes.toml の portability.no_mac_only_calls（warn）が読む。
+# 文字列の照合では、sys.platform などで Windows 用の分岐を持っているかを見分けられない。
+# だから止めずに目で見させる。ここに当たらないことは「Windows で動く」ことの証明ではない。
+# 証明は Windows の上で走らせること（README の「Windows で確かめる」）だけである。
+#
+# 書き方は secret_patterns.toml と同じ（リテラル文字列で書く）。
+# 名前は出力にそのまま出る。どの語が当たったかを見て、誤検知を目で落とすため。
+
+[patterns]
+# キーチェーン。`security` は英語の語でもあるので、サブコマンドまで要る。
+keychain       = '\bsecurity\s+(?:find|add|delete)-(?:generic|internet)-password\b|\bsecurity\s+(?:unlock|lock|create|delete|default|list)-keychains?\b'
+# 定期実行。
+launchctl      = '\blaunchctl\s+(?:load|unload|bootstrap|bootout|kickstart|start|stop|list|enable|disable)\b'
+launch_agents  = 'Library/Launch(?:Agents|Daemons)\b'
+# 名前をコマンド名のままにせず、パターンにも [s] を挟むのは、この宣言ファイル自身の行に当たるため。
+applescript    = '\bosa[s]cript\b'
+pasteboard     = '\bpb(?:copy|paste)\b'
+# `open` も英語の語で、状態の名前（["open", "closed"]）としても頻出する。実測 2026-11-12:
+# 基準のリポ 44 本の追跡ファイルで、行頭の open と並びの先頭の "open" を取る形は 150 件に当たり、
+# 本当に open を起動していたのは 19 件だった。残りは状態の名前（home-assistant の enum、dify の
+# openapi、select2 のイベント名）と JSX の属性と yarn.lock の依存。下の形は 19 件だけに当たる。
+#   1. 行頭のシェルのコマンドで、引数がオプション・パス・変数・引用符で始まるもの。
+#      改行は空白に含めない（JSX の `open` 属性の次の行の `/>` をパスと読んだ）。
+#      引用符の直後が版の記号なら依存の宣言である（yarn.lock の open "^8.4.0"）。
+#   2. プロセスを起こす関数の、最初の引数が "open" のもの。
+open_command   = '(?m)^[ \t]*open[ \t]+(?:-[a-zA-Z]\b|[./~$]|["\x27](?![\^~=<>\d]))|\b(?:Popen|run|call|check_call|check_output|spawn|spawnSync|execFile|execFileSync|execa)\(\s*\[?\s*["\x27]open["\x27]\s*[,\]]'
+defaults       = '\bdefaults\s+(?:read|write|delete)\s+\S'
+# ~/Library 配下（Application Support・Preferences など）。
+home_library   = '(?:~|\$HOME|\$\{HOME\})/Library/'

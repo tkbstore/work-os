@@ -62,6 +62,22 @@ Python 3.9 以上。それだけです。インストールも設定ファイル
 
 `scan.py` は書き込みを一切しません。まずこれだけ回して、出てきた表を見てください。
 
+### Windows で確かめる
+
+ゲートの可搬性のレーンは、Mac にしか無い呼び出し（定期実行の登録・AppleScript・クリップボード・
+キーチェーンなど。語は `config/mac_only_calls.toml`）を数えて warn で知らせます（`no_mac_only_calls`）。
+これは文字列の照合なので、`sys.platform` で Windows 用の分岐を持っているかは見分けられず、
+当たらないことも Windows で動く証明にはなりません。動くかは Windows の上で走らせて確かめます。
+CI は使わないので、Windows のマシンで手で回します。
+
+1. Python 3.9 以上を python.org のインストーラで入れる（`py` ランチャーが一緒に入ります）
+2. work-os を clone するか、GitHub の ZIP を展開する（`install.sh` は sh なので Windows では使いません）
+3. PowerShell で、宣言されたコマンドを実走させる
+
+```powershell
+py -3 work-os\engine\release_gate.py <path-to-a-repo> --execute
+```
+
 ## 使い方
 
 観測 → 宣言 → 検証 → 昇格の順に進みます。途中で止めても壊れません。

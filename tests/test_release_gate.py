@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -1314,6 +1315,49 @@ def main() -> int:
         _, res = run(file_url)
         check("file:// のホームパスは本物として数える",
               states(res).get("no_absolute_home_paths") == "fail")
+
+        # --- Mac にしか無い呼び出し（warn） ------------------------------ #
+        # 見本はここで組み立てる。本文に書くと work-os 自身の観測に当たる。
+        print("\nMac にしか無い呼び出し")
+        specs, _ = release_gate.load_pattern_file("mac_only_calls.toml")
+        rxs = {label: re.compile(raw) for label, raw in specs}
+        op, sc = "op" + "en", "sec" + "urity"
+        for label, body, want in (
+                ("keychain", f"{sc} find-generic-password -s svc -w\n", True),
+                ("keychain", f"the {sc} team reviews it\n", False),
+                ("launchctl", "launch" + "ctl load ~/x.plist\n", True),
+                ("launch_agents", "cp x.plist ~/Library/Launch" + "Agents/\n", True),
+                ("applescript", "osa" + "script -e 'beep'\n", True),
+                ("pasteboard", "echo hi | pb" + "copy\n", True),
+                ("defaults", "default" + "s write com.apple.dock autohide -bool true\n", True),
+                ("home_library", "cfg = '~/Lib" + "rary/Application Support/x'\n", True),
+                ("open_command", f"{op} ./site/index.html\n", True),
+                ("open_command", f"  {op} -a Safari\n", True),
+                ("open_command", f'{op} "https://example.com"\n', True),
+                ("open_command", f'subprocess.Popen(["{op}", path])\n', True),
+                ("open_command", f"spawn('{op}', [url])\n", True),
+                # 実測で誤検知だった形（mac_only_calls.toml の open_command の注記）
+                ("open_command", f'STATES = ["{op}", "closed"]\n', False),
+                ("open_command", f'status: Literal["{op}", "sent"]\n', False),
+                ("open_command", f"  <Dialog\n    {op}\n    />\n", False),
+                ("open_command", f'    {op} "^8.4.0"\n', False),
+                ("open_command", f"{op} the file in your editor\n", False)):
+            got = bool(rxs[label].search(body))
+            check(f"{label}: {body.strip()!r} → {'当たる' if want else '当たらない'}"
+                  + ("" if got == want else f"（got={got}）"), got == want)
+
+        mac_only = build(Path(td) / "mac_only", {
+            **HEALTHY_FILES, "scripts/notify.sh": "osa" + "script -e 'beep'\n"})
+        _, res = run(mac_only)
+        found = [f for r in res for lane in r["lanes"] for f in lane["findings"]
+                 if f["id"] == "no_mac_only_calls"]
+        check("Mac 専用の呼び出しを warn で知らせる",
+              bool(found) and found[0]["state"] == "fail" and found[0]["severity"] == "warn")
+        check("どの語が当たったかを出す",
+              bool(found) and "applescript" in found[0]["detail"])
+        _, clean = run(build(Path(td) / "mac_clean", dict(HEALTHY_FILES)))
+        check("warn は公開の可否を変えない",
+              bool(res) and bool(clean) and res[0]["publishable"] == clean[0]["publishable"])
 
         # --- 所有の主張が無ければ当てない ------------------------------- #
         print("\n所有の主張")
