@@ -708,6 +708,20 @@ max = 0
 severity = "block"
 why = "自分の machine でしか動かないものは、他人にとって動かないものと同じ"
 
+[[lanes.portability.checks]]
+id = "no_mac_only_calls"
+kind = "pattern_absent"
+globs = ["**/*"]
+except_presets = ["fixtures", "vendored"]
+only_when_owned = true
+patterns_from = "mac_only_calls.toml"
+# warn に置く。文字列の照合では、sys.platform などで Windows 用の分岐を持っているかを
+# 見分けられない。分岐を持つ正しいスクリプトも当たるので、block にすると誤って止める
+# （no_secrets_in_docs と同じく「止めないが目で見る」）。当たらないことは Windows で動く
+# 証明ではない。証明は Windows の上で走らせることだけである（README「Windows で確かめる」）。
+severity = "warn"
+why = "Mac にしか無い呼び出しは、Windows では黙って動かない。分岐を持っているかは人が見る"
+
 
 # --------------------------------------------------------------------------- #
 # Usability — 最初の成功までの距離

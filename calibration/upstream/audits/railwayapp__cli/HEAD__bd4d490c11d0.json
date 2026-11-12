@@ -3,8 +3,8 @@
   "version": "HEAD@bd4d490c11d0",
   "commit": "bd4d490c11d084c39d7cdea114708a9995d1ccc0",
   "shape": "service",
-  "audited_on": "2026-11-08",
-  "gate": "9792442a9809da75",
+  "audited_on": "2026-11-12",
+  "gate": "b7ba605a841d40fc",
   "states": {
     "agent_ready.agent_surface": "fail",
     "agent_ready.cli_entry_point": "pass",
@@ -32,6 +32,7 @@
     "history.no_secrets_in_docs_since_release": "skip",
     "history.no_secrets_since_release": "skip",
     "portability.no_absolute_home_paths": "skip",
+    "portability.no_mac_only_calls": "skip",
     "provenance.no_private_terms": "skip",
     "robustness.no_bare_except": "pass",
     "robustness.no_debug_print_left": "fail",
