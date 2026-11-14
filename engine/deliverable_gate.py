@@ -269,7 +269,7 @@ def check_text(src: str) -> int:
         except OSError as exc:
             print(f"  NG  読めません: {src}（{exc}）")
             return 3
-        target.write_text(body, encoding="utf-8")
+        target.write_bytes(body.encode("utf-8"))
         item = observe(Path(td), Deliverable(path="text", title=src))
     if item.unread:
         print(f"  --  判定できません: {', '.join(item.unread[:MAX_EXAMPLES])}")

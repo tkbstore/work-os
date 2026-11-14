@@ -491,7 +491,7 @@ def main(argv: list[str] | None = None) -> int:
         RESULTS_DIR.mkdir(parents=True, exist_ok=True)
         stamp = str(corpus.get("corpus", {}).get("frozen_on", "unknown"))
         out = RESULTS_DIR / f"{stamp}.json"
-        out.write_text(json.dumps({
+        out.write_bytes((json.dumps({
             "frozen_on": stamp,
             "pinned_from": args.pin,
             "commits": commits,
@@ -505,7 +505,7 @@ def main(argv: list[str] | None = None) -> int:
             "gate_rates": gate_rates,
             "min_gap": min_gap,
             "agent_lane_min_gap": agent_gap,
-        }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        }, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
         print(f"\n書き出し: {out.relative_to(ROOT)}")
     return 0
 

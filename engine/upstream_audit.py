@@ -211,7 +211,7 @@ def write_results(results: list[dict], base: Path = AUDITS_DIR) -> list[Path]:
     for r in results:
         p = audit_path(r["key"], r["version"], base)
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps(r, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        p.write_bytes((json.dumps(r, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
         paths.append(p)
     return paths
 
