@@ -95,6 +95,11 @@ GIT_ENV = {"GIT_LFS_SKIP_SMUDGE": "1"}
 
 
 def _git(args: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:
+    # Windows は道の長さに 260 文字の上限があり、深い木（基準のリポの1本）を checkout
+    # できずに「測れなかった」になる（Filename too long、実測 2026-11）。
+    # core.longpaths は Git for Windows の設定で、他の OS では付けない。
+    if sys.platform == "win32":
+        args = ["-c", "core.longpaths=true", *args]
     return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True,
                           timeout=CLONE_TIMEOUT, env={**os.environ, **GIT_ENV})
 
