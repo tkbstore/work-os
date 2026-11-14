@@ -93,6 +93,15 @@ def make_tarball(dest: Path, drop: list[str] = (), empty: list[str] = (),
     return tar
 
 
+def as_exec(script: Path) -> list[str]:
+    """sh のスクリプトを起動する argv。
+
+    Windows の CreateProcess は shebang を読まないので、直接起動すると WinError 193
+    になる。sh（Git for Windows のもの）に渡せば、Mac / Linux と同じ中身を走らせられる。
+    """
+    return ["sh", str(script)] if sys.platform == "win32" else [str(script)]
+
+
 def run_install(tmp: Path, tarball: Path, name: str, **env_extra) -> subprocess.CompletedProcess:
     env = dict(os.environ)
     env.pop("WORKOS_GATE_PYTHON", None)
@@ -127,8 +136,10 @@ def main() -> int:
     if not INSTALL.is_file():
         print(f"{INSTALL} が無い", file=sys.stderr)
         return 1
-    if shutil.which("git") is None or shutil.which("tar") is None:
-        print("git / tar が無い環境では配布物を組み立てられない。skip")
+    # sh も要る。Windows では Git for Windows の sh が PATH に無いことがある
+    # （git.exe だけを PATH に足す入れ方）。
+    if any(shutil.which(c) is None for c in ("git", "tar", "sh")):
+        print("git / tar / sh が無い環境では配布物を組み立てられない。skip")
         return 3
 
     print("形 — 変数展開の直後に非 ASCII を置かない（macOS の sh が変数名に食う）")
@@ -156,7 +167,7 @@ def main() -> int:
         target.mkdir()
         env = dict(os.environ, WORKOS_REGISTRY=str(tmp / "no-registry"))
         env.pop("WORKOS_GATE_PYTHON", None)
-        out = subprocess.run([str(shim), str(target), "--json"],
+        out = subprocess.run([*as_exec(shim), str(target), "--json"],
                              capture_output=True, text=True, env=env, timeout=120)
         import json
         try:
@@ -209,10 +220,13 @@ def main() -> int:
         up_shim = tmp / "up" / "bin" / "workos-gate"
         check("  前に入っていた shim も残る", up_shim.is_file() and os.access(up_shim, os.X_OK))
         check("  戻した shim が判定を返す",
-              subprocess.run([str(up_shim), str(target), "--json"], capture_output=True,
+              subprocess.run([*as_exec(up_shim), str(target), "--json"], capture_output=True,
                              text=True, env=env, timeout=120).stdout.startswith("["))
 
         # $SHIM がディレクトリのときは、入れ替える前に落ちること。
+        # 書き込みを戻してから消す。Windows は読み取り専用のファイルを unlink できない
+        # （Mac / Linux はディレクトリに書ければ消せるので、どちらでも同じ結果になる）。
+        up_shim.chmod(0o700)
         up_shim.unlink()
         up_shim.mkdir()
         r = run_install(tmp, good, "up")

@@ -21,7 +21,7 @@ README と実装の「合致」そのものは機械では判定できない。�
 
 from __future__ import annotations
 
-import os
+import posixpath
 import re
 from typing import Callable
 
@@ -62,7 +62,9 @@ def _blocks(lines: list[str]):
 
 
 def _norm(cwd: str, token: str) -> str:
-    return os.path.normpath(os.path.join(cwd, token)) if cwd else os.path.normpath(token)
+    # 道は git の道（区切りは /）と突き合わせるので、posixpath で揃える。os.path だと
+    # Windows では区切りが \ になり、木に在るものを全部「無い」と言った（実測 2026-11）。
+    return posixpath.normpath(posixpath.join(cwd, token)) if cwd else posixpath.normpath(token)
 
 
 def _enter(cwd: str | None, target: str, present: Present, beside: Present) -> str | None:
@@ -134,7 +136,7 @@ def erased_refs(lines: list[str], base: str, present: Present,
             bare = bare.rstrip("/")
             if PLACEHOLDER.search(tok) or not PATHLIKE.match(tok) or "/" not in bare:
                 continue
-            for path in dict.fromkeys((_norm(base, bare), os.path.normpath(bare))):
+            for path in dict.fromkeys((_norm(base, bare), posixpath.normpath(bare))):
                 if path.startswith("..") or present(path):
                     break
                 if path in erased or path in erased_dirs:

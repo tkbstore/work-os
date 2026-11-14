@@ -355,12 +355,26 @@ with tempfile.TemporaryDirectory() as td:
     build(reg, fleet)
     v = purpose_of_toml(catalog, "main-repo-topic")
     check("detached なら枝の名前を出さない", "ブランチ" not in v, v)
-    (gitdir / "HEAD").chmod(0)
-    try:
-        build(reg, fleet)
-        v = purpose_of_toml(catalog, "main-repo-topic")
-    finally:
-        (gitdir / "HEAD").chmod(0o644)
+    head = gitdir / "HEAD"
+    if sys.platform == "win32":
+        # Windows の chmod(0) は読み取り専用の属性を立てるだけで、読めてしまう。
+        # 読むと OSError になる形（同じ名前のディレクトリ）で読めない HEAD を作る。
+        saved = head.read_bytes()
+        head.unlink()
+        head.mkdir()
+        try:
+            build(reg, fleet)
+            v = purpose_of_toml(catalog, "main-repo-topic")
+        finally:
+            head.rmdir()
+            head.write_bytes(saved)
+    else:
+        head.chmod(0)
+        try:
+            build(reg, fleet)
+            v = purpose_of_toml(catalog, "main-repo-topic")
+        finally:
+            head.chmod(0o644)
     check("HEAD を読めなければ、読めなかったと言う", "読めなかった" in v, v)
 
     # submodule は worktree ではない（同じ .git ファイル形式だが別物）
