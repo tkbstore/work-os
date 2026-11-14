@@ -29,7 +29,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from functools import lru_cache
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from workos import _load_toml, iter_repo_dirs, registry_root  # noqa: E402
@@ -1342,13 +1342,15 @@ def obs_doc_refs_resolve(root: Path, chk: dict, ctx: dict) -> tuple[str, str, li
     if not target.is_file():
         return NA, f"{rel} が無い（在るかは readme_exists が見る）", []
     files = {r for r, _ in ctx["files"]}
-    dirs = {str(p) for r in files for p in Path(r).parents if str(p) != "."}
+    # 追跡ファイルの道は git の形（区切りは /）。Path で親を取ると Windows では \ になり、
+    # doc_refs が作る / の道と食い違う（Mac / Linux では Path と同じ結果）。
+    dirs = {str(p) for r in files for p in PurePosixPath(r).parents if str(p) != "."}
     present = (files | dirs).__contains__
     erased_log = _git_out(root, ["log", "--no-renames", "--diff-filter=D",
                                  "--name-only", "--format="])
     erased = {ln for ln in (erased_log or "").splitlines() if ln.strip()}
     lines = (read_text(target) or "").splitlines()
-    base = str(Path(rel).parent) if "/" in rel else ""
+    base = str(PurePosixPath(rel).parent) if "/" in rel else ""
 
     def beside(p: str) -> bool:
         return (root.parent / p).is_dir()

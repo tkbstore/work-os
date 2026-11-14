@@ -30,7 +30,6 @@ import argparse
 import hashlib
 import json
 import re
-import shutil
 import sys
 import tempfile
 from datetime import date
@@ -56,10 +55,15 @@ def gate_fingerprint(lanes_cfg: dict) -> str:
 
     結果だけを保存すると、ゲートを直した後も古い結果のまま「通っている」と読めてしまう。
     指紋が今のゲートと違う結果は、今のゲートについて何も言わない。
+
+    ファイルは改行を LF に揃えてから読む。Git for Windows は既定（core.autocrlf=true）で
+    CRLF で checkout するので、生のバイトで取ると中身が同じでも指紋が変わり、
+    Windows の clone では記録した結果が全部「今のゲートで測っていない」になる。
+    LF の木（Mac / Linux）では何も変わらない。
     """
     h = hashlib.sha256()
     for name in GATE_SOURCES:
-        h.update((ENGINE / name).read_bytes())
+        h.update(_lf_bytes(ENGINE / name))
     h.update(json.dumps(lanes_cfg, sort_keys=True, ensure_ascii=False, default=str).encode())
     refs = sorted({str(chk["patterns_from"]) for lane in lanes_cfg.get("lanes", {}).values()
                    for chk in lane.get("checks", []) if chk.get("patterns_from")})
@@ -67,11 +71,17 @@ def gate_fingerprint(lanes_cfg: dict) -> str:
         for folder in (release_gate.LANES_DEFAULT.parent, release_gate.REGISTRY):
             p = Path(folder) / ref
             if p.is_file():
-                h.update(p.read_bytes())
+                h.update(_lf_bytes(p))
     # 人の判定の記録も判定基準の一部。記録を足したら、前の結果は今の基準で測っていない。
     if calibrate.CLEARED_FILE.is_file():
-        h.update(calibrate.CLEARED_FILE.read_bytes())
+        h.update(_lf_bytes(calibrate.CLEARED_FILE))
     return h.hexdigest()[:16]
+
+
+def _lf_bytes(path: Path) -> bytes:
+    return path.read_bytes().replace(b"\r\n", b"\n")
+
+
 DEFAULT_MAX_MB = 400
 UNSAFE = re.compile(r"[^A-Za-z0-9._-]+")
 
@@ -96,7 +106,7 @@ def audit(decl: dict, seen: upstream.Seen, cache: Path, lanes_cfg: dict,
         return _audit_at(decl, seen, dest, lanes_cfg)
     finally:
         if not keep:
-            shutil.rmtree(dest, ignore_errors=True)
+            calibrate.remove_tree(dest)
 
 
 def _audit_at(decl: dict, seen: upstream.Seen, dest: Path, lanes_cfg: dict) -> dict:
@@ -201,7 +211,7 @@ def write_results(results: list[dict], base: Path = AUDITS_DIR) -> list[Path]:
     for r in results:
         p = audit_path(r["key"], r["version"], base)
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps(r, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        p.write_bytes((json.dumps(r, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
         paths.append(p)
     return paths
 

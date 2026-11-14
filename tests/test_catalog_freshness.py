@@ -80,7 +80,10 @@ with tempfile.TemporaryDirectory() as td:
     check("いつ数えたかが在る", re.search(r'generated_at\s*=\s*"\d{4}-\d{2}-\d{2}T', body) is not None,
           body[:400])
     # build は根を resolve() してから書く（macOS では /var が /private/var になる）。
-    check("どこで数えたかが在る", f'root         = "{fleet.resolve()}"' in body, body[:400])
+    # 値は TOML の基本文字列なので、\ は \\ で書かれる。Windows のパスはこれを含むので、
+    # 生のパスで当てると書けていても落ちる（Mac / Linux のパスには \ が無く、同じ結果）。
+    toml_root = str(fleet.resolve()).replace("\\", "\\\\")
+    check("どこで数えたかが在る", f'root         = "{toml_root}"' in body, body[:400])
     check("何本数えたかが在る", "repo_count   = 2" in body, body[:400])
     check("git を要求して数えたことが在る", "require_git  = true" in body, body[:400])
     # 件数だけを書いていた旧ヘッダの行が残っていないこと。残っていると、比べられない

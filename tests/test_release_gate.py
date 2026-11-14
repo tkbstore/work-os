@@ -75,7 +75,10 @@ def a_private_term(group: str = "clients") -> str:
 # ので、見本の形を避けた乱数の形にする。
 FAKE_KEY = "AKIA" + "Q4WUJXFVTTKXBAWT"
 BARE_EXCEPT = "    " + "except" + ":\n        " + "pass\n"
-HOME_PATH = str(Path.home()) + "/somewhere/"
+# as_posix: 検査（no_absolute_home_paths の pattern）が探すのは / で区切ったホームである。
+# Windows の str(Path.home()) は \ で区切られるので、そのままでは見本が見本にならない
+# （Mac / Linux では str と同じ）。
+HOME_PATH = Path.home().as_posix() + "/somewhere/"
 
 
 def defective_source() -> str:
@@ -1061,11 +1064,27 @@ def main() -> int:
              states(res).get("no_secrets") == "fail", detail=str(states(res).get("no_secrets")))
 
         locked = build(Path(td) / "locked", {**HEALTHY_FILES, "src/locked.py": "x = 1\n"})
-        (locked / "src" / "locked.py").chmod(0)
-        try:
-            _, res = run(locked, "--assume-public")
-        finally:
-            (locked / "src" / "locked.py").chmod(0o644)
+        locked_file = locked / "src" / "locked.py"
+        if sys.platform == "win32":
+            # Windows の chmod(0) は読み取り専用の属性を立てるだけで、読めてしまう。
+            # chmod(0) にあたるのは ACL で読みを拒むこと（icacls は Windows に標準で在る）。
+            # *S-1-1-0 は Everyone。名前で書くと言語版で変わるので SID で書く。拒むのは
+            # 中身の読み（RD）だけにする。R だと ACL も読めなくなり、後で戻せない。
+            # ディレクトリに置き換える手は使えない（ゲートはファイルだけを数える）。
+            # 中身に鍵をかける手も使えない（ゲートは「開けるか」で見ている）。
+            subprocess.run(["icacls", str(locked_file), "/deny", "*S-1-1-0:(RD)"],
+                           check=True, capture_output=True)
+            try:
+                _, res = run(locked, "--assume-public")
+            finally:
+                subprocess.run(["icacls", str(locked_file), "/remove:d", "*S-1-1-0"],
+                               check=True, capture_output=True)
+        else:
+            locked_file.chmod(0)
+            try:
+                _, res = run(locked, "--assume-public")
+            finally:
+                locked_file.chmod(0o644)
         f = next((f for l in (res[0]["lanes"] if res else []) for f in l["findings"]
                   if f["id"] == "no_secrets"), {})
         seen("読めないファイルがあれば、該当なしと言わない",

@@ -138,17 +138,20 @@ def collect(root: Path, pattern: str) -> list[tuple[str, Path]]:
     無いことがある。追跡で絞ると「渡るのに見ていない」が生まれる。漏れは宣言範囲の
     外から入って成果物に現れるので、渡るものをそのまま見る。
     """
+    # 道は / で揃える。記録（audit の cleared）と宣言は / で書かれるので、Windows で
+    # str() のまま \ の道を返すと、記録した判定が1件も当たらなくなる（Mac / Linux では
+    # str() と同じ）。
     target = root / pattern
     if target.is_file():
         return [(pattern, target)]
     if target.is_dir():
-        return sorted((str(p.relative_to(root)), p)
+        return sorted((p.relative_to(root).as_posix(), p)
                       for p in target.rglob("*") if p.is_file())
     out = []
     for p in root.rglob("*"):
         if not p.is_file():
             continue
-        rel = str(p.relative_to(root))
+        rel = p.relative_to(root).as_posix()
         if fnmatch.fnmatch(rel, pattern):
             out.append((rel, p))
     return sorted(out)
@@ -266,7 +269,7 @@ def check_text(src: str) -> int:
         except OSError as exc:
             print(f"  NG  読めません: {src}（{exc}）")
             return 3
-        target.write_text(body, encoding="utf-8")
+        target.write_bytes(body.encode("utf-8"))
         item = observe(Path(td), Deliverable(path="text", title=src))
     if item.unread:
         print(f"  --  判定できません: {', '.join(item.unread[:MAX_EXAMPLES])}")

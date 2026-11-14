@@ -264,16 +264,14 @@ def record(repo: str, target: str, declaration: str, why: str,
               file=sys.stderr)
         return 2
     if not where.is_file():
-        where.write_text(
-            "# audit.toml — 人が実物を見て下した判定の記録。config 層。\n"
+        where.write_bytes(("# audit.toml — 人が実物を見て下した判定の記録。config 層。\n"
             "#\n"
             "# 鍵は行の本文のハッシュ（line_key）。行番号は鍵に入れない——行が動い\n"
             "# ただけで抑制が静かに外れるため。行の中身が変われば失効する。\n"
             "# verdict = \"cleared\" だけが抑制する。\"leak\" は記録であって免除ではない。\n"
             "# 1件が抑制できるのは1つの (path, declaration, line_key) だけ。\n"
-            "# 書き足すときは engine/audit.py --clear を使う（鍵は手では作れない）。\n",
-            encoding="utf-8")
-    with where.open("a", encoding="utf-8") as fh:
+            "# 書き足すときは engine/audit.py --clear を使う（鍵は手では作れない）。\n").encode("utf-8"))
+    with where.open("a", encoding="utf-8", newline="\n") as fh:
         fh.write("\n[[entry]]\n")
         for key, val in (("repo", entry.repo), ("path", entry.path),
                          ("declaration", entry.declaration),
