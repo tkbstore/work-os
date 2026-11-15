@@ -157,7 +157,7 @@ def main(argv: list[str] | None = None) -> int:
         print("docs/index.html は最新です")
         return 0
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(page, encoding="utf-8")
+    OUT.write_bytes(page.encode("utf-8"))
     print(f"書き出し: {OUT.relative_to(ROOT)}")
     return 0
 

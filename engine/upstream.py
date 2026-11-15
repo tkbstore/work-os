@@ -199,7 +199,7 @@ def load_seen(path: Path = SEEN_FILE) -> dict[str, Seen]:
 def write_seen(seen: dict[str, Seen], path: Path = SEEN_FILE) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     body = {k: {"version": v.version, "commit": v.commit} for k, v in sorted(seen.items())}
-    path.write_text(json.dumps(body, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    path.write_bytes((json.dumps(body, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
 
 
 def survey(decls: list[dict], seen: dict[str, Seen],

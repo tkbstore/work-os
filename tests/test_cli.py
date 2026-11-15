@@ -17,6 +17,7 @@ subprocess の終了コードで見る。
 from __future__ import annotations
 
 import ast
+import os
 import subprocess
 import sys
 import tempfile
@@ -249,24 +250,46 @@ for name in cli.entries():
 # 検査は何も言わない。だから実体を repo に持ち、ここで見る。
 SHIM = ROOT / "scripts" / "workos"
 SHIM_CMD = ROOT / "scripts" / "workos.cmd"
-with tempfile.TemporaryDirectory() as td:
-    bin_dir = Path(td) / "bin"
-    bin_dir.mkdir()
-    # ~/.local/bin に置くのと同じ形。リンクを2段にして、辿る処理を空回りさせない。
-    (bin_dir / "workos").symlink_to(SHIM)
-    (bin_dir / "workos2").symlink_to("workos")
-    shim_run = subprocess.run([str(bin_dir / "workos2")], capture_output=True, text=True,
-                              cwd=td, timeout=60)
-    check("リンク越しの shim が、別のディレクトリから一覧を出す",
-          shim_run.returncode == 0 and "release-gate" in shim_run.stdout,
-          shim_run.stderr[-300:])
-    gone = subprocess.run([str(bin_dir / "workos")], capture_output=True, text=True,
-                          cwd=td, timeout=60,
-                          env={"PATH": "/usr/bin:/bin", "WORKOS_HOME": str(Path(td) / "none")})
-    check("作業ツリーが無ければ shim は落ちる", gone.returncode != 0, gone.stdout[-200:])
+if sys.platform == "win32":
+    # Windows は sh の shim を起動できない（CreateProcess は shebang を読まず、
+    # WinError 193 になる）。README のとおり scripts を PATH に足すと呼ばれるのは
+    # workos.cmd なので、そちらを実走させる。リンクは張らない（README も張らせない）。
+    # python は既定の `py -3` ではなく、いまのものを渡す。py ランチャーの有無で
+    # 結果が変わる検査にしない。
+    # 読みは utf-8 と明示する。workos.cmd は子を UTF-8 モードで走らせるので、
+    # こちらが cp932 のまま text=True で読むと復号に失敗し、stdout が None になる。
+    with tempfile.TemporaryDirectory() as td:
+        env = dict(os.environ, WORKOS_PYTHON=f'"{sys.executable}"')
+        env.pop("WORKOS_HOME", None)
+        shim_run = subprocess.run([str(SHIM_CMD)], capture_output=True, encoding="utf-8",
+                                  cwd=td, timeout=60, env=env)
+        check("workos.cmd が、別のディレクトリから一覧を出す",
+              shim_run.returncode == 0 and "release-gate" in shim_run.stdout,
+              (shim_run.stderr or "")[-300:])
+        gone = subprocess.run([str(SHIM_CMD)], capture_output=True, encoding="utf-8",
+                              cwd=td, timeout=60,
+                              env=dict(env, WORKOS_HOME=str(Path(td) / "none")))
+        check("作業ツリーが無ければ workos.cmd は落ちる", gone.returncode != 0,
+              (gone.stdout or "")[-200:])
+else:
+    with tempfile.TemporaryDirectory() as td:
+        bin_dir = Path(td) / "bin"
+        bin_dir.mkdir()
+        # ~/.local/bin に置くのと同じ形。リンクを2段にして、辿る処理を空回りさせない。
+        (bin_dir / "workos").symlink_to(SHIM)
+        (bin_dir / "workos2").symlink_to("workos")
+        shim_run = subprocess.run([str(bin_dir / "workos2")], capture_output=True, text=True,
+                                  cwd=td, timeout=60)
+        check("リンク越しの shim が、別のディレクトリから一覧を出す",
+              shim_run.returncode == 0 and "release-gate" in shim_run.stdout,
+              shim_run.stderr[-300:])
+        gone = subprocess.run([str(bin_dir / "workos")], capture_output=True, text=True,
+                              cwd=td, timeout=60,
+                              env={"PATH": "/usr/bin:/bin", "WORKOS_HOME": str(Path(td) / "none")})
+        check("作業ツリーが無ければ shim は落ちる", gone.returncode != 0, gone.stdout[-200:])
 
-# workos.cmd は Mac では走らない。cmd.exe が読める形かどうかだけを見る
-# （実走は README「Windows で確かめる」）。
+# workos.cmd の形も見る。Mac / Linux では走らせられないので、そこではこれだけが検査になる。
+# cmd.exe が読める形か（Windows では上で実走もさせる）。
 raw = SHIM_CMD.read_bytes()
 check("workos.cmd は ASCII だけで書く（cmd.exe は cp932 で読む）",
       all(b < 0x80 for b in raw))

@@ -16,6 +16,8 @@ correctness レーンの test_passes は宣言されたコマンドしか走ら�
 
 from __future__ import annotations
 
+import locale
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -28,6 +30,28 @@ SKIPPED = 3
 def discover() -> list[Path]:
     """自分自身を除く test_*.py を名前順に返す。"""
     return sorted(p for p in HERE.glob("test_*.py") if p.name != Path(__file__).name)
+
+
+def child_env() -> dict[str, str]:
+    """テストに渡す環境。ロケールが UTF-8 でなければ UTF-8 モードを立てる。
+
+    work-os の中身（ソース・出力・git の出力）は UTF-8 で、それを前提に書かれている。
+    Windows の既定（日本語なら cp932）では2通りに落ちた（実測 2026-11, Python 3.14）。
+      - 「—」を print できずに UnicodeEncodeError（25 本中 10 本以上）
+      - UTF-8 で書く子（git・UTF-8 モードの python）の出力を、親が text=True で
+        cp932 として読み、復号に失敗して stdout が None になる
+    どちらも1か所ずつ直すと、次に書かれる print と subprocess がまた踏む。
+    scripts/workos.cmd と同じく、環境変数で立てて子のプロセスまで効かせる
+    （-X utf8 は1プロセスにしか効かない）。Python 3.15 からはこれが既定になる（PEP 686）。
+
+    ロケールが UTF-8 の Mac / Linux では何も変えない。PYTHONUTF8 が既に
+    立っていれば（0 でも）そちらを使う。
+    """
+    env = dict(os.environ)
+    utf8_locale = locale.getpreferredencoding(False).lower().replace("-", "") == "utf8"
+    if sys.flags.utf8_mode or not utf8_locale:
+        env.setdefault("PYTHONUTF8", "1")
+    return env
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -43,9 +67,10 @@ def main(argv: list[str] | None = None) -> int:
 
     failed: list[str] = []
     skipped: list[str] = []
+    env = child_env()
     for t in targets:
         print(f"\n{'=' * 70}\n{t.name}\n{'=' * 70}")
-        code = subprocess.run([sys.executable, str(t)]).returncode
+        code = subprocess.run([sys.executable, str(t)], env=env).returncode
         if code == SKIPPED:
             skipped.append(t.name)
         elif code != 0:

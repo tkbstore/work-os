@@ -212,8 +212,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.write:
         today = dt.date.today().isoformat()
         path = calibrate.CORPUS_FILE
-        path.write_text(checked_append(path.read_text(encoding="utf-8"), args.group,
-                                       picked, today), encoding="utf-8")
+        path.write_bytes((checked_append(path.read_text(encoding="utf-8"), args.group,
+                                        picked, today)).encode("utf-8"))
         print(f"書き込み: {path}（frozen_on = {today}）")
     return 0
 

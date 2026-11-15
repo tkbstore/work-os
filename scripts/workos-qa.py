@@ -16,6 +16,8 @@ work-os は「他リポを検査する側」なので、自分に当てていな
 
 from __future__ import annotations
 
+import locale
+import os
 import subprocess
 import sys
 import time
@@ -90,8 +92,22 @@ GATES: list[tuple[str, list[str], str]] = [
 ]
 
 
+def child_env() -> dict[str, str]:
+    """ロケールが UTF-8 でなければ UTF-8 モードを立てた環境（tests/run_all.py と同じ）。
+
+    ゲートは「—」を print し、UTF-8 の出力を読む。Windows の既定（cp932）では
+    どのゲートも中身と無関係に落ちる。Mac / Linux（UTF-8 のロケール）では何も変えない。
+    """
+    env = dict(os.environ)
+    utf8_locale = locale.getpreferredencoding(False).lower().replace("-", "") == "utf8"
+    if sys.flags.utf8_mode or not utf8_locale:
+        env.setdefault("PYTHONUTF8", "1")
+    return env
+
+
 def main() -> int:
     worst = 0
+    env = child_env()
     deadline = time.monotonic() + BUDGET
     for name, cmd, severity in GATES:
         left = deadline - time.monotonic()
@@ -101,8 +117,10 @@ def main() -> int:
             worst = max(worst, UNVERIFIABLE)
             continue
         try:
-            proc = subprocess.run(cmd, cwd=ROOT, capture_output=True,
-                                  text=True, timeout=left)
+            # 子は UTF-8 で書くので、読みも utf-8 と明示する（cp932 で読むと復号に
+            # 失敗して stdout が None になる）。
+            proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, env=env,
+                                  encoding="utf-8", timeout=left)
         except subprocess.TimeoutExpired:
             print(f"[work-os-qa] {name}: 残り {left:.0f} 秒で打ち切りました"
                   f"（合計予算 {BUDGET} 秒。検査していません）", file=sys.stderr)

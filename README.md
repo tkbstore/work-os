@@ -91,6 +91,11 @@ workos release-gate <path-to-a-repo> --execute
 出力に含まれる「—」を書けずに落ち、git の出力にある UTF-8 のファイル名を読み違えるためです。
 shim を通さずに `py -3 engine\release_gate.py` を直接呼ぶときは、先に `$env:PYTHONUTF8 = "1"` を立てます。
 
+テストも同じく `py -3 tests\run_all.py` で回せます。`run_all.py` はロケールが UTF-8 でなければ
+子に `PYTHONUTF8=1` を立てるので、素の PowerShell からでも通ります。`tests\test_*.py` を
+1本だけ直接走らせるときは、先に `$env:PYTHONUTF8 = "1"` を立てます。`test_installer.py` は
+`install.sh` を Git for Windows の `sh` で走らせます（`sh` が PATH に無ければスキップします）。
+
 `--execute` が走らせるのは、対象のリポの `work.toml` に宣言されたコマンドそのものです。
 python.org のインストーラは `python3` という名前を置かないので、`python3 …` と宣言したリポは
 Windows ではコマンドが見つからずに落ちます。それはそのリポが Windows で動かないという観測です。

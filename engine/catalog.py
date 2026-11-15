@@ -373,7 +373,7 @@ def build(root: Path) -> int:
         out.append(f'terms   = [{", ".join(chr(34) + esc(t) + chr(34) for t in terms[:120])}]')
         out.append("")
     CATALOG.parent.mkdir(parents=True, exist_ok=True)
-    CATALOG.write_text("\n".join(out), encoding="utf-8")
+    CATALOG.write_bytes("\n".join(out).encode("utf-8"))
     total = sum(len(t) for _, _, t in rows)
     print(f"生成: {CATALOG}（{len(rows)} リポジトリ / 能力語 {total} 件）")
     if worktrees:
@@ -665,7 +665,7 @@ def set_purpose(pairs: list[str]) -> int:
             esc = text.replace("\\", "\\\\").replace('"', '\\"')
             new[i] = f'purpose = "{esc}"'
             done.append((name, before, text))
-    CATALOG.write_text("\n".join(new) + "\n", encoding="utf-8")
+    CATALOG.write_bytes(("\n".join(new) + "\n").encode("utf-8"))
     for name, before, after in done:
         print(f"{name}\n  旧: {before or '(空)'}\n  新: {after}")
     print(f"{len(done)} 件を書き換えました: {CATALOG}")

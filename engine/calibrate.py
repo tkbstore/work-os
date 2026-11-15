@@ -26,6 +26,7 @@ import argparse
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -94,6 +95,11 @@ GIT_ENV = {"GIT_LFS_SKIP_SMUDGE": "1"}
 
 
 def _git(args: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:
+    # Windows は道の長さに 260 文字の上限があり、深い木（基準のリポの1本）を checkout
+    # できずに「測れなかった」になる（Filename too long、実測 2026-11）。
+    # core.longpaths は Git for Windows の設定で、他の OS では付けない。
+    if sys.platform == "win32":
+        args = ["-c", "core.longpaths=true", *args]
     return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True,
                           timeout=CLONE_TIMEOUT, env={**os.environ, **GIT_ENV})
 
@@ -130,6 +136,29 @@ def _fetch_sha(slug: str, dest: Path, sha: str) -> str:
     return ""
 
 
+def remove_tree(path: Path) -> None:
+    """clone を消す。消せなかったものは黙って残す（ignore_errors=True と同じ向き）。
+
+    git は .git/objects の下を読み取り専用で書く。Windows は読み取り専用のファイルを
+    消せないので、ignore_errors=True の rmtree は .git の中身を半端に残したまま黙って
+    戻っていた。残った .git は「在るが壊れている」ので、次の取得が init を飛ばして
+    `not a git repository` で落ちる（実測 2026-11, tests/test_upstream_audit.py）。
+    書き込みを戻して1回だけやり直す。Mac / Linux はディレクトリに書ければ消せるので、
+    ここに来ない。
+    """
+    def retry(func, p, _exc) -> None:
+        try:
+            os.chmod(p, stat.S_IWRITE)
+            func(p)
+        except OSError:
+            pass
+
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=retry)
+    else:
+        shutil.rmtree(path, onerror=retry)
+
+
 def clone(slug: str, dest: Path, max_mb: int, sha: str = "") -> str:
     """浅く取得する。成功なら空文字、失敗なら理由を返す。
 
@@ -156,7 +185,7 @@ def clone(slug: str, dest: Path, max_mb: int, sha: str = "") -> str:
         return f"git を起動できない: {exc}"
     size_mb = sum(f.stat().st_size for f in dest.rglob("*") if f.is_file()) // (1024 * 1024)
     if size_mb > max_mb:
-        shutil.rmtree(dest, ignore_errors=True)
+        remove_tree(dest)
         return f"{size_mb}MB は上限 {max_mb}MB を超える"
     return ""
 
@@ -467,7 +496,7 @@ def main(argv: list[str] | None = None) -> int:
         RESULTS_DIR.mkdir(parents=True, exist_ok=True)
         stamp = str(corpus.get("corpus", {}).get("frozen_on", "unknown"))
         out = RESULTS_DIR / f"{stamp}.json"
-        out.write_text(json.dumps({
+        out.write_bytes((json.dumps({
             "frozen_on": stamp,
             "pinned_from": args.pin,
             "commits": commits,
@@ -481,7 +510,7 @@ def main(argv: list[str] | None = None) -> int:
             "gate_rates": gate_rates,
             "min_gap": min_gap,
             "agent_lane_min_gap": agent_gap,
-        }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        }, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
         print(f"\n書き出し: {out.relative_to(ROOT)}")
     return 0
 

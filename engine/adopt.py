@@ -174,7 +174,7 @@ def main() -> int:
             continue
         content = build(repo, args.domain_repo, args.kernel_version)
         if args.write:
-            dest.write_text(content, encoding="utf-8")
+            dest.write_bytes(content.encode("utf-8"))
             print(f"write {repo.name}/work.toml")
         else:
             print(f"\n===== {repo.name}/work.toml =====")
